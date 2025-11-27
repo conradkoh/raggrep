@@ -1,77 +1,17 @@
-// Configuration utilities
-import { Config, ModuleConfig } from '../types';
-import { EmbeddingConfig, EmbeddingModelName, EMBEDDING_MODELS } from './embeddings';
+/**
+ * Configuration utilities
+ * 
+ * Provides functions for loading, saving, and managing RAGgrep configuration.
+ */
+
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import type { Config, ModuleConfig } from '../domain/entities';
+import { createDefaultConfig } from '../domain/entities';
+import { EmbeddingConfig, EmbeddingModelName, EMBEDDING_MODELS } from './embeddings';
 
-/**
- * Default paths to ignore during indexing.
- * Includes common build outputs, caches, and dependency folders.
- */
-export const DEFAULT_IGNORE_PATHS = [
-  // Package managers & dependencies
-  'node_modules',
-  '.pnpm-store',
-  '.yarn',
-  'vendor',        // Go vendor
-  
-  // Version control
-  '.git',
-  
-  // Build outputs
-  'dist',
-  'build',
-  'out',
-  '.output',
-  'target',        // Rust/Java
-  
-  // Framework-specific build outputs
-  '.next',
-  '.nuxt',
-  '.svelte-kit',
-  '.vercel',
-  '.netlify',
-  
-  // Caches
-  '.cache',
-  '.turbo',
-  '.parcel-cache',
-  '.eslintcache',
-  
-  // Test & coverage
-  'coverage',
-  '.nyc_output',
-  
-  // Python
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.pytest_cache',
-  '*.egg-info',
-  
-  // IDE & editor
-  '.idea',
-  
-  // RAGgrep index
-  '.raggrep',
-];
-
-export const DEFAULT_CONFIG: Config = {
-  version: '0.1.0',
-  indexDir: '.raggrep',
-  extensions: ['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.md'],
-  ignorePaths: DEFAULT_IGNORE_PATHS,
-  modules: [
-    {
-      id: 'semantic',
-      enabled: true,
-      options: {
-        // Use local embedding model (auto-downloaded on first run)
-        embeddingModel: 'all-MiniLM-L6-v2',
-      },
-    },
-  ],
-};
+/** Default configuration instance */
+export const DEFAULT_CONFIG: Config = createDefaultConfig();
 
 /**
  * Get the root .raggrep directory path

@@ -10,49 +10,11 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BM25Index, tokenize } from './bm25';
-import type { ChunkType } from '../types';
+import { BM25Index } from './bm25';
+import type { FileSummary, Tier1Manifest } from '../domain/entities';
 
-/**
- * Tier 1: File-level summary for fast filtering
- */
-export interface FileSummary {
-  /** Source file path */
-  filepath: string;
-  /** Number of chunks in this file */
-  chunkCount: number;
-  /** Types of chunks present (function, class, interface, etc.) */
-  chunkTypes: ChunkType[];
-  /** Extracted keywords from chunk names and content */
-  keywords: string[];
-  /** Names of exported symbols */
-  exports: string[];
-  /** Last modified timestamp */
-  lastModified: string;
-}
-
-/**
- * Tier 1: Complete manifest with all file summaries
- */
-export interface Tier1Manifest {
-  /** Schema version */
-  version: string;
-  /** Last updated timestamp */
-  lastUpdated: string;
-  /** Module ID this manifest belongs to */
-  moduleId: string;
-  /** File summaries indexed by filepath */
-  files: Record<string, FileSummary>;
-  /** Pre-tokenized data for BM25 (keywords per file) */
-  bm25Data: {
-    /** Average document length for BM25 */
-    avgDocLength: number;
-    /** Document frequencies for each term */
-    documentFrequencies: Record<string, number>;
-    /** Total number of documents */
-    totalDocs: number;
-  };
-}
+// Re-export domain types for convenience
+export type { FileSummary, Tier1Manifest } from '../domain/entities';
 
 /**
  * Extract keywords from chunk content and metadata

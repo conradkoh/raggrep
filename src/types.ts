@@ -1,110 +1,39 @@
-// Type definitions for the RAG system
-
-// ============================================================================
-// Core Data Types
-// ============================================================================
-
 /**
- * Types of code chunks that can be extracted
+ * Type definitions for the RAG system
+ * 
+ * This file re-exports domain entities and defines module interfaces.
+ * For new code, prefer importing directly from 'domain/entities'.
  */
-export type ChunkType = 
-  | 'function' 
-  | 'class' 
-  | 'interface' 
-  | 'type' 
-  | 'enum'
-  | 'variable'
-  | 'block' 
-  | 'file';
 
-/**
- * Represents a chunk of code or text that has been indexed
- */
-export interface Chunk {
-  /** Unique identifier for this chunk */
-  id: string;
-  /** The source code content */
-  content: string;
-  /** 1-based start line number */
-  startLine: number;
-  /** 1-based end line number */
-  endLine: number;
-  /** The type of code construct */
-  type: ChunkType;
-  /** Name of the construct (function name, class name, etc.) */
-  name?: string;
-  /** Whether this chunk is exported */
-  isExported?: boolean;
-  /** JSDoc comment if present */
-  jsDoc?: string;
-  /** Additional metadata */
-  metadata?: Record<string, unknown>;
-}
+// Re-export all domain entities for backwards compatibility
+export type {
+  Chunk,
+  ChunkType,
+  FileIndex,
+  FileManifestEntry,
+  ModuleManifest,
+  GlobalManifest,
+  FileSummary,
+  Tier1Manifest,
+  SearchResult,
+  SearchOptions,
+  Config,
+  ModuleConfig,
+} from './domain/entities';
 
-/**
- * Indexed data for a single file, produced by a specific module
- */
-export interface FileIndex {
-  filepath: string;
-  lastModified: string;
-  chunks: Chunk[];
-  /** Module-specific indexed data (e.g., embeddings, symbol tables, etc.) */
-  moduleData: Record<string, unknown>;
-  references?: string[];
-}
-
-/**
- * Manifest tracking all indexed files for a specific module
- */
-export interface ModuleManifest {
-  moduleId: string;
-  version: string;
-  lastUpdated: string;
-  files: { [filepath: string]: { lastModified: string; chunkCount: number } };
-}
-
-/**
- * Global manifest tracking all active modules
- */
-export interface GlobalManifest {
-  version: string;
-  lastUpdated: string;
-  modules: string[];
-}
-
-/**
- * A search result with score and source information
- */
-export interface SearchResult {
-  filepath: string;
-  chunk: Chunk;
-  score: number;
-  moduleId: string;
-  /** Additional context from the module */
-  context?: Record<string, unknown>;
-}
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-export interface Config {
-  version: string;
-  indexDir: string;
-  extensions: string[];
-  ignorePaths: string[];
-  modules: ModuleConfig[];
-}
-
-export interface ModuleConfig {
-  id: string;
-  enabled: boolean;
-  options?: Record<string, unknown>;
-}
+export {
+  createChunkId,
+  DEFAULT_SEARCH_OPTIONS,
+  DEFAULT_IGNORE_PATHS,
+  DEFAULT_EXTENSIONS,
+  createDefaultConfig,
+} from './domain/entities';
 
 // ============================================================================
 // Module System Interfaces
 // ============================================================================
+
+import type { Config, FileIndex, SearchResult, SearchOptions, ModuleConfig } from './domain/entities';
 
 /**
  * Context provided to modules during indexing
@@ -128,18 +57,6 @@ export interface SearchContext {
   loadFileIndex: (filepath: string) => Promise<FileIndex | null>;
   /** List all indexed files */
   listIndexedFiles: () => Promise<string[]>;
-}
-
-/**
- * Options for search operations
- */
-export interface SearchOptions {
-  /** Maximum number of results to return (default: 10) */
-  topK?: number;
-  /** Minimum similarity score threshold 0-1 (default: 0.15). Lower values return more results. */
-  minScore?: number;
-  /** Filter to specific file patterns */
-  filePatterns?: string[];
 }
 
 /**
