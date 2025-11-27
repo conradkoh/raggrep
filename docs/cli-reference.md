@@ -100,6 +100,10 @@ Results are sorted by relevance score and include:
 - Code type (function, class, file, etc.)
 - Preview of the matching code
 
+**Auto-indexing:**
+
+If the current directory has not been indexed, `raggrep query` will automatically run `raggrep index` first before searching. This makes it easy to start searching immediately without a separate indexing step.
+
 ---
 
 ### `raggrep cleanup`

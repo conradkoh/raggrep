@@ -160,6 +160,10 @@ Options:
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
   -h, --help           Show this help message
 
+Note:
+  If the current directory has not been indexed, raggrep will
+  automatically index it before searching.
+
 Examples:
   raggrep query "user authentication"
   raggrep query "handle errors" --top 5
@@ -170,6 +174,7 @@ Examples:
       }
 
       const { search, formatSearchResults } = await import('../search');
+      const { getIndexStatus, indexDirectory } = await import('../indexer');
       const query = flags.remaining[0];
       
       if (!query) {
@@ -178,9 +183,31 @@ Examples:
         process.exit(1);
       }
       
-      console.log('RAGgrep Search');
-      console.log('==============\n');
       try {
+        // Check if index exists, if not, create it first
+        const status = await getIndexStatus(process.cwd());
+        
+        if (!status.exists) {
+          console.log('No index found. Indexing directory first...\n');
+          console.log('RAGgrep Indexer');
+          console.log('================\n');
+          
+          const indexResults = await indexDirectory(process.cwd(), { 
+            model: flags.model,
+            verbose: false,
+          });
+          
+          console.log('\n================');
+          console.log('Summary:');
+          for (const result of indexResults) {
+            console.log(`  ${result.moduleId}: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`);
+          }
+          console.log('');
+        }
+        
+        console.log('RAGgrep Search');
+        console.log('==============\n');
+        
         // Build file patterns if type filter specified
         const filePatterns = flags.fileType ? [`*.${flags.fileType}`] : undefined;
         
