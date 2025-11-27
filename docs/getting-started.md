@@ -17,15 +17,6 @@ bun link
 
 After linking, the `raggrep` command will be available globally (ensure `~/.bun/bin` is in your PATH).
 
-### Running Directly
-
-You can also run raggrep directly without installing:
-
-```bash
-bun /path/to/raggrep/src/cli/main.ts index
-bun /path/to/raggrep/src/cli/main.ts query "your search"
-```
-
 ## First Run
 
 1. Navigate to your project directory:
@@ -89,6 +80,20 @@ The following directories are automatically ignored:
 - **Caches:** `.cache`, `.turbo`, `.parcel-cache`, `coverage`
 - **Python:** `__pycache__`, `.venv`, `venv`
 - **Other:** `.git`, `.idea`, `.raggrep`
+
+## How It Scales
+
+RAGgrep uses a tiered index system designed for large codebases:
+
+1. **Tier 1** (fast): Lightweight file summaries with keywords
+   - Used to quickly filter candidate files
+   - Persisted BM25 index for keyword matching
+   
+2. **Tier 2** (full): Chunk embeddings for semantic search
+   - Only loaded for files that pass Tier 1 filtering
+   - Keeps memory usage low even on large projects
+
+This means search performance depends on the number of *relevant* files, not the total codebase size.
 
 ## Next Steps
 
