@@ -109,7 +109,9 @@ export interface SearchContext {
  * Options for search operations
  */
 export interface SearchOptions {
+  /** Maximum number of results to return (default: 10) */
   topK?: number;
+  /** Minimum similarity score threshold 0-1 (default: 0.15). Lower values return more results. */
   minScore?: number;
   /** Filter to specific file patterns */
   filePatterns?: string[];

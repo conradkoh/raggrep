@@ -37,10 +37,12 @@ RAGgrep uses a modular architecture that separates indexing, storage, and search
 ### CLI (`src/cli/`)
 
 The command-line interface provides two main commands:
+
 - `index` - Triggers the indexing process
 - `query` - Performs semantic search
 
 **Files:**
+
 - `main.ts` - Entry point, argument parsing, command routing
 - `index.ts` - Standalone index command (legacy)
 - `query.ts` - Standalone query command (legacy)
@@ -50,6 +52,7 @@ The command-line interface provides two main commands:
 Coordinates the indexing process across all enabled modules.
 
 **Responsibilities:**
+
 - Find files matching configured extensions
 - Filter out ignored paths
 - Delegate indexing to each enabled module
@@ -57,6 +60,7 @@ Coordinates the indexing process across all enabled modules.
 - Write index data to `.raggrep/` directory
 
 **Key Functions:**
+
 - `indexDirectory(rootDir, options)` - Main entry point
 
 ### Search (`src/search/`)
@@ -64,12 +68,14 @@ Coordinates the indexing process across all enabled modules.
 Handles query processing and result aggregation.
 
 **Responsibilities:**
+
 - Load query embedding
 - Search across all module indexes
 - Aggregate and rank results
 - Format output
 
 **Key Functions:**
+
 - `search(rootDir, query, options)` - Main search function
 - `formatSearchResults(results)` - Format results for display
 
@@ -78,19 +84,29 @@ Handles query processing and result aggregation.
 Pluggable index modules that implement the `IndexModule` interface.
 
 **Current Modules:**
+
 - `semantic` - Text embeddings using Transformers.js
 
 **Module Interface:**
+
 ```typescript
 interface IndexModule {
   id: string;
   name: string;
   description: string;
   version: string;
-  
+
   initialize?(config: ModuleConfig): Promise<void>;
-  indexFile(filepath: string, content: string, ctx: IndexContext): Promise<FileIndex | null>;
-  search(query: string, ctx: SearchContext, options: SearchOptions): Promise<SearchResult[]>;
+  indexFile(
+    filepath: string,
+    content: string,
+    ctx: IndexContext
+  ): Promise<FileIndex | null>;
+  search(
+    query: string,
+    ctx: SearchContext,
+    options: SearchOptions
+  ): Promise<SearchResult[]>;
 }
 ```
 
@@ -99,6 +115,7 @@ interface IndexModule {
 Shared utilities used across the codebase.
 
 **Files:**
+
 - `config.ts` - Configuration loading and path utilities
 - `embeddings.ts` - Local embedding provider using Transformers.js
 
@@ -176,11 +193,13 @@ Each indexed file produces a JSON file with:
 RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for local embeddings.
 
 **Default Model:** `all-MiniLM-L6-v2`
+
 - 384 dimensions
 - ~23MB download
 - Good balance of speed and quality
 
 **Model Caching:**
+
 - Models downloaded on first use
 - Cached at `~/.cache/raggrep/models/`
 - Subsequent runs load from cache
@@ -189,14 +208,14 @@ RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for 
 
 The semantic module identifies these code structures:
 
-| Type | Description |
-|------|-------------|
-| `function` | Function/method declarations |
-| `class` | Class definitions |
-| `interface` | TypeScript interfaces |
-| `type` | TypeScript type aliases |
-| `import` | Import statements (grouped) |
-| `file` | Entire file (fallback for small files) |
+| Type        | Description                            |
+| ----------- | -------------------------------------- |
+| `function`  | Function/method declarations           |
+| `class`     | Class definitions                      |
+| `interface` | TypeScript interfaces                  |
+| `type`      | TypeScript type aliases                |
+| `import`    | Import statements (grouped)            |
+| `file`      | Entire file (fallback for small files) |
 
 ## Future Extensions
 

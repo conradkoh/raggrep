@@ -24,6 +24,15 @@ import {
 import { getEmbeddingConfigFromModule } from '../../utils/config';
 import { parseCode, generateChunkId } from './parseCode';
 
+/** Default minimum similarity score for search results */
+export const DEFAULT_MIN_SCORE = 0.15;
+
+/** Default number of results to return */
+export const DEFAULT_TOP_K = 10;
+
+/**
+ * Module-specific data stored alongside file index
+ */
 export interface SemanticModuleData {
   embeddings: number[][];
   /** Store the model used for these embeddings for compatibility checking */
@@ -92,12 +101,19 @@ export class SemanticModule implements IndexModule {
     };
   }
 
+  /**
+   * Search the semantic index for chunks matching the query
+   * @param query - Natural language search query
+   * @param ctx - Search context with index access
+   * @param options - Search options (topK, minScore)
+   * @returns Array of search results sorted by relevance
+   */
   async search(
     query: string,
     ctx: SearchContext,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
-    const { topK = 10, minScore = 0.2 } = options;
+    const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE } = options;
 
     // Get query embedding
     const queryEmbedding = await getEmbedding(query);

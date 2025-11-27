@@ -69,7 +69,7 @@ raggrep query <search query> [options]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--top <n>` | `-k` | Number of results to return (default: 10) |
-| `--min-score <n>` | `-s` | Minimum similarity score threshold 0-1 (default: 0.15) |
+| `--min-score <n>` | `-s` | Minimum similarity score threshold 0-1 (default: 0.15). Lower values return more results. |
 | `--help` | `-h` | Show help message |
 
 **Examples:**

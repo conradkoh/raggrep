@@ -97,6 +97,13 @@ Array of module configurations.
 |--------|------|---------|-------------|
 | `embeddingModel` | string | `"all-MiniLM-L6-v2"` | Embedding model to use |
 
+### Search Defaults
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `topK` | `10` | Number of results to return |
+| `minScore` | `0.15` | Minimum similarity threshold (0-1). Lower values return more results but may include less relevant matches. |
+
 **Available Models:**
 
 | Model | Size | Dimensions | Notes |
