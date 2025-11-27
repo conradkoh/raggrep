@@ -47,8 +47,8 @@ export interface FileSummary {
 
   /** ISO timestamp of when the file was last modified */
   lastModified: string;
-  
-  /** 
+
+  /**
    * Parsed path context for structural boosting.
    * Includes detected layer, domain, and path depth.
    */
