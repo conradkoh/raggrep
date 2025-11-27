@@ -24,7 +24,7 @@
     "build:clean": "rm -rf dist",
     "build:bundle": "bun build src/index.ts --outdir dist --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript' && bun build src/cli/main.ts --outdir dist/cli --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript'",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
-    "build:shebang": "echo '#!/usr/bin/env node' | cat - dist/cli/main.js > temp && mv temp dist/cli/main.js",
+    "build:shebang": "echo '#!/usr/bin/env node' | cat - dist/cli/main.js > temp && mv temp dist/cli/main.js && chmod +x dist/cli/main.js",
     "prepublishOnly": "bun run build",
     "raggrep": "bun run src/cli/main.ts",
     "test": "bun test",
