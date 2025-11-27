@@ -133,19 +133,30 @@ Shared utilities used across the codebase.
 5. Summary displayed to user
 ```
 
-### Search Flow
+### Search Flow (Hybrid Search)
+
+RAGgrep uses hybrid search combining semantic similarity and BM25 keyword matching:
 
 ```
 1. CLI parses query and options
 2. Search loads global manifest
 3. For each indexed module:
-   a. Query embedding generated
-   b. All indexed files loaded
-   c. Cosine similarity computed for each chunk
-   d. Results above threshold collected
-4. Results aggregated, sorted by score
+   a. Query embedding generated (semantic)
+   b. BM25 index built from chunk contents (keyword)
+   c. All indexed files loaded
+   d. For each chunk:
+      - Cosine similarity computed (semantic score)
+      - BM25 score computed (keyword score)
+      - Hybrid score = 0.7 × semantic + 0.3 × BM25
+   e. Results above threshold collected
+4. Results aggregated, sorted by hybrid score
 5. Top K results returned and displayed
 ```
+
+**Hybrid Scoring Benefits:**
+- Semantic search understands meaning and context
+- BM25 catches exact keyword matches that semantic might miss
+- Combined approach provides best of both worlds
 
 ## Index Structure
 
