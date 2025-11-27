@@ -18,6 +18,26 @@ if (command === '--version' || command === '-v') {
 }
 
 /**
+ * Format a date as a human-readable "time ago" string
+ */
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  
+  // For older dates, show the actual date
+  return date.toLocaleDateString();
+}
+
+/**
  * Parsed CLI flags from command line arguments
  */
 interface ParsedFlags {
@@ -292,31 +312,38 @@ Examples:
       try {
         const status = await getIndexStatus(process.cwd());
         
-        console.log('RAGgrep Status');
-        console.log('==============\n');
-        
         if (!status.exists) {
-          console.log('Status: Not indexed');
-          console.log(`\nDirectory: ${status.rootDir}`);
-          console.log('\nRun "raggrep index" to create an index.');
+          console.log(`
+┌─────────────────────────────────────────┐
+│  RAGgrep Status                         │
+├─────────────────────────────────────────┤
+│  ○ Not indexed                          │
+└─────────────────────────────────────────┘
+
+  Directory: ${status.rootDir}
+
+  Run "raggrep index" to create an index.
+`);
         } else {
-          console.log('Status: Indexed');
-          console.log(`\nDirectory: ${status.rootDir}`);
-          console.log(`Index location: ${status.indexDir}`);
+          const date = status.lastUpdated ? new Date(status.lastUpdated) : null;
+          const timeAgo = date ? formatTimeAgo(date) : 'unknown';
           
-          if (status.lastUpdated) {
-            const date = new Date(status.lastUpdated);
-            console.log(`Last updated: ${date.toLocaleString()}`);
-          }
-          
-          console.log(`\nTotal files: ${status.totalFiles}`);
-          
+          console.log(`
+┌─────────────────────────────────────────┐
+│  RAGgrep Status                         │
+├─────────────────────────────────────────┤
+│  ● Indexed                              │
+└─────────────────────────────────────────┘
+
+  Files:    ${status.totalFiles.toString().padEnd(10)} Updated: ${timeAgo}
+  Location: ${status.indexDir}
+`);
           if (status.modules.length > 0) {
-            console.log('\nModules:');
+            console.log('  Modules:');
             for (const mod of status.modules) {
-              const modDate = new Date(mod.lastUpdated);
-              console.log(`  ${mod.id}: ${mod.fileCount} files (updated ${modDate.toLocaleString()})`);
+              console.log(`    └─ ${mod.id} (${mod.fileCount} files)`);
             }
+            console.log('');
           }
         }
       } catch (error) {

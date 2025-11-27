@@ -1,6 +1,6 @@
 {
   "name": "raggrep",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local filesystem-based RAG system for codebases - semantic search using local embeddings",
   "type": "module",
   "main": "./dist/index.js",
