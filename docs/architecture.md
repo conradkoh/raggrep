@@ -44,8 +44,6 @@ The command-line interface provides two main commands:
 **Files:**
 
 - `main.ts` - Entry point, argument parsing, command routing
-- `index.ts` - Standalone index command (legacy)
-- `query.ts` - Standalone query command (legacy)
 
 ### Indexer (`src/indexer/`)
 

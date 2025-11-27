@@ -7,8 +7,8 @@
     "raggrep": "./src/cli/main.ts"
   },
   "scripts": {
-    "index": "bun run src/cli/index.ts",
-    "query": "bun run src/cli/query.ts"
+    "raggrep": "bun run src/cli/main.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.0",
