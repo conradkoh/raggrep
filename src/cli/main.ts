@@ -1,9 +1,21 @@
 // Main CLI entry point for raggrep
 
 import { EMBEDDING_MODELS, getCacheDir, type EmbeddingModelName } from '../utils/embeddings';
+import { createRequire } from 'module';
+
+// Read version from package.json
+const require = createRequire(import.meta.url);
+const pkg = require('../../package.json');
+const VERSION = pkg.version;
 
 const args = process.argv.slice(2);
 const command = args[0];
+
+// Handle --version / -v at top level (before any command)
+if (command === '--version' || command === '-v') {
+  console.log(`raggrep v${VERSION}`);
+  process.exit(0);
+}
 
 /**
  * Parsed CLI flags from command line arguments
@@ -229,7 +241,7 @@ Examples:
 
     default:
       console.log(`
-raggrep - Local filesystem-based RAG system for codebases
+raggrep v${VERSION} - Local filesystem-based RAG system for codebases
 
 Usage:
   raggrep <command> [options]
@@ -240,7 +252,8 @@ Commands:
   cleanup  Remove stale index entries for deleted files
 
 Options:
-  -h, --help   Show help for a command
+  -h, --help     Show help for a command
+  -v, --version  Show version number
 
 Examples:
   raggrep index

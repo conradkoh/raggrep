@@ -4,19 +4,19 @@
 
 RAGgrep is built around three core principles:
 
-| Goal | Description |
-|------|-------------|
-| **Local-first** | Runs entirely on your machine — no servers or external API calls. |
-| **Filesystem-based** | Index is just JSON files. Human-readable, debuggable, portable. |
-| **Persistent** | Index lives alongside your code. No rebuilding on every search. |
+| Goal                 | Description                                                       |
+| -------------------- | ----------------------------------------------------------------- |
+| **Local-first**      | Runs entirely on your machine — no servers or external API calls. |
+| **Filesystem-based** | Index is just JSON files. Human-readable, debuggable, portable.   |
+| **Persistent**       | Index lives alongside your code. No rebuilding on every search.   |
 
 Additional goals:
 
-| Goal | Description |
-|------|-------------|
+| Goal            | Description                                                                        |
+| --------------- | ---------------------------------------------------------------------------------- |
 | **Incremental** | Only re-indexes changed files. Fast updates via file watching or pre-commit hooks. |
-| **Transparent** | The index can be inspected, backed up, or versioned. |
-| **Scalable** | Optimized for small-to-medium codebases (1k–100k files). |
+| **Transparent** | The index can be inspected, backed up, or versioned.                               |
+| **Scalable**    | Optimized for small-to-medium codebases (1k–100k files).                           |
 
 ## Overview
 
@@ -91,12 +91,12 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 
 ### Why Two Tiers?
 
-| Problem | Solution |
-|---------|----------|
-| Loading all embeddings is slow | Symbolic index filters first, load only candidates |
-| Single large index file doesn't scale | Per-file storage, parallel reads |
-| BM25 rebuild on every search is expensive | Persist BM25 during indexing |
-| Memory grows with codebase size | Only relevant files loaded into memory |
+| Problem                                   | Solution                                           |
+| ----------------------------------------- | -------------------------------------------------- |
+| Loading all embeddings is slow            | Symbolic index filters first, load only candidates |
+| Single large index file doesn't scale     | Per-file storage, parallel reads                   |
+| BM25 rebuild on every search is expensive | Persist BM25 during indexing                       |
+| Memory grows with codebase size           | Only relevant files loaded into memory             |
 
 ## Data Flow
 
@@ -212,31 +212,31 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 
 Pure business logic with **no external dependencies**.
 
-| Component | Description |
-|-----------|-------------|
+| Component   | Description                                           |
+| ----------- | ----------------------------------------------------- |
 | `entities/` | Core data structures (Chunk, FileIndex, Config, etc.) |
-| `ports/` | Interfaces for external dependencies |
-| `services/` | Pure algorithms (BM25 search, keyword extraction) |
+| `ports/`    | Interfaces for external dependencies                  |
+| `services/` | Pure algorithms (BM25 search, keyword extraction)     |
 
 ### Infrastructure Layer (`src/infrastructure/`)
 
 Adapters implementing domain ports.
 
-| Adapter | Port | Implementation |
-|---------|------|----------------|
-| `NodeFileSystem` | `FileSystem` | Node.js `fs` and `path` |
-| `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js |
-| `FileIndexStorage` | `IndexStorage` | JSON file storage |
+| Adapter                         | Port                | Implementation          |
+| ------------------------------- | ------------------- | ----------------------- |
+| `NodeFileSystem`                | `FileSystem`        | Node.js `fs` and `path` |
+| `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js         |
+| `FileIndexStorage`              | `IndexStorage`      | JSON file storage       |
 
 ### Application Layer (`src/application/`)
 
 Use cases orchestrating domain and infrastructure.
 
-| Use Case | Description |
-|----------|-------------|
-| `indexDirectory` | Index a codebase |
-| `searchIndex` | Search the index |
-| `cleanupIndex` | Remove stale entries |
+| Use Case         | Description          |
+| ---------------- | -------------------- |
+| `indexDirectory` | Index a codebase     |
+| `searchIndex`    | Search the index     |
+| `cleanupIndex`   | Remove stale entries |
 
 ### Index Modules (`src/modules/`)
 
@@ -248,11 +248,19 @@ Pluggable modules implementing the `IndexModule` interface.
 interface IndexModule {
   id: string;
   name: string;
-  
+
   initialize?(config: ModuleConfig): Promise<void>;
-  indexFile(filepath: string, content: string, ctx: IndexContext): Promise<FileIndex | null>;
+  indexFile(
+    filepath: string,
+    content: string,
+    ctx: IndexContext
+  ): Promise<FileIndex | null>;
   finalize?(ctx: IndexContext): Promise<void>;
-  search(query: string, ctx: SearchContext, options: SearchOptions): Promise<SearchResult[]>;
+  search(
+    query: string,
+    ctx: SearchContext,
+    options: SearchOptions
+  ): Promise<SearchResult[]>;
 }
 ```
 
@@ -262,46 +270,47 @@ RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for 
 
 **Default Model:** `all-MiniLM-L6-v2`
 
-| Property | Value |
-|----------|-------|
-| Dimensions | 384 |
-| Download size | ~23MB |
+| Property       | Value                      |
+| -------------- | -------------------------- |
+| Dimensions     | 384                        |
+| Download size  | ~23MB                      |
 | Cache location | `~/.cache/raggrep/models/` |
 
 **Available Models:**
 
-| Model | Size | Notes |
-|-------|------|-------|
-| `all-MiniLM-L6-v2` | ~23MB | Default, good balance |
-| `all-MiniLM-L12-v2` | ~33MB | Higher quality |
-| `bge-small-en-v1.5` | ~33MB | Good for code |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest |
+| Model                     | Size  | Notes                 |
+| ------------------------- | ----- | --------------------- |
+| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
+| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
+| `bge-small-en-v1.5`       | ~33MB | Good for code         |
+| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
 
 ## Chunk Types
 
 The semantic module uses the TypeScript Compiler API for AST-based parsing.
 
-| Type | Description |
-|------|-------------|
-| `function` | Function declarations, arrow functions, async functions |
-| `class` | Class definitions |
-| `interface` | TypeScript interfaces |
-| `type` | TypeScript type aliases |
-| `enum` | Enum declarations |
-| `variable` | Exported constants/variables |
-| `block` | Code blocks (for non-TS files) |
-| `file` | Entire file (fallback for small files) |
+| Type        | Description                                             |
+| ----------- | ------------------------------------------------------- |
+| `function`  | Function declarations, arrow functions, async functions |
+| `class`     | Class definitions                                       |
+| `interface` | TypeScript interfaces                                   |
+| `type`      | TypeScript type aliases                                 |
+| `enum`      | Enum declarations                                       |
+| `variable`  | Exported constants/variables                            |
+| `block`     | Code blocks (for non-TS files)                          |
+| `file`      | Entire file (fallback for small files)                  |
 
 ## Performance Characteristics
 
-| Operation | Expected Time | Notes |
-|-----------|---------------|-------|
-| Initial indexing (1k files) | 1-2 min | Embedding generation is the bottleneck |
-| Incremental update (10 files) | <2s | Per-file writes only |
-| Search latency | ~100-500ms | Depends on candidate count |
-| Concurrent writes | Safe | Per-file updates, no global lock |
+| Operation                     | Expected Time | Notes                                  |
+| ----------------------------- | ------------- | -------------------------------------- |
+| Initial indexing (1k files)   | 1-2 min       | Embedding generation is the bottleneck |
+| Incremental update (10 files) | <2s           | Per-file writes only                   |
+| Search latency                | ~100-500ms    | Depends on candidate count             |
+| Concurrent writes             | Safe          | Per-file updates, no global lock       |
 
 **Scaling limits:**
+
 - Optimized for 1k–100k files
 - Beyond 100k files, consider sharding or dedicated vector databases
 
@@ -309,15 +318,15 @@ The semantic module uses the TypeScript Compiler API for AST-based parsing.
 
 ### Why Filesystem vs. SQLite?
 
-| Factor | Filesystem | SQLite |
-|--------|------------|--------|
-| Setup complexity | ⭐ Simple | ⭐ Simple |
-| Transparency | ⭐⭐⭐⭐ | ⭐ |
-| Incremental updates | ⭐⭐⭐⭐ | ⭐⭐ |
-| Bulk search speed | ⭐⭐ | ⭐⭐⭐⭐ |
-| Memory footprint | ⭐⭐⭐⭐ | ⭐⭐ |
-| Concurrency | ⭐⭐⭐⭐ | ⭐⭐ |
-| Debuggability | ⭐⭐⭐⭐ | ⭐ |
+| Factor              | Filesystem | SQLite    |
+| ------------------- | ---------- | --------- |
+| Setup complexity    | ⭐ Simple  | ⭐ Simple |
+| Transparency        | ⭐⭐⭐⭐   | ⭐        |
+| Incremental updates | ⭐⭐⭐⭐   | ⭐⭐      |
+| Bulk search speed   | ⭐⭐       | ⭐⭐⭐⭐  |
+| Memory footprint    | ⭐⭐⭐⭐   | ⭐⭐      |
+| Concurrency         | ⭐⭐⭐⭐   | ⭐⭐      |
+| Debuggability       | ⭐⭐⭐⭐   | ⭐        |
 
 **Verdict:** Filesystem wins for transparency, incremental updates, and debuggability. SQLite is better for complex queries and bulk operations.
 

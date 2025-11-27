@@ -134,6 +134,23 @@ raggrep cleanup --verbose
 
 ---
 
+### `raggrep --version`
+
+Show the current version of raggrep.
+
+```bash
+raggrep --version
+raggrep -v
+```
+
+**Example Output:**
+
+```
+raggrep v0.1.0
+```
+
+---
+
 ### `raggrep --help`
 
 Show general help and available commands.
