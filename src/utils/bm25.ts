@@ -178,3 +178,4 @@ export function normalizeScore(score: number, midpoint: number = 5): number {
   return 1 / (1 + Math.exp(-score / midpoint + 1));
 }
 
+

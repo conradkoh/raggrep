@@ -60,13 +60,23 @@ Array of directory/file names to ignore during indexing.
 
 **Default:**
 ```json
-["node_modules", ".git", "dist", "build", ".raggrep"]
+[
+  "node_modules", ".pnpm-store", ".yarn", "vendor",
+  ".git",
+  "dist", "build", "out", ".output", "target",
+  ".next", ".nuxt", ".svelte-kit", ".vercel", ".netlify",
+  ".cache", ".turbo", ".parcel-cache", ".eslintcache",
+  "coverage", ".nyc_output",
+  "__pycache__", ".venv", "venv", ".pytest_cache",
+  ".idea",
+  ".raggrep"
+]
 ```
 
 **Example - Add additional ignores:**
 ```json
 {
-  "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep", "coverage", "__tests__"]
+  "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep", "__tests__", "*.test.ts"]
 }
 ```
 

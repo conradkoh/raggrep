@@ -154,6 +154,7 @@ RAGgrep uses hybrid search combining semantic similarity and BM25 keyword matchi
 ```
 
 **Hybrid Scoring Benefits:**
+
 - Semantic search understands meaning and context
 - BM25 catches exact keyword matches that semantic might miss
 - Combined approach provides best of both worlds
@@ -218,20 +219,21 @@ RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for 
 The semantic module uses the TypeScript Compiler API for accurate AST-based parsing.
 It identifies these code structures:
 
-| Type        | Description                            |
-| ----------- | -------------------------------------- |
+| Type        | Description                                             |
+| ----------- | ------------------------------------------------------- |
 | `function`  | Function declarations, arrow functions, async functions |
-| `class`     | Class definitions                      |
-| `interface` | TypeScript interfaces                  |
-| `type`      | TypeScript type aliases                |
-| `enum`      | Enum declarations                      |
-| `variable`  | Exported constants/variables           |
-| `block`     | Code blocks (for non-TS files)         |
-| `file`      | Entire file (fallback for small files) |
+| `class`     | Class definitions                                       |
+| `interface` | TypeScript interfaces                                   |
+| `type`      | TypeScript type aliases                                 |
+| `enum`      | Enum declarations                                       |
+| `variable`  | Exported constants/variables                            |
+| `block`     | Code blocks (for non-TS files)                          |
+| `file`      | Entire file (fallback for small files)                  |
 
 ### Chunk Metadata
 
 Each chunk also includes:
+
 - **name** - The identifier name (function name, class name, etc.)
 - **isExported** - Whether the construct is exported
 - **jsDoc** - JSDoc comments if present

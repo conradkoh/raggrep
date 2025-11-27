@@ -84,11 +84,11 @@ By default, raggrep indexes these file types:
 - Markdown: `.md`
 
 The following directories are automatically ignored:
-- `node_modules`
-- `.git`
-- `dist`
-- `build`
-- `.raggrep`
+- **Dependencies:** `node_modules`, `.pnpm-store`, `.yarn`, `vendor`
+- **Build outputs:** `dist`, `build`, `out`, `target`, `.next`, `.nuxt`, `.svelte-kit`
+- **Caches:** `.cache`, `.turbo`, `.parcel-cache`, `coverage`
+- **Python:** `__pycache__`, `.venv`, `venv`
+- **Other:** `.git`, `.idea`, `.raggrep`
 
 ## Next Steps
 

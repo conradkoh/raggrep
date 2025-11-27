@@ -4,11 +4,63 @@ import { EmbeddingConfig, EmbeddingModelName, EMBEDDING_MODELS } from './embeddi
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
+/**
+ * Default paths to ignore during indexing.
+ * Includes common build outputs, caches, and dependency folders.
+ */
+export const DEFAULT_IGNORE_PATHS = [
+  // Package managers & dependencies
+  'node_modules',
+  '.pnpm-store',
+  '.yarn',
+  'vendor',        // Go vendor
+  
+  // Version control
+  '.git',
+  
+  // Build outputs
+  'dist',
+  'build',
+  'out',
+  '.output',
+  'target',        // Rust/Java
+  
+  // Framework-specific build outputs
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  '.vercel',
+  '.netlify',
+  
+  // Caches
+  '.cache',
+  '.turbo',
+  '.parcel-cache',
+  '.eslintcache',
+  
+  // Test & coverage
+  'coverage',
+  '.nyc_output',
+  
+  // Python
+  '__pycache__',
+  '.venv',
+  'venv',
+  '.pytest_cache',
+  '*.egg-info',
+  
+  // IDE & editor
+  '.idea',
+  
+  // RAGgrep index
+  '.raggrep',
+];
+
 export const DEFAULT_CONFIG: Config = {
   version: '0.1.0',
   indexDir: '.raggrep',
   extensions: ['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.md'],
-  ignorePaths: ['node_modules', '.git', 'dist', 'build', '.raggrep'],
+  ignorePaths: DEFAULT_IGNORE_PATHS,
   modules: [
     {
       id: 'semantic',
