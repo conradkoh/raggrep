@@ -72,13 +72,16 @@ export class SemanticModule implements IndexModule {
     const chunkContents = parsedChunks.map((c) => c.content);
     const embeddings = await getEmbeddings(chunkContents);
 
-    // Create chunks
+    // Create chunks with all metadata
     const chunks: Chunk[] = parsedChunks.map((pc) => ({
       id: generateChunkId(filepath, pc.startLine, pc.endLine),
       content: pc.content,
       startLine: pc.startLine,
       endLine: pc.endLine,
       type: pc.type,
+      name: pc.name,
+      isExported: pc.isExported,
+      jsDoc: pc.jsDoc,
     }));
 
     // Extract references (imports)

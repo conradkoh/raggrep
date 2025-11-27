@@ -5,14 +5,39 @@
 // ============================================================================
 
 /**
+ * Types of code chunks that can be extracted
+ */
+export type ChunkType = 
+  | 'function' 
+  | 'class' 
+  | 'interface' 
+  | 'type' 
+  | 'enum'
+  | 'variable'
+  | 'block' 
+  | 'file';
+
+/**
  * Represents a chunk of code or text that has been indexed
  */
 export interface Chunk {
+  /** Unique identifier for this chunk */
   id: string;
+  /** The source code content */
   content: string;
+  /** 1-based start line number */
   startLine: number;
+  /** 1-based end line number */
   endLine: number;
-  type: 'function' | 'class' | 'block' | 'file' | 'symbol';
+  /** The type of code construct */
+  type: ChunkType;
+  /** Name of the construct (function name, class name, etc.) */
+  name?: string;
+  /** Whether this chunk is exported */
+  isExported?: boolean;
+  /** JSDoc comment if present */
+  jsDoc?: string;
+  /** Additional metadata */
   metadata?: Record<string, unknown>;
 }
 

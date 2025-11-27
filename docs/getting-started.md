@@ -55,19 +55,22 @@ Searching for: "handle user login"
 
 Found 4 results:
 
-1. src/auth/authService.ts:24-55
-   Score: 34.4% | Module: semantic
-   Type: function
-   Preview:
+1. src/auth/authService.ts:24-55 (login)
+   Score: 34.4% | Type: function | exported
       export async function login(credentials: LoginCredentials): Promise<AuthResult> ...
+        const { email, password } = credentials;
 
-2. src/users/types.ts:1-29
-   Score: 29.8% | Module: semantic
-   Type: file
-   Preview:
-      // User types and interfaces
+2. src/users/types.ts:3-12 (User)
+   Score: 29.8% | Type: interface | exported
       export interface User {
+        id: string;
+        email: string;
 ```
+
+Results now include:
+- **Name** - The function/class/interface name in parentheses
+- **Type** - The kind of code construct (function, interface, type, etc.)
+- **Export status** - Whether the code is exported
 
 ## What Gets Indexed
 

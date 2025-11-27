@@ -160,6 +160,8 @@ async function loadGlobalManifest(rootDir: string, config: Config): Promise<Glob
 
 /**
  * Format search results for display
+ * @param results - Array of search results to format
+ * @returns Formatted string for console output
  */
 export function formatSearchResults(results: SearchResult[]): string {
   if (results.length === 0) {
@@ -170,15 +172,26 @@ export function formatSearchResults(results: SearchResult[]): string {
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
-    output += `${i + 1}. ${result.filepath}:${result.chunk.startLine}-${result.chunk.endLine}\n`;
-    output += `   Score: ${(result.score * 100).toFixed(1)}% | Module: ${result.moduleId}\n`;
-    output += `   Type: ${result.chunk.type}\n`;
-    output += `   Preview:\n`;
+    const { chunk } = result;
+    
+    // Format location with optional name
+    const location = `${result.filepath}:${chunk.startLine}-${chunk.endLine}`;
+    const nameInfo = chunk.name ? ` (${chunk.name})` : '';
+    
+    output += `${i + 1}. ${location}${nameInfo}\n`;
+    output += `   Score: ${(result.score * 100).toFixed(1)}% | Type: ${chunk.type}`;
+    
+    // Add export indicator
+    if (chunk.isExported) {
+      output += ' | exported';
+    }
+    output += '\n';
 
-    // Show first 3 lines of content
-    const lines = result.chunk.content.split('\n').slice(0, 3);
+    // Show preview (first 3 lines)
+    const lines = chunk.content.split('\n').slice(0, 3);
     for (const line of lines) {
-      output += `      ${line.substring(0, 80)}${line.length > 80 ? '...' : ''}\n`;
+      const trimmedLine = line.substring(0, 80);
+      output += `      ${trimmedLine}${line.length > 80 ? '...' : ''}\n`;
     }
 
     output += '\n';

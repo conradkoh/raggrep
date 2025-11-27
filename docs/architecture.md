@@ -204,16 +204,26 @@ RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for 
 
 ## Chunk Types
 
-The semantic module identifies these code structures:
+The semantic module uses the TypeScript Compiler API for accurate AST-based parsing.
+It identifies these code structures:
 
 | Type        | Description                            |
 | ----------- | -------------------------------------- |
-| `function`  | Function/method declarations           |
+| `function`  | Function declarations, arrow functions, async functions |
 | `class`     | Class definitions                      |
 | `interface` | TypeScript interfaces                  |
 | `type`      | TypeScript type aliases                |
-| `import`    | Import statements (grouped)            |
+| `enum`      | Enum declarations                      |
+| `variable`  | Exported constants/variables           |
+| `block`     | Code blocks (for non-TS files)         |
 | `file`      | Entire file (fallback for small files) |
+
+### Chunk Metadata
+
+Each chunk also includes:
+- **name** - The identifier name (function name, class name, etc.)
+- **isExported** - Whether the construct is exported
+- **jsDoc** - JSDoc comments if present
 
 ## Future Extensions
 
