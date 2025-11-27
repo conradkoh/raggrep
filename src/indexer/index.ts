@@ -97,6 +97,25 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
     const result = await indexWithModule(rootDir, files, module, config, verbose);
     results.push(result);
 
+    // Call finalize to build secondary indexes (Tier 1, BM25, etc.)
+    if (module.finalize) {
+      console.log(`[${module.name}] Building secondary indexes...`);
+      const ctx: IndexContext = {
+        rootDir,
+        config,
+        readFile: async (filepath: string) => {
+          const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
+          return fs.readFile(fullPath, 'utf-8');
+        },
+        getFileStats: async (filepath: string) => {
+          const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
+          const stats = await fs.stat(fullPath);
+          return { lastModified: stats.mtime.toISOString() };
+        },
+      };
+      await module.finalize(ctx);
+    }
+
     console.log(`[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`);
   }
 

@@ -2,8 +2,12 @@
  * Semantic Index Module
  * 
  * Uses local text embeddings for natural language code search.
- * Implements hybrid search combining semantic similarity and BM25 keyword matching.
- * Models are automatically downloaded on first use.
+ * Implements a tiered index system:
+ * - Tier 1: Lightweight file summaries with keywords for fast filtering
+ * - Tier 2: Full chunk embeddings for semantic similarity
+ * 
+ * This approach keeps the filesystem-based design while enabling
+ * efficient search by only loading relevant files.
  */
 
 import * as path from 'path';
@@ -16,6 +20,7 @@ import {
   SearchResult,
   Chunk,
   ModuleConfig,
+  ChunkType,
 } from '../../types';
 import {
   getEmbeddings,
@@ -26,8 +31,9 @@ import {
   getEmbeddingConfig,
 } from '../../utils/embeddings';
 import { BM25Index, normalizeScore } from '../../utils/bm25';
-import { getEmbeddingConfigFromModule } from '../../utils/config';
+import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../utils/config';
 import { parseCode, generateChunkId } from './parseCode';
+import { Tier1Index, FileSummary, extractKeywords } from '../../utils/tieredIndex';
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -51,6 +57,9 @@ export interface SemanticModuleData {
   [key: string]: unknown; // Index signature for compatibility with Record<string, unknown>
 }
 
+/** Number of candidate files to retrieve from Tier 1 before loading Tier 2 */
+const TIER1_CANDIDATE_MULTIPLIER = 3;
+
 export class SemanticModule implements IndexModule {
   readonly id = 'semantic';
   readonly name = 'Semantic Search';
@@ -58,6 +67,9 @@ export class SemanticModule implements IndexModule {
   readonly version = '1.0.0';
 
   private embeddingConfig: EmbeddingConfig | null = null;
+  private tier1Index: Tier1Index | null = null;
+  private pendingSummaries: Map<string, FileSummary> = new Map();
+  private rootDir: string = '';
 
   async initialize(config: ModuleConfig): Promise<void> {
     // Extract embedding config from module options
@@ -65,6 +77,9 @@ export class SemanticModule implements IndexModule {
     
     // Configure the embedding provider
     configureEmbeddings(this.embeddingConfig);
+    
+    // Clear pending summaries for fresh indexing
+    this.pendingSummaries.clear();
   }
 
   async indexFile(
@@ -72,6 +87,9 @@ export class SemanticModule implements IndexModule {
     content: string,
     ctx: IndexContext
   ): Promise<FileIndex | null> {
+    // Store rootDir for finalize
+    this.rootDir = ctx.rootDir;
+    
     // Parse code into chunks
     const parsedChunks = parseCode(content, filepath);
 
@@ -106,6 +124,31 @@ export class SemanticModule implements IndexModule {
       embeddingModel: currentConfig.model,
     };
 
+    // Build Tier 1 summary for this file
+    const chunkTypes = [...new Set(parsedChunks.map(pc => pc.type))] as ChunkType[];
+    const exports = parsedChunks
+      .filter(pc => pc.isExported && pc.name)
+      .map(pc => pc.name!);
+    
+    // Extract keywords from all chunks
+    const allKeywords = new Set<string>();
+    for (const pc of parsedChunks) {
+      const keywords = extractKeywords(pc.content, pc.name);
+      keywords.forEach(k => allKeywords.add(k));
+    }
+
+    const fileSummary: FileSummary = {
+      filepath,
+      chunkCount: chunks.length,
+      chunkTypes,
+      keywords: Array.from(allKeywords),
+      exports,
+      lastModified: stats.lastModified,
+    };
+    
+    // Store summary for finalize
+    this.pendingSummaries.set(filepath, fileSummary);
+
     return {
       filepath,
       lastModified: stats.lastModified,
@@ -116,8 +159,38 @@ export class SemanticModule implements IndexModule {
   }
 
   /**
+   * Finalize indexing by building and saving the Tier 1 index
+   */
+  async finalize(ctx: IndexContext): Promise<void> {
+    const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
+    
+    // Initialize Tier 1 index
+    this.tier1Index = new Tier1Index(indexDir, this.id);
+    await this.tier1Index.initialize(this.id);
+    
+    // Add all pending summaries
+    for (const [filepath, summary] of this.pendingSummaries) {
+      this.tier1Index.addFile(summary);
+    }
+    
+    // Build BM25 index from summaries
+    this.tier1Index.buildBM25Index();
+    
+    // Save to disk
+    await this.tier1Index.save();
+    
+    console.log(`  Tier 1 index built with ${this.pendingSummaries.size} file summaries`);
+    
+    // Clear pending summaries
+    this.pendingSummaries.clear();
+  }
+
+  /**
    * Search the semantic index for chunks matching the query.
-   * Uses hybrid search combining semantic similarity and BM25 keyword matching.
+   * 
+   * Uses a tiered approach for efficient search:
+   * 1. Tier 1: Use BM25 on file summaries to find candidate files
+   * 2. Tier 2: Load only candidate files and compute semantic similarity
    * 
    * @param query - Natural language search query
    * @param ctx - Search context with index access
@@ -131,39 +204,55 @@ export class SemanticModule implements IndexModule {
   ): Promise<SearchResult[]> {
     const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE, filePatterns } = options;
 
+    // Load Tier 1 index for candidate filtering
+    const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
+    const tier1Index = new Tier1Index(indexDir, this.id);
+    
+    let candidateFiles: string[];
+    
+    try {
+      await tier1Index.initialize(this.id);
+      
+      // Tier 1: Find candidate files using BM25 keyword search
+      const maxCandidates = topK * TIER1_CANDIDATE_MULTIPLIER;
+      candidateFiles = tier1Index.findCandidates(query, maxCandidates);
+      
+      // If no candidates found via BM25, fall back to all files
+      if (candidateFiles.length === 0) {
+        candidateFiles = tier1Index.getAllFiles();
+      }
+    } catch {
+      // Tier 1 index doesn't exist, fall back to loading all files
+      candidateFiles = await ctx.listIndexedFiles();
+    }
+
+    // Apply file pattern filter
+    if (filePatterns && filePatterns.length > 0) {
+      candidateFiles = candidateFiles.filter(filepath => {
+        return filePatterns.some(pattern => {
+          if (pattern.startsWith('*.')) {
+            const ext = pattern.slice(1);
+            return filepath.endsWith(ext);
+          }
+          return filepath.includes(pattern);
+        });
+      });
+    }
+
     // Get query embedding for semantic search
     const queryEmbedding = await getEmbedding(query);
 
-    // Get all indexed files
-    const indexedFiles = await ctx.listIndexedFiles();
-    
-    // Build BM25 index for keyword search
+    // Tier 2: Load only candidate files and compute scores
     const bm25Index = new BM25Index();
-    const chunkMap = new Map<string, { filepath: string; chunk: Chunk }>();
-    
-    // Collect all chunks and their data
     const allChunksData: Array<{
       filepath: string;
       chunk: Chunk;
       embedding: number[];
     }> = [];
 
-    for (const indexPath of indexedFiles) {
-      const fileIndex = await ctx.loadFileIndex(indexPath);
+    for (const filepath of candidateFiles) {
+      const fileIndex = await ctx.loadFileIndex(filepath);
       if (!fileIndex) continue;
-
-      // Apply file pattern filter using actual filepath (which has the extension)
-      if (filePatterns && filePatterns.length > 0) {
-        const matches = filePatterns.some(pattern => {
-          // Simple glob matching for *.ext patterns
-          if (pattern.startsWith('*.')) {
-            const ext = pattern.slice(1); // Get ".ext"
-            return fileIndex.filepath.endsWith(ext);
-          }
-          return fileIndex.filepath.includes(pattern);
-        });
-        if (!matches) continue;
-      }
 
       const moduleData = fileIndex.moduleData as unknown as SemanticModuleData;
       if (!moduleData?.embeddings) continue;
@@ -180,18 +269,15 @@ export class SemanticModule implements IndexModule {
           embedding,
         });
 
-        // Add to BM25 index
-        const bm25Id = chunk.id;
-        chunkMap.set(bm25Id, { filepath: fileIndex.filepath, chunk });
-        bm25Index.addDocuments([{ id: bm25Id, content: chunk.content }]);
+        // Add to BM25 index for chunk-level keyword matching
+        bm25Index.addDocuments([{ id: chunk.id, content: chunk.content }]);
       }
     }
 
-    // Perform BM25 search
-    const bm25Results = bm25Index.search(query, topK * 3); // Get more for merging
+    // Perform BM25 search at chunk level
+    const bm25Results = bm25Index.search(query, topK * 3);
     const bm25Scores = new Map<string, number>();
     
-    // Normalize BM25 scores to 0-1 range
     for (const result of bm25Results) {
       bm25Scores.set(result.id, normalizeScore(result.score, 3));
     }

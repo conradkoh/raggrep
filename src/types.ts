@@ -182,6 +182,12 @@ export interface IndexModule {
   initialize?(config: ModuleConfig): Promise<void>;
   
   /**
+   * Optional: Called after all files have been indexed.
+   * Use for building secondary indexes (e.g., Tier 1 summaries, BM25 index).
+   */
+  finalize?(ctx: IndexContext): Promise<void>;
+  
+  /**
    * Optional: Cleanup resources
    */
   dispose?(): Promise<void>;

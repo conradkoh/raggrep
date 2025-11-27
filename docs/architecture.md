@@ -133,31 +133,58 @@ Shared utilities used across the codebase.
 5. Summary displayed to user
 ```
 
-### Search Flow (Hybrid Search)
+### Search Flow (Tiered Hybrid Search)
 
-RAGgrep uses hybrid search combining semantic similarity and BM25 keyword matching:
+RAGgrep uses a tiered index system for efficient search on large codebases:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TIER 1 (Lightweight)                     │
+│            File-level summaries with keywords               │
+│                 Persisted BM25 index                        │
+│                                                             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
+│  │ File A  │ │ File B  │ │ File C  │ │  ...    │          │
+│  │keywords │ │keywords │ │keywords │ │         │          │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘          │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ BM25 filter
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    TIER 2 (Full Data)                       │
+│            Chunk embeddings for semantic search             │
+│              Only loaded for candidate files                │
+│                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │   File A.json   │  │   File C.json   │                  │
+│  │ chunks + embeds │  │ chunks + embeds │                  │
+│  └─────────────────┘  └─────────────────┘                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Search Steps:**
 
 ```
 1. CLI parses query and options
-2. Search loads global manifest
-3. For each indexed module:
-   a. Query embedding generated (semantic)
-   b. BM25 index built from chunk contents (keyword)
-   c. All indexed files loaded
-   d. For each chunk:
+2. Tier 1: Load lightweight file summaries
+   a. BM25 search on file keywords
+   b. Select top candidate files (3× topK)
+3. Tier 2: Load only candidate file indexes
+   a. Query embedding generated
+   b. For each chunk in candidate files:
       - Cosine similarity computed (semantic score)
       - BM25 score computed (keyword score)
       - Hybrid score = 0.7 × semantic + 0.3 × BM25
-   e. Results above threshold collected
-4. Results aggregated, sorted by hybrid score
-5. Top K results returned and displayed
+4. Results sorted by hybrid score
+5. Top K results returned
 ```
 
-**Hybrid Scoring Benefits:**
+**Benefits of Tiered Approach:**
 
-- Semantic search understands meaning and context
-- BM25 catches exact keyword matches that semantic might miss
-- Combined approach provides best of both worlds
+- **Memory efficient**: Only loads relevant files, not entire index
+- **Scales to large codebases**: O(candidates) instead of O(all files)
+- **Persistent BM25**: Built once during indexing, not every search
+- **Filesystem-based**: Keeps index on disk, queries from disk
 
 ## Index Structure
 
@@ -168,14 +195,41 @@ RAGgrep uses hybrid search combining semantic similarity and BM25 keyword matchi
 └── index/
     └── semantic/            # Per-module index directory
         ├── manifest.json    # Module manifest (file list, timestamps)
+        ├── tier1.json       # Tier 1: Lightweight file summaries + BM25 data
         └── src/
             └── auth/
-                └── authService.json  # Per-file index (chunks + embeddings)
+                └── authService.json  # Tier 2: Per-file chunks + embeddings
 ```
 
-### File Index Format
+### Tier 1 Index Format (tier1.json)
 
-Each indexed file produces a JSON file with:
+Lightweight summaries for fast filtering:
+
+```json
+{
+  "version": "1.0.0",
+  "moduleId": "semantic",
+  "files": {
+    "src/auth/authService.ts": {
+      "filepath": "src/auth/authService.ts",
+      "chunkCount": 5,
+      "chunkTypes": ["function", "class", "interface"],
+      "keywords": ["login", "authenticate", "session", "user"],
+      "exports": ["login", "logout", "AuthService"],
+      "lastModified": "2024-01-15T10:30:00.000Z"
+    }
+  },
+  "bm25Data": {
+    "avgDocLength": 45,
+    "documentFrequencies": { "user": 12, "auth": 8 },
+    "totalDocs": 150
+  }
+}
+```
+
+### Tier 2 Index Format (Per-File)
+
+Each indexed file produces a JSON file with full chunk data:
 
 ```json
 {
