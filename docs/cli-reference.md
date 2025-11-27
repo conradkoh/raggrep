@@ -70,6 +70,7 @@ raggrep query <search query> [options]
 |------|-------|-------------|
 | `--top <n>` | `-k` | Number of results to return (default: 10) |
 | `--min-score <n>` | `-s` | Minimum similarity score threshold 0-1 (default: 0.15). Lower values return more results. |
+| `--type <ext>` | `-t` | Filter results by file extension (e.g., ts, tsx, js) |
 | `--help` | `-h` | Show help message |
 
 **Examples:**
@@ -84,8 +85,11 @@ raggrep query "handle errors" --top 5
 # Search with lower threshold (find more results)
 raggrep query "database" --min-score 0.1
 
-# Search for specific patterns
-raggrep query "database connection pooling"
+# Filter by file type
+raggrep query "interface" --type ts
+
+# Combine options
+raggrep query "user" --type tsx --top 5
 ```
 
 **Output Format:**

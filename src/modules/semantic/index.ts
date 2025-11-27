@@ -121,7 +121,7 @@ export class SemanticModule implements IndexModule {
    * 
    * @param query - Natural language search query
    * @param ctx - Search context with index access
-   * @param options - Search options (topK, minScore)
+   * @param options - Search options (topK, minScore, filePatterns)
    * @returns Array of search results sorted by relevance
    */
   async search(
@@ -129,7 +129,7 @@ export class SemanticModule implements IndexModule {
     ctx: SearchContext,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
-    const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE } = options;
+    const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE, filePatterns } = options;
 
     // Get query embedding for semantic search
     const queryEmbedding = await getEmbedding(query);
@@ -148,9 +148,22 @@ export class SemanticModule implements IndexModule {
       embedding: number[];
     }> = [];
 
-    for (const filepath of indexedFiles) {
-      const fileIndex = await ctx.loadFileIndex(filepath);
+    for (const indexPath of indexedFiles) {
+      const fileIndex = await ctx.loadFileIndex(indexPath);
       if (!fileIndex) continue;
+
+      // Apply file pattern filter using actual filepath (which has the extension)
+      if (filePatterns && filePatterns.length > 0) {
+        const matches = filePatterns.some(pattern => {
+          // Simple glob matching for *.ext patterns
+          if (pattern.startsWith('*.')) {
+            const ext = pattern.slice(1); // Get ".ext"
+            return fileIndex.filepath.endsWith(ext);
+          }
+          return fileIndex.filepath.includes(pattern);
+        });
+        if (!matches) continue;
+      }
 
       const moduleData = fileIndex.moduleData as unknown as SemanticModuleData;
       if (!moduleData?.embeddings) continue;

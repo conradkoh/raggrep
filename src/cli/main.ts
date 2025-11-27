@@ -16,6 +16,8 @@ interface ParsedFlags {
   topK?: number;
   /** Minimum similarity score threshold (0-1) */
   minScore?: number;
+  /** File extension filter (e.g., 'ts', 'tsx') */
+  fileType?: string;
   /** Show help message */
   help: boolean;
   /** Show detailed progress */
@@ -63,6 +65,15 @@ function parseFlags(args: string[]): ParsedFlags {
         flags.minScore = score;
       } else {
         console.error(`Invalid min-score: ${args[i]}. Must be a number between 0 and 1.`);
+        process.exit(1);
+      }
+    } else if (arg === '--type' || arg === '-t') {
+      const type = args[++i];
+      if (type) {
+        // Normalize: remove leading dot if present
+        flags.fileType = type.startsWith('.') ? type.slice(1) : type;
+      } else {
+        console.error('--type requires a file extension (e.g., ts, tsx, js)');
         process.exit(1);
       }
     } else if (!arg.startsWith('-')) {
@@ -135,12 +146,14 @@ Usage:
 Options:
   -k, --top <n>        Number of results to return (default: 10)
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
+  -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
   -h, --help           Show this help message
 
 Examples:
   raggrep query "user authentication"
   raggrep query "handle errors" --top 5
   raggrep query "database" --min-score 0.1
+  raggrep query "interface" --type ts
 `);
         process.exit(0);
       }
@@ -157,9 +170,13 @@ Examples:
       console.log('RAGgrep Search');
       console.log('==============\n');
       try {
+        // Build file patterns if type filter specified
+        const filePatterns = flags.fileType ? [`*.${flags.fileType}`] : undefined;
+        
         const results = await search(process.cwd(), query, { 
           topK: flags.topK ?? 10,
           minScore: flags.minScore,
+          filePatterns,
         });
         console.log(formatSearchResults(results));
       } catch (error) {
