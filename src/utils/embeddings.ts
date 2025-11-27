@@ -152,8 +152,17 @@ export async function getEmbedding(text: string): Promise<number[]> {
   return Array.from(output.data as Float32Array);
 }
 
+/** Maximum number of texts to process in a single batch */
+const BATCH_SIZE = 32;
+
 /**
  * Get embeddings for multiple texts (batched for efficiency)
+ * 
+ * Processes texts in batches of BATCH_SIZE for better performance
+ * while avoiding memory issues with very large batches.
+ * 
+ * @param texts - Array of texts to embed
+ * @returns Array of embedding vectors
  */
 export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
@@ -164,15 +173,24 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
     throw new Error('Embedding pipeline not initialized');
   }
   
-  // Process texts individually (transformers.js handles batching internally)
   const results: number[][] = [];
   
-  for (const text of texts) {
-    const output = await embeddingPipeline(text, {
-      pooling: 'mean',
-      normalize: true,
-    });
-    results.push(Array.from(output.data as Float32Array));
+  // Process in batches for efficiency
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    
+    // Process batch - transformers.js handles array inputs
+    const outputs = await Promise.all(
+      batch.map(async (text) => {
+        const output = await embeddingPipeline!(text, {
+          pooling: 'mean',
+          normalize: true,
+        });
+        return Array.from(output.data as Float32Array);
+      })
+    );
+    
+    results.push(...outputs);
   }
   
   return results;
