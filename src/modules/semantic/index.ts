@@ -33,7 +33,7 @@ import {
 import { BM25Index, normalizeScore } from '../../utils/bm25';
 import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../utils/config';
 import { parseCode, generateChunkId } from './parseCode';
-import { Tier1Index, FileSummary, extractKeywords } from '../../utils/tieredIndex';
+import { SymbolicIndex, FileSummary, extractKeywords } from '../../utils/tieredIndex';
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -67,7 +67,7 @@ export class SemanticModule implements IndexModule {
   readonly version = '1.0.0';
 
   private embeddingConfig: EmbeddingConfig | null = null;
-  private tier1Index: Tier1Index | null = null;
+  private symbolicIndex: SymbolicIndex | null = null;
   private pendingSummaries: Map<string, FileSummary> = new Map();
   private rootDir: string = '';
 
@@ -159,27 +159,27 @@ export class SemanticModule implements IndexModule {
   }
 
   /**
-   * Finalize indexing by building and saving the Tier 1 index
+   * Finalize indexing by building and saving the symbolic index
    */
   async finalize(ctx: IndexContext): Promise<void> {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
     
-    // Initialize Tier 1 index
-    this.tier1Index = new Tier1Index(indexDir, this.id);
-    await this.tier1Index.initialize(this.id);
+    // Initialize symbolic index
+    this.symbolicIndex = new SymbolicIndex(indexDir, this.id);
+    await this.symbolicIndex.initialize();
     
     // Add all pending summaries
     for (const [filepath, summary] of this.pendingSummaries) {
-      this.tier1Index.addFile(summary);
+      this.symbolicIndex.addFile(summary);
     }
     
     // Build BM25 index from summaries
-    this.tier1Index.buildBM25Index();
+    this.symbolicIndex.buildBM25Index();
     
-    // Save to disk
-    await this.tier1Index.save();
+    // Save to disk (creates symbolic/ folder with per-file summaries)
+    await this.symbolicIndex.save();
     
-    console.log(`  Tier 1 index built with ${this.pendingSummaries.size} file summaries`);
+    console.log(`  Symbolic index built with ${this.pendingSummaries.size} file summaries`);
     
     // Clear pending summaries
     this.pendingSummaries.clear();
@@ -204,25 +204,25 @@ export class SemanticModule implements IndexModule {
   ): Promise<SearchResult[]> {
     const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE, filePatterns } = options;
 
-    // Load Tier 1 index for candidate filtering
+    // Load symbolic index for candidate filtering
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
-    const tier1Index = new Tier1Index(indexDir, this.id);
+    const symbolicIndex = new SymbolicIndex(indexDir, this.id);
     
     let candidateFiles: string[];
     
     try {
-      await tier1Index.initialize(this.id);
+      await symbolicIndex.initialize();
       
-      // Tier 1: Find candidate files using BM25 keyword search
+      // Use BM25 keyword search on symbolic index to find candidate files
       const maxCandidates = topK * TIER1_CANDIDATE_MULTIPLIER;
-      candidateFiles = tier1Index.findCandidates(query, maxCandidates);
+      candidateFiles = symbolicIndex.findCandidates(query, maxCandidates);
       
       // If no candidates found via BM25, fall back to all files
       if (candidateFiles.length === 0) {
-        candidateFiles = tier1Index.getAllFiles();
+        candidateFiles = symbolicIndex.getAllFiles();
       }
     } catch {
-      // Tier 1 index doesn't exist, fall back to loading all files
+      // Symbolic index doesn't exist, fall back to loading all files
       candidateFiles = await ctx.listIndexedFiles();
     }
 

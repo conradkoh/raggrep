@@ -1,17 +1,19 @@
 /**
  * FileSummary Entity
  * 
- * Lightweight file summary for Tier 1 index.
- * Used for fast filtering before loading full file indexes.
+ * Lightweight file summary for the symbolic index.
+ * Used for fast keyword-based filtering before loading full file indexes.
+ * 
+ * Stored as individual files in: .raggrep/index/<module>/symbolic/<filepath>.json
  */
 
 import type { ChunkType } from './chunk';
 
 /**
- * Tier 1: Lightweight file summary for fast filtering.
+ * Lightweight file summary for fast filtering.
  * 
  * Contains just enough information to decide if a file
- * is a candidate for more detailed search.
+ * is a candidate for more detailed semantic search.
  */
 export interface FileSummary {
   /** Relative path to the source file */
@@ -34,20 +36,24 @@ export interface FileSummary {
 }
 
 /**
- * Tier 1 manifest containing all file summaries.
+ * Metadata for the symbolic index.
+ * Stored in: .raggrep/index/<module>/symbolic/_meta.json
+ * 
+ * Contains global BM25 statistics needed for keyword search.
+ * Individual FileSummary files are stored separately for scalability.
  */
-export interface Tier1Manifest {
+export interface SymbolicIndexMeta {
   /** Schema version */
   version: string;
   
   /** ISO timestamp of last update */
   lastUpdated: string;
   
-  /** Module ID this manifest belongs to */
+  /** Module ID this index belongs to */
   moduleId: string;
   
-  /** File summaries indexed by filepath */
-  files: Record<string, FileSummary>;
+  /** Number of indexed files */
+  fileCount: number;
   
   /** Pre-computed BM25 data for keyword search */
   bm25Data: {
@@ -58,5 +64,12 @@ export interface Tier1Manifest {
     /** Total number of documents */
     totalDocs: number;
   };
+}
+
+/**
+ * @deprecated Use SymbolicIndexMeta instead. Kept for backwards compatibility.
+ */
+export type Tier1Manifest = SymbolicIndexMeta & {
+  files: Record<string, FileSummary>;
 }
 

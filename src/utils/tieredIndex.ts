@@ -1,50 +1,62 @@
 /**
- * Tiered Index System
+ * Symbolic Index System
  * 
- * Tier 1: Lightweight file-level summaries for fast filtering
- * Tier 2: Full chunk embeddings (existing JSON files)
+ * Provides fast keyword-based filtering using BM25 before semantic search.
  * 
- * This approach keeps the filesystem-based design while enabling
- * efficient search by only loading relevant files.
+ * Structure:
+ *   .raggrep/index/<module>/symbolic/
+ *   ├── _meta.json    (BM25 statistics)
+ *   └── <filepath>.json (per-file summaries)
+ * 
+ * This approach scales well because:
+ * - Each file summary is stored separately
+ * - BM25 metadata is small and loads quickly
+ * - Summaries are loaded on-demand during search
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { BM25Index } from '../domain/services/bm25';
 import { extractKeywords, extractPathKeywords } from '../domain/services/keywords';
-import type { FileSummary, Tier1Manifest } from '../domain/entities';
+import type { FileSummary, SymbolicIndexMeta } from '../domain/entities';
 
-// Re-export types and functions for backwards compatibility
-export type { FileSummary, Tier1Manifest } from '../domain/entities';
+// Re-export for backwards compatibility
+export type { FileSummary, SymbolicIndexMeta } from '../domain/entities';
 export { extractKeywords } from '../domain/services/keywords';
 
+/** @deprecated Use SymbolicIndexMeta */
+export type Tier1Manifest = SymbolicIndexMeta & { files: Record<string, FileSummary> };
+
 /**
- * Tier 1 Index Manager
+ * Symbolic Index Manager
  * 
- * Handles loading, saving, and querying the Tier 1 manifest.
+ * Manages the keyword-based index for fast file filtering.
  */
-export class Tier1Index {
-  private manifest: Tier1Manifest | null = null;
+export class SymbolicIndex {
+  private meta: SymbolicIndexMeta | null = null;
+  private fileSummaries: Map<string, FileSummary> = new Map();
   private bm25Index: BM25Index | null = null;
-  private manifestPath: string;
+  private symbolicPath: string;
+  private moduleId: string;
 
   constructor(indexDir: string, moduleId: string) {
-    this.manifestPath = path.join(indexDir, 'index', moduleId, 'tier1.json');
+    this.symbolicPath = path.join(indexDir, 'index', moduleId, 'symbolic');
+    this.moduleId = moduleId;
   }
 
   /**
-   * Initialize or load the Tier 1 index
+   * Initialize or load the symbolic index
    */
-  async initialize(moduleId: string): Promise<void> {
+  async initialize(): Promise<void> {
     try {
       await this.load();
     } catch {
-      // Create empty manifest
-      this.manifest = {
+      // Create empty metadata
+      this.meta = {
         version: '1.0.0',
         lastUpdated: new Date().toISOString(),
-        moduleId,
-        files: {},
+        moduleId: this.moduleId,
+        fileCount: 0,
         bm25Data: {
           avgDocLength: 0,
           documentFrequencies: {},
@@ -59,55 +71,46 @@ export class Tier1Index {
    * Add or update a file summary
    */
   addFile(summary: FileSummary): void {
-    if (!this.manifest) throw new Error('Index not initialized');
-    this.manifest.files[summary.filepath] = summary;
+    this.fileSummaries.set(summary.filepath, summary);
   }
 
   /**
    * Remove a file from the index
    */
   removeFile(filepath: string): boolean {
-    if (!this.manifest) return false;
-    if (this.manifest.files[filepath]) {
-      delete this.manifest.files[filepath];
-      return true;
-    }
-    return false;
+    return this.fileSummaries.delete(filepath);
   }
 
   /**
    * Build BM25 index from file summaries
    */
   buildBM25Index(): void {
-    if (!this.manifest) throw new Error('Index not initialized');
-    
     this.bm25Index = new BM25Index();
     
     // Add each file's keywords as a document
-    for (const [filepath, summary] of Object.entries(this.manifest.files)) {
+    for (const [filepath, summary] of this.fileSummaries) {
       const content = [
         ...summary.keywords,
         ...summary.exports,
-        // Add filepath parts as keywords too
         ...extractPathKeywords(filepath),
       ].join(' ');
       
       this.bm25Index.addDocuments([{ id: filepath, content }]);
     }
     
-    // Store BM25 statistics in manifest for persistence
-    this.manifest.bm25Data.totalDocs = Object.keys(this.manifest.files).length;
+    // Update metadata
+    if (this.meta) {
+      this.meta.fileCount = this.fileSummaries.size;
+      this.meta.bm25Data.totalDocs = this.fileSummaries.size;
+    }
   }
 
   /**
    * Find candidate files using BM25 keyword search
-   * @param query - Search query
-   * @param maxCandidates - Maximum number of candidates to return
-   * @returns Array of filepaths sorted by relevance
    */
   findCandidates(query: string, maxCandidates: number = 20): string[] {
-    if (!this.bm25Index || !this.manifest) {
-      return Object.keys(this.manifest?.files || {});
+    if (!this.bm25Index) {
+      return Array.from(this.fileSummaries.keys());
     }
     
     const results = this.bm25Index.search(query, maxCandidates);
@@ -118,37 +121,105 @@ export class Tier1Index {
    * Get all file paths in the index
    */
   getAllFiles(): string[] {
-    return Object.keys(this.manifest?.files || {});
+    return Array.from(this.fileSummaries.keys());
   }
 
   /**
    * Get summary for a specific file
    */
   getFileSummary(filepath: string): FileSummary | undefined {
-    return this.manifest?.files[filepath];
+    return this.fileSummaries.get(filepath);
   }
 
   /**
-   * Save the index to disk
+   * Save the index to disk (per-file structure)
    */
   async save(): Promise<void> {
-    if (!this.manifest) throw new Error('Index not initialized');
+    if (!this.meta) throw new Error('Index not initialized');
     
-    this.manifest.lastUpdated = new Date().toISOString();
+    // Update metadata
+    this.meta.lastUpdated = new Date().toISOString();
+    this.meta.fileCount = this.fileSummaries.size;
     
-    await fs.mkdir(path.dirname(this.manifestPath), { recursive: true });
-    await fs.writeFile(this.manifestPath, JSON.stringify(this.manifest, null, 2));
+    // Ensure symbolic directory exists
+    await fs.mkdir(this.symbolicPath, { recursive: true });
+    
+    // Save metadata
+    const metaPath = path.join(this.symbolicPath, '_meta.json');
+    await fs.writeFile(metaPath, JSON.stringify(this.meta, null, 2));
+    
+    // Save each file summary
+    for (const [filepath, summary] of this.fileSummaries) {
+      const summaryPath = this.getFileSummaryPath(filepath);
+      await fs.mkdir(path.dirname(summaryPath), { recursive: true });
+      await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+    }
   }
 
   /**
    * Load the index from disk
    */
   async load(): Promise<void> {
-    const content = await fs.readFile(this.manifestPath, 'utf-8');
-    this.manifest = JSON.parse(content);
+    // Load metadata
+    const metaPath = path.join(this.symbolicPath, '_meta.json');
+    const metaContent = await fs.readFile(metaPath, 'utf-8');
+    this.meta = JSON.parse(metaContent);
     
-    // Rebuild BM25 index from loaded data
+    // Load all file summaries by walking the symbolic directory
+    this.fileSummaries.clear();
+    await this.loadFileSummariesRecursive(this.symbolicPath);
+    
+    // Rebuild BM25 index
     this.buildBM25Index();
+  }
+
+  /**
+   * Recursively load file summaries from the symbolic directory
+   */
+  private async loadFileSummariesRecursive(dir: string): Promise<void> {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory()) {
+          await this.loadFileSummariesRecursive(fullPath);
+        } else if (entry.name.endsWith('.json') && entry.name !== '_meta.json') {
+          try {
+            const content = await fs.readFile(fullPath, 'utf-8');
+            const summary = JSON.parse(content) as FileSummary;
+            if (summary.filepath) {
+              this.fileSummaries.set(summary.filepath, summary);
+            }
+          } catch {
+            // Skip invalid files
+          }
+        }
+      }
+    } catch {
+      // Directory doesn't exist yet
+    }
+  }
+
+  /**
+   * Get the path for a file summary
+   */
+  private getFileSummaryPath(filepath: string): string {
+    const jsonPath = filepath.replace(/\.[^.]+$/, '.json');
+    return path.join(this.symbolicPath, jsonPath);
+  }
+
+  /**
+   * Delete a file summary from disk
+   */
+  async deleteFileSummary(filepath: string): Promise<void> {
+    try {
+      await fs.unlink(this.getFileSummaryPath(filepath));
+    } catch {
+      // Ignore if file doesn't exist
+    }
+    this.fileSummaries.delete(filepath);
   }
 
   /**
@@ -156,7 +227,8 @@ export class Tier1Index {
    */
   async exists(): Promise<boolean> {
     try {
-      await fs.access(this.manifestPath);
+      const metaPath = path.join(this.symbolicPath, '_meta.json');
+      await fs.access(metaPath);
       return true;
     } catch {
       return false;
@@ -167,16 +239,17 @@ export class Tier1Index {
    * Get the number of indexed files
    */
   get size(): number {
-    return Object.keys(this.manifest?.files || {}).length;
+    return this.fileSummaries.size;
   }
 
   /**
    * Clear the index
    */
   clear(): void {
-    if (this.manifest) {
-      this.manifest.files = {};
-      this.manifest.bm25Data = {
+    this.fileSummaries.clear();
+    if (this.meta) {
+      this.meta.fileCount = 0;
+      this.meta.bm25Data = {
         avgDocLength: 0,
         documentFrequencies: {},
         totalDocs: 0,
@@ -186,9 +259,18 @@ export class Tier1Index {
   }
 }
 
-/**
- * Get Tier 1 index path for a module
- */
+// ============================================================================
+// Backwards compatibility aliases
+// ============================================================================
+
+/** @deprecated Use SymbolicIndex instead */
+export const Tier1Index = SymbolicIndex;
+
+/** @deprecated Use SymbolicIndex instead */
 export function getTier1Path(rootDir: string, moduleId: string, indexDir: string = '.raggrep'): string {
   return path.join(rootDir, indexDir, 'index', moduleId, 'tier1.json');
+}
+
+export function getSymbolicPath(rootDir: string, moduleId: string, indexDir: string = '.raggrep'): string {
+  return path.join(rootDir, indexDir, 'index', moduleId, 'symbolic');
 }

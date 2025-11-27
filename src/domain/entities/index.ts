@@ -12,8 +12,8 @@ export { createChunkId } from './chunk';
 // FileIndex - Tier 2 full index data
 export type { FileIndex, FileManifestEntry, ModuleManifest, GlobalManifest } from './fileIndex';
 
-// FileSummary - Tier 1 lightweight summaries
-export type { FileSummary, Tier1Manifest } from './fileSummary';
+// FileSummary - Symbolic index (lightweight summaries)
+export type { FileSummary, SymbolicIndexMeta, Tier1Manifest } from './fileSummary';
 
 // SearchResult - Query results
 export type { SearchResult, SearchOptions } from './searchResult';

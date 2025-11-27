@@ -12,6 +12,8 @@ import type {
   FileIndex, 
   ModuleManifest, 
   GlobalManifest,
+  FileSummary,
+  SymbolicIndexMeta,
   Tier1Manifest 
 } from '../../domain/entities';
 import { createDefaultConfig } from '../../domain/entities';
@@ -26,8 +28,10 @@ import { createDefaultConfig } from '../../domain/entities';
  * └── index/
  *     └── <moduleId>/
  *         ├── manifest.json (module)
- *         ├── tier1.json
- *         └── <filepath>.json (file indexes)
+ *         ├── symbolic/
+ *         │   ├── _meta.json (BM25 statistics)
+ *         │   └── <filepath>.json (per-file summaries)
+ *         └── <filepath>.json (file indexes with embeddings)
  */
 export class FileIndexStorage implements IndexStorage {
   private fs: FileSystem;
@@ -64,14 +68,29 @@ export class FileIndexStorage implements IndexStorage {
     return this.fs.join(this.getModuleIndexPath(moduleId), 'manifest.json');
   }
 
-  private getTier1Path(moduleId: string): string {
-    return this.fs.join(this.getModuleIndexPath(moduleId), 'tier1.json');
+  // Symbolic index paths
+  private getSymbolicPath(moduleId: string): string {
+    return this.fs.join(this.getModuleIndexPath(moduleId), 'symbolic');
   }
 
+  private getSymbolicMetaPath(moduleId: string): string {
+    return this.fs.join(this.getSymbolicPath(moduleId), '_meta.json');
+  }
+
+  private getSymbolicFilePath(moduleId: string, filepath: string): string {
+    const jsonPath = filepath.replace(/\.[^.]+$/, '.json');
+    return this.fs.join(this.getSymbolicPath(moduleId), jsonPath);
+  }
+
+  // File index paths (embeddings)
   private getFileIndexPath(moduleId: string, filepath: string): string {
-    // Replace extension with .json
     const jsonPath = filepath.replace(/\.[^.]+$/, '.json');
     return this.fs.join(this.getModuleIndexPath(moduleId), jsonPath);
+  }
+
+  /** @deprecated Use getSymbolicMetaPath instead */
+  private getTier1Path(moduleId: string): string {
+    return this.fs.join(this.getModuleIndexPath(moduleId), 'tier1.json');
   }
 
   // ============================================================================
@@ -127,9 +146,60 @@ export class FileIndexStorage implements IndexStorage {
   }
 
   // ============================================================================
-  // Tier 1 Index
+  // Symbolic Index (lightweight file summaries for keyword search)
   // ============================================================================
 
+  async loadSymbolicMeta(moduleId: string): Promise<SymbolicIndexMeta | null> {
+    try {
+      const content = await this.fs.readFile(this.getSymbolicMetaPath(moduleId));
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSymbolicMeta(moduleId: string, meta: SymbolicIndexMeta): Promise<void> {
+    await this.fs.writeFile(this.getSymbolicMetaPath(moduleId), JSON.stringify(meta, null, 2));
+  }
+
+  async loadFileSummary(moduleId: string, filepath: string): Promise<FileSummary | null> {
+    try {
+      const content = await this.fs.readFile(this.getSymbolicFilePath(moduleId, filepath));
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveFileSummary(moduleId: string, filepath: string, summary: FileSummary): Promise<void> {
+    await this.fs.writeFile(this.getSymbolicFilePath(moduleId, filepath), JSON.stringify(summary, null, 2));
+  }
+
+  async deleteFileSummary(moduleId: string, filepath: string): Promise<void> {
+    try {
+      await this.fs.deleteFile(this.getSymbolicFilePath(moduleId, filepath));
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  }
+
+  /**
+   * List all file summaries by reading the module manifest.
+   * Returns filepaths relative to the project root.
+   */
+  async listFileSummaries(moduleId: string): Promise<string[]> {
+    const manifest = await this.loadModuleManifest(moduleId);
+    if (!manifest) {
+      return [];
+    }
+    return Object.keys(manifest.files);
+  }
+
+  // ============================================================================
+  // Tier 1 Index (deprecated - use Symbolic Index instead)
+  // ============================================================================
+
+  /** @deprecated Use loadSymbolicMeta and loadFileSummary instead */
   async loadTier1Index(moduleId: string): Promise<Tier1Manifest | null> {
     try {
       const content = await this.fs.readFile(this.getTier1Path(moduleId));
@@ -139,12 +209,13 @@ export class FileIndexStorage implements IndexStorage {
     }
   }
 
+  /** @deprecated Use saveSymbolicMeta and saveFileSummary instead */
   async saveTier1Index(moduleId: string, manifest: Tier1Manifest): Promise<void> {
     await this.fs.writeFile(this.getTier1Path(moduleId), JSON.stringify(manifest, null, 2));
   }
 
   // ============================================================================
-  // Tier 2 Index (File Indexes)
+  // File Indexes (full index with embeddings)
   // ============================================================================
 
   async loadFileIndex(moduleId: string, filepath: string): Promise<FileIndex | null> {
