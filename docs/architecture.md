@@ -243,7 +243,7 @@ RAGgrep uses a two-layer index system for efficient search on large codebases:
 
 ### Symbolic Index Format
 
-**_meta.json** - BM25 statistics:
+**\_meta.json** - BM25 statistics:
 
 ```json
 {
