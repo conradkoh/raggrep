@@ -10,51 +10,13 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BM25Index } from './bm25';
+import { BM25Index } from '../domain/services/bm25';
+import { extractKeywords, extractPathKeywords } from '../domain/services/keywords';
 import type { FileSummary, Tier1Manifest } from '../domain/entities';
 
-// Re-export domain types for convenience
+// Re-export types and functions for backwards compatibility
 export type { FileSummary, Tier1Manifest } from '../domain/entities';
-
-/**
- * Extract keywords from chunk content and metadata
- */
-export function extractKeywords(content: string, name?: string): string[] {
-  const keywords = new Set<string>();
-  
-  // Add chunk name if present
-  if (name) {
-    keywords.add(name.toLowerCase());
-    // Also add camelCase parts
-    const parts = name.split(/(?=[A-Z])/).map(p => p.toLowerCase());
-    parts.forEach(p => p.length > 2 && keywords.add(p));
-  }
-  
-  // Extract identifiers from content (function names, variables, etc.)
-  const identifierRegex = /\b([a-zA-Z_][a-zA-Z0-9_]{2,})\b/g;
-  let match;
-  while ((match = identifierRegex.exec(content)) !== null) {
-    const word = match[1].toLowerCase();
-    // Skip common keywords
-    if (!COMMON_KEYWORDS.has(word) && word.length > 2) {
-      keywords.add(word);
-    }
-  }
-  
-  return Array.from(keywords).slice(0, 50); // Limit to top 50 keywords
-}
-
-/** Common programming keywords to exclude */
-const COMMON_KEYWORDS = new Set([
-  'const', 'let', 'var', 'function', 'class', 'interface', 'type', 'enum',
-  'export', 'import', 'from', 'return', 'async', 'await', 'new', 'this',
-  'true', 'false', 'null', 'undefined', 'if', 'else', 'for', 'while',
-  'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally',
-  'throw', 'typeof', 'instanceof', 'void', 'delete', 'in', 'of',
-  'string', 'number', 'boolean', 'any', 'unknown', 'never', 'object',
-  'public', 'private', 'protected', 'static', 'readonly', 'abstract',
-  'implements', 'extends', 'super', 'get', 'set', 'constructor',
-]);
+export { extractKeywords } from '../domain/services/keywords';
 
 /**
  * Tier 1 Index Manager
@@ -127,14 +89,13 @@ export class Tier1Index {
         ...summary.keywords,
         ...summary.exports,
         // Add filepath parts as keywords too
-        ...filepath.split(/[/\\.]/).filter(p => p.length > 2),
+        ...extractPathKeywords(filepath),
       ].join(' ');
       
       this.bm25Index.addDocuments([{ id: filepath, content }]);
     }
     
     // Store BM25 statistics in manifest for persistence
-    // (The actual BM25Index will be rebuilt on load, but stats help)
     this.manifest.bm25Data.totalDocs = Object.keys(this.manifest.files).length;
   }
 
@@ -231,4 +192,3 @@ export class Tier1Index {
 export function getTier1Path(rootDir: string, moduleId: string, indexDir: string = '.raggrep'): string {
   return path.join(rootDir, indexDir, 'index', moduleId, 'tier1.json');
 }
-

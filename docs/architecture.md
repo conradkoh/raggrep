@@ -2,82 +2,117 @@
 
 ## Overview
 
-RAGgrep uses a modular architecture that separates indexing, storage, and search concerns. This allows for extensibility and the ability to add new index types in the future.
+RAGgrep follows Clean Architecture principles with clear separation between:
+- **Domain**: Core business logic with no external dependencies
+- **Infrastructure**: External system adapters (filesystem, ML models)
+- **Application**: Use cases orchestrating domain and infrastructure
+- **Presentation**: CLI interface
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                          CLI                                │
-│                    (src/cli/main.ts)                        │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-         ┌────────────┴────────────┐
-         ▼                         ▼
-┌─────────────────┐      ┌─────────────────┐
-│    Indexer      │      │     Search      │
-│ (src/indexer)   │      │  (src/search)   │
-└────────┬────────┘      └────────┬────────┘
-         │                        │
-         └───────────┬────────────┘
-                     ▼
-         ┌─────────────────────┐
-         │   Module Registry   │
-         │ (src/modules)       │
-         └──────────┬──────────┘
-                    │
-         ┌──────────┴──────────┐
-         ▼                     ▼
-┌─────────────────┐   ┌─────────────────┐
-│ Semantic Module │   │  Future Modules │
-│ (embeddings)    │   │  (LSP, AST...)  │
-└─────────────────┘   └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           CLI (src/cli/)                            │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+┌───────────────────────────────▼─────────────────────────────────────┐
+│                    Application Layer (src/application/)              │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  Use Cases: indexDirectory, searchIndex, cleanupIndex        │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────────┐ ┌───────────────────┐ ┌─────────────────────────┐
+│  Domain Layer     │ │  Infrastructure   │ │   Index Modules         │
+│  (src/domain/)    │ │ (src/infra/)      │ │   (src/modules/)        │
+│                   │ │                   │ │                         │
+│  ├── entities/    │ │  ├── filesystem/  │ │  ├── semantic/          │
+│  │   Chunk        │ │  │   NodeFS       │ │  │   Embeddings+Search  │
+│  │   FileIndex    │ │  ├── embeddings/  │ │  └── (future modules)   │
+│  │   Config       │ │  │   Transformers │ │                         │
+│  │                │ │  └── storage/     │ │                         │
+│  ├── ports/       │ │      FileStorage  │ │                         │
+│  │   FileSystem   │ │                   │ │                         │
+│  │   Embedding    │ │                   │ │                         │
+│  │   Storage      │ │                   │ │                         │
+│  │                │ │                   │ │                         │
+│  └── services/    │ │                   │ │                         │
+│      BM25Index    │ │                   │ │                         │
+│      Keywords     │ │                   │ │                         │
+└───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
+
+## Layer Responsibilities
+
+### Domain Layer (`src/domain/`)
+
+Pure business logic with **no external dependencies**.
+
+- **entities/**: Core data structures (Chunk, FileIndex, Config, etc.)
+- **ports/**: Interfaces for external dependencies (FileSystem, EmbeddingProvider)
+- **services/**: Pure algorithms (BM25 search, keyword extraction)
+
+### Infrastructure Layer (`src/infrastructure/`)
+
+Adapters implementing domain ports.
+
+- **filesystem/**: Node.js filesystem adapter
+- **embeddings/**: Transformers.js embedding provider
+- **storage/**: File-based index storage
+
+### Application Layer (`src/application/`)
+
+Use cases orchestrating domain and infrastructure.
+
+- **indexDirectory**: Index a codebase
+- **searchIndex**: Search the index
+- **cleanupIndex**: Remove stale entries
 
 ## Core Components
 
-### CLI (`src/cli/`)
+### Domain Entities (`src/domain/entities/`)
 
-The command-line interface provides two main commands:
+Core data structures with no dependencies:
 
-- `index` - Triggers the indexing process
-- `query` - Performs semantic search
+| Entity | Description |
+|--------|-------------|
+| `Chunk` | A semantic unit of code (function, class, etc.) |
+| `FileIndex` | Index data for a single file (Tier 2) |
+| `FileSummary` | Lightweight file summary (Tier 1) |
+| `SearchResult` | A search result with score |
+| `Config` | Application configuration |
 
-**Files:**
+### Domain Services (`src/domain/services/`)
 
-- `main.ts` - Entry point, argument parsing, command routing
+Pure algorithms and business logic:
 
-### Indexer (`src/indexer/`)
+| Service | Description |
+|---------|-------------|
+| `BM25Index` | Keyword-based search using BM25 algorithm |
+| `extractKeywords` | Extract keywords from code |
+| `tokenize` | Tokenize text for search |
 
-Coordinates the indexing process across all enabled modules.
+### Domain Ports (`src/domain/ports/`)
 
-**Responsibilities:**
+Interfaces for external dependencies:
 
-- Find files matching configured extensions
-- Filter out ignored paths
-- Delegate indexing to each enabled module
-- Track file modification times for incremental updates
-- Write index data to `.raggrep/` directory
+| Port | Description |
+|------|-------------|
+| `FileSystem` | Abstract filesystem operations |
+| `EmbeddingProvider` | Abstract embedding generation |
+| `IndexStorage` | Abstract index persistence |
 
-**Key Functions:**
+### Infrastructure (`src/infrastructure/`)
 
-- `indexDirectory(rootDir, options)` - Main entry point
+Concrete implementations of domain ports:
 
-### Search (`src/search/`)
+| Adapter | Port | Description |
+|---------|------|-------------|
+| `NodeFileSystem` | FileSystem | Node.js fs/path |
+| `TransformersEmbeddingProvider` | EmbeddingProvider | Transformers.js |
+| `FileIndexStorage` | IndexStorage | JSON file storage |
 
-Handles query processing and result aggregation.
-
-**Responsibilities:**
-
-- Load query embedding
-- Search across all module indexes
-- Aggregate and rank results
-- Format output
-
-**Key Functions:**
-
-- `search(rootDir, query, options)` - Main search function
-- `formatSearchResults(results)` - Format results for display
-
-### Modules (`src/modules/`)
+### Index Modules (`src/modules/`)
 
 Pluggable index modules that implement the `IndexModule` interface.
 
