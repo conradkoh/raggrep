@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 // Main CLI entry point for raggrep
 
 import { EMBEDDING_MODELS, getCacheDir, type EmbeddingModelName } from '../utils/embeddings';
