@@ -33,7 +33,9 @@ import {
 import { BM25Index, normalizeScore } from '../../utils/bm25';
 import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../utils/config';
 import { parseCode, generateChunkId } from './parseCode';
-import { SymbolicIndex, FileSummary, extractKeywords } from '../../utils/tieredIndex';
+import { SymbolicIndex, extractKeywords } from '../../utils/tieredIndex';
+import type { FileSummary } from '../../domain/entities';
+import { parsePathContext, formatPathContextForEmbedding } from '../../domain/services/keywords';
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -97,8 +99,17 @@ export class SemanticModule implements IndexModule {
       return null;
     }
 
-    // Generate embeddings for all chunks
-    const chunkContents = parsedChunks.map((c) => c.content);
+    // Parse path context for structural awareness
+    const pathContext = parsePathContext(filepath);
+    const pathPrefix = formatPathContextForEmbedding(pathContext);
+
+    // Generate embeddings for all chunks with path context
+    // Prepending path context helps the embedding model understand file structure
+    const chunkContents = parsedChunks.map((c) => {
+      // For named chunks, include the name for better embedding
+      const namePrefix = c.name ? `${c.name}: ` : '';
+      return `${pathPrefix} ${namePrefix}${c.content}`;
+    });
     const embeddings = await getEmbeddings(chunkContents);
 
     // Create chunks with all metadata
@@ -130,12 +141,14 @@ export class SemanticModule implements IndexModule {
       .filter(pc => pc.isExported && pc.name)
       .map(pc => pc.name!);
     
-    // Extract keywords from all chunks
+    // Extract keywords from all chunks + path keywords
     const allKeywords = new Set<string>();
     for (const pc of parsedChunks) {
       const keywords = extractKeywords(pc.content, pc.name);
       keywords.forEach(k => allKeywords.add(k));
     }
+    // Add path keywords
+    pathContext.keywords.forEach(k => allKeywords.add(k));
 
     const fileSummary: FileSummary = {
       filepath,
@@ -144,6 +157,13 @@ export class SemanticModule implements IndexModule {
       keywords: Array.from(allKeywords),
       exports,
       lastModified: stats.lastModified,
+      // Include parsed path context for search boosting
+      pathContext: {
+        segments: pathContext.segments,
+        layer: pathContext.layer,
+        domain: pathContext.domain,
+        depth: pathContext.depth,
+      },
     };
     
     // Store summary for finalize
@@ -282,15 +302,49 @@ export class SemanticModule implements IndexModule {
       bm25Scores.set(result.id, normalizeScore(result.score, 3));
     }
 
+    // Extract query terms for path matching
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    
+    // Build path boost map from file summaries
+    const pathBoosts = new Map<string, number>();
+    for (const filepath of candidateFiles) {
+      const summary = symbolicIndex.getFileSummary(filepath);
+      if (summary?.pathContext) {
+        let boost = 0;
+        const ctx = summary.pathContext;
+        
+        // Check if query terms match domain
+        if (ctx.domain && queryTerms.some(t => ctx.domain!.includes(t) || t.includes(ctx.domain!))) {
+          boost += 0.1;
+        }
+        
+        // Check if query terms match layer
+        if (ctx.layer && queryTerms.some(t => ctx.layer!.includes(t) || t.includes(ctx.layer!))) {
+          boost += 0.05;
+        }
+        
+        // Check if query terms match path segments
+        const segmentMatch = ctx.segments.some(seg => 
+          queryTerms.some(t => seg.toLowerCase().includes(t) || t.includes(seg.toLowerCase()))
+        );
+        if (segmentMatch) {
+          boost += 0.05;
+        }
+        
+        pathBoosts.set(filepath, boost);
+      }
+    }
+
     // Calculate hybrid scores for all chunks
     const results: SearchResult[] = [];
 
     for (const { filepath, chunk, embedding } of allChunksData) {
       const semanticScore = cosineSimilarity(queryEmbedding, embedding);
       const bm25Score = bm25Scores.get(chunk.id) || 0;
+      const pathBoost = pathBoosts.get(filepath) || 0;
       
-      // Hybrid score: weighted combination of semantic and BM25
-      const hybridScore = (SEMANTIC_WEIGHT * semanticScore) + (BM25_WEIGHT * bm25Score);
+      // Hybrid score: weighted combination of semantic, BM25, and path boost
+      const hybridScore = (SEMANTIC_WEIGHT * semanticScore) + (BM25_WEIGHT * bm25Score) + pathBoost;
 
       if (hybridScore >= minScore || bm25Score > 0.3) {
         results.push({
@@ -301,6 +355,7 @@ export class SemanticModule implements IndexModule {
           context: {
             semanticScore,
             bm25Score,
+            pathBoost,
           },
         });
       }

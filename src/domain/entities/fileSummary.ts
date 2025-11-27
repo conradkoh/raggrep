@@ -10,6 +10,20 @@
 import type { ChunkType } from "./chunk";
 
 /**
+ * Path context information for structural search boosting.
+ */
+export interface PathContext {
+  /** Directory segments (excluding filename) */
+  segments: string[];
+  /** Detected architectural layer (service, controller, repository, etc.) */
+  layer?: string;
+  /** Detected feature domain (auth, users, payments, etc.) */
+  domain?: string;
+  /** Path depth (number of directory levels) */
+  depth: number;
+}
+
+/**
  * Lightweight file summary for fast filtering.
  *
  * Contains just enough information to decide if a file
@@ -33,6 +47,12 @@ export interface FileSummary {
 
   /** ISO timestamp of when the file was last modified */
   lastModified: string;
+  
+  /** 
+   * Parsed path context for structural boosting.
+   * Includes detected layer, domain, and path depth.
+   */
+  pathContext?: PathContext;
 }
 
 /**

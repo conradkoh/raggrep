@@ -173,11 +173,32 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
   "filepath": "src/auth/authService.ts",
   "chunkCount": 6,
   "chunkTypes": ["interface", "function"],
-  "keywords": ["login", "credentials", "email", "password", "authresult"],
+  "keywords": ["login", "credentials", "email", "password", "authresult", "auth", "service"],
   "exports": ["LoginCredentials", "AuthResult", "login", "logout"],
-  "lastModified": "2025-11-25T09:28:14.665Z"
+  "lastModified": "2025-11-25T09:28:14.665Z",
+  "pathContext": {
+    "segments": ["src", "auth"],
+    "layer": "service",
+    "domain": "auth",
+    "depth": 2
+  }
 }
 ```
+
+### Path-Aware Indexing
+
+RAGgrep extracts structural information from file paths to improve search relevance:
+
+**Path Context:**
+- **segments**: Directory path split into parts
+- **layer**: Detected architectural layer (service, controller, repository, etc.)
+- **domain**: Feature domain detected from path (auth, users, payments, etc.)
+- **depth**: Directory nesting level
+
+**How It's Used:**
+1. **Path keywords** are added to the BM25 index (e.g., "auth", "service", "api")
+2. **Path context** is prepended to embeddings: `[auth service] export function login...`
+3. **Search boosting**: Files with matching domain/layer get score boosts
 
 ### Embedding Index Format
 
