@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "raggrep": "./dist/cli/main.js"
+    "raggrep": "dist/cli/main.js"
   },
   "files": [
     "dist",
