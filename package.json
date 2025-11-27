@@ -1,0 +1,23 @@
+{
+  "name": "raggrep",
+  "version": "0.1.0",
+  "description": "Local filesystem-based RAG system for codebases",
+  "type": "module",
+  "bin": {
+    "raggrep": "./src/cli/main.ts"
+  },
+  "scripts": {
+    "index": "bun run src/cli/index.ts",
+    "query": "bun run src/cli/query.ts"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.0",
+    "glob": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "module": "index.ts",
+  "private": true
+}
