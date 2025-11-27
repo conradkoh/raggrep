@@ -239,6 +239,66 @@ Examples:
       break;
     }
 
+    case 'status': {
+      if (flags.help) {
+        console.log(`
+raggrep status - Show the current state of the index
+
+Usage:
+  raggrep status [options]
+
+Options:
+  -h, --help           Show this help message
+
+Description:
+  Displays information about the index in the current directory,
+  including whether it exists, how many files are indexed, and
+  when it was last updated.
+
+Examples:
+  raggrep status
+`);
+        process.exit(0);
+      }
+
+      const { getIndexStatus } = await import('../indexer');
+      try {
+        const status = await getIndexStatus(process.cwd());
+        
+        console.log('RAGgrep Status');
+        console.log('==============\n');
+        
+        if (!status.exists) {
+          console.log('Status: Not indexed');
+          console.log(`\nDirectory: ${status.rootDir}`);
+          console.log('\nRun "raggrep index" to create an index.');
+        } else {
+          console.log('Status: Indexed');
+          console.log(`\nDirectory: ${status.rootDir}`);
+          console.log(`Index location: ${status.indexDir}`);
+          
+          if (status.lastUpdated) {
+            const date = new Date(status.lastUpdated);
+            console.log(`Last updated: ${date.toLocaleString()}`);
+          }
+          
+          console.log(`\nTotal files: ${status.totalFiles}`);
+          
+          if (status.modules.length > 0) {
+            console.log('\nModules:');
+            for (const mod of status.modules) {
+              const modDate = new Date(mod.lastUpdated);
+              console.log(`  ${mod.id}: ${mod.fileCount} files (updated ${modDate.toLocaleString()})`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error getting status:', error);
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
       console.log(`
 raggrep v${VERSION} - Local filesystem-based RAG system for codebases
@@ -249,6 +309,7 @@ Usage:
 Commands:
   index    Index the current directory
   query    Search the indexed codebase
+  status   Show the current state of the index
   cleanup  Remove stale index entries for deleted files
 
 Options:
@@ -257,9 +318,8 @@ Options:
 
 Examples:
   raggrep index
-  raggrep index --model bge-small-en-v1.5
   raggrep query "user login"
-  raggrep query "handle errors" --top 5
+  raggrep status
   raggrep cleanup
 
 Run 'raggrep <command> --help' for more information.

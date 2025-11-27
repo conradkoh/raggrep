@@ -43,6 +43,25 @@ export interface CleanupResult {
   kept: number;
 }
 
+export interface IndexStatus {
+  /** Whether an index exists */
+  exists: boolean;
+  /** Root directory path */
+  rootDir: string;
+  /** Index directory path */
+  indexDir: string;
+  /** Last time the index was updated */
+  lastUpdated?: string;
+  /** Active modules and their file counts */
+  modules: Array<{
+    id: string;
+    fileCount: number;
+    lastUpdated: string;
+  }>;
+  /** Total number of indexed files */
+  totalFiles: number;
+}
+
 /**
  * Index a directory using all enabled modules
  */
@@ -432,4 +451,90 @@ async function cleanupEmptyDirectories(dir: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get the current status of the index
+ * @param rootDir - Root directory of the project
+ * @returns Index status information
+ */
+export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
+  // Ensure absolute path
+  rootDir = path.resolve(rootDir);
+  
+  // Load config
+  const config = await loadConfig(rootDir);
+  const indexDir = path.join(rootDir, config.indexDir);
+  
+  const status: IndexStatus = {
+    exists: false,
+    rootDir,
+    indexDir,
+    modules: [],
+    totalFiles: 0,
+  };
+  
+  // Check if index directory exists
+  try {
+    await fs.access(indexDir);
+  } catch {
+    return status;
+  }
+  
+  // Try to load global manifest
+  try {
+    const globalManifestPath = getGlobalManifestPath(rootDir, config);
+    const content = await fs.readFile(globalManifestPath, 'utf-8');
+    const globalManifest: GlobalManifest = JSON.parse(content);
+    
+    status.exists = true;
+    status.lastUpdated = globalManifest.lastUpdated;
+    
+    // Load each module's manifest
+    for (const moduleId of globalManifest.modules) {
+      try {
+        const manifest = await loadModuleManifest(rootDir, moduleId, config);
+        const fileCount = Object.keys(manifest.files).length;
+        
+        status.modules.push({
+          id: moduleId,
+          fileCount,
+          lastUpdated: manifest.lastUpdated,
+        });
+        
+        status.totalFiles += fileCount;
+      } catch {
+        // Module manifest doesn't exist or is corrupt
+      }
+    }
+  } catch {
+    // Global manifest doesn't exist - check if there's any index data
+    try {
+      const entries = await fs.readdir(path.join(indexDir, 'index'));
+      if (entries.length > 0) {
+        status.exists = true;
+        // Try to load manifests for known modules
+        for (const entry of entries) {
+          try {
+            const manifest = await loadModuleManifest(rootDir, entry, config);
+            const fileCount = Object.keys(manifest.files).length;
+            
+            status.modules.push({
+              id: entry,
+              fileCount,
+              lastUpdated: manifest.lastUpdated,
+            });
+            
+            status.totalFiles += fileCount;
+          } catch {
+            // Skip
+          }
+        }
+      }
+    } catch {
+      // No index directory
+    }
+  }
+  
+  return status;
 }

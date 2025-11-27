@@ -134,6 +134,47 @@ raggrep cleanup --verbose
 
 ---
 
+### `raggrep status`
+
+Show the current state of the index.
+
+```bash
+raggrep status
+```
+
+**Example Output (indexed directory):**
+
+```
+RAGgrep Status
+==============
+
+Status: Indexed
+
+Directory: /Users/you/project
+Index location: /Users/you/project/.raggrep
+Last updated: 11/27/2025, 10:53:27 PM
+
+Total files: 49
+
+Modules:
+  semantic: 49 files (updated 11/27/2025, 10:53:27 PM)
+```
+
+**Example Output (not indexed):**
+
+```
+RAGgrep Status
+==============
+
+Status: Not indexed
+
+Directory: /Users/you/project
+
+Run "raggrep index" to create an index.
+```
+
+---
+
 ### `raggrep --version`
 
 Show the current version of raggrep.
