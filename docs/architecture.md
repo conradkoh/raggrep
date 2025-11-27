@@ -343,9 +343,9 @@ Trade-off: Local models are smaller than cloud models (384 vs 1536+ dimensions),
 
 ### Planned
 
+- [x] **Watch mode**: Real-time index updates on file changes (`raggrep index --watch`)
 - [ ] **Cross-reference boosting**: Boost files imported by matched results
 - [ ] **Code-aware embeddings**: Use `codebert` or similar for better code understanding
-- [ ] **Watch mode**: Real-time index updates on file changes
 - [ ] **Pre-commit hook**: Auto-index changed files before commit
 
 ### Possible Extensions

@@ -53,6 +53,8 @@ interface ParsedFlags {
   help: boolean;
   /** Show detailed progress */
   verbose: boolean;
+  /** Watch mode for continuous indexing */
+  watch: boolean;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -66,6 +68,7 @@ function parseFlags(args: string[]): ParsedFlags {
   const flags: ParsedFlags = {
     help: false,
     verbose: false,
+    watch: false,
     remaining: [],
   };
   
@@ -76,6 +79,8 @@ function parseFlags(args: string[]): ParsedFlags {
       flags.help = true;
     } else if (arg === '--verbose' || arg === '-v') {
       flags.verbose = true;
+    } else if (arg === '--watch' || arg === '-w') {
+      flags.watch = true;
     } else if (arg === '--model' || arg === '-m') {
       const modelName = args[++i];
       if (modelName && modelName in EMBEDDING_MODELS) {
@@ -129,6 +134,7 @@ Usage:
   raggrep index [options]
 
 Options:
+  -w, --watch          Watch for file changes and re-index automatically
   -m, --model <name>   Embedding model to use (default: all-MiniLM-L6-v2)
   -v, --verbose        Show detailed progress
   -h, --help           Show this help message
@@ -140,13 +146,16 @@ Model Cache: ${getCacheDir()}
 
 Examples:
   raggrep index
+  raggrep index --watch
   raggrep index --model bge-small-en-v1.5
   raggrep index --verbose
 `);
         process.exit(0);
       }
 
-      const { indexDirectory } = await import('../indexer');
+      const { indexDirectory, watchDirectory } = await import('../indexer');
+      
+      // Initial indexing
       console.log('RAGgrep Indexer');
       console.log('================\n');
       try {
@@ -162,6 +171,43 @@ Examples:
       } catch (error) {
         console.error('Error during indexing:', error);
         process.exit(1);
+      }
+
+      // Watch mode
+      if (flags.watch) {
+        console.log('\n┌─────────────────────────────────────────┐');
+        console.log('│  Watching for changes... (Ctrl+C to stop) │');
+        console.log('└─────────────────────────────────────────┘\n');
+
+        try {
+          const watcher = await watchDirectory(process.cwd(), {
+            model: flags.model,
+            verbose: flags.verbose,
+            onFileChange: (event, filepath) => {
+              if (flags.verbose) {
+                const symbol = event === 'add' ? '＋' : event === 'unlink' ? '－' : '～';
+                console.log(`  ${symbol} ${filepath}`);
+              }
+            },
+          });
+
+          // Handle graceful shutdown
+          const shutdown = async () => {
+            console.log('\n\nStopping watcher...');
+            await watcher.stop();
+            console.log('Done.');
+            process.exit(0);
+          };
+
+          process.on('SIGINT', shutdown);
+          process.on('SIGTERM', shutdown);
+
+          // Keep the process running
+          await new Promise(() => {}); // Never resolves
+        } catch (error) {
+          console.error('Error starting watcher:', error);
+          process.exit(1);
+        }
       }
       break;
     }

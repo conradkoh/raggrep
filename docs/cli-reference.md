@@ -14,6 +14,7 @@ raggrep index [options]
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--watch` | `-w` | Watch for file changes and re-index automatically |
 | `--model <name>` | `-m` | Embedding model to use (default: `all-MiniLM-L6-v2`) |
 | `--verbose` | `-v` | Show detailed progress for each file |
 | `--help` | `-h` | Show help message |
@@ -33,20 +34,39 @@ raggrep index [options]
 # Basic indexing
 raggrep index
 
+# Watch mode - continuously re-index on file changes
+raggrep index --watch
+
 # Use a different model
 raggrep index --model bge-small-en-v1.5
 
-# Show detailed progress
-raggrep index --verbose
-
-# Combine options
-raggrep index -m bge-small-en-v1.5 -v
+# Watch mode with verbose output
+raggrep index --watch --verbose
 ```
 
 **Notes:**
 - On first run, the embedding model is downloaded and cached at `~/.cache/raggrep/models/`
 - Incremental indexing: unchanged files are automatically skipped
 - Index is stored in `.raggrep/` directory in your project
+
+**Watch Mode:**
+
+Watch mode (`--watch` or `-w`) enables continuous indexing:
+
+- Monitors file changes in real-time using efficient native file system events
+- Debounces rapid changes (e.g., during git operations) to batch updates
+- Automatically handles file additions, modifications, and deletions
+- Only re-indexes changed files for minimal overhead
+- Press `Ctrl+C` to stop watching
+
+Example output:
+```
+┌─────────────────────────────────────────┐
+│  Watching for changes... (Ctrl+C to stop) │
+└─────────────────────────────────────────┘
+
+[Watch] semantic: 2 indexed, 0 errors
+```
 
 ---
 

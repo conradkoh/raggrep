@@ -538,3 +538,6 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   
   return status;
 }
+
+// Re-export watcher
+export { watchDirectory, type WatchOptions, type FileWatcher } from './watcher';

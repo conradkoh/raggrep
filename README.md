@@ -57,17 +57,17 @@ Found 3 results:
 ## Programmatic API
 
 ```typescript
-import raggrep from 'raggrep';
+import raggrep from "raggrep";
 
 // Index a directory
-await raggrep.index('./my-project');
+await raggrep.index("./my-project");
 
 // Search
-const results = await raggrep.search('./my-project', 'user authentication');
+const results = await raggrep.search("./my-project", "user authentication");
 console.log(raggrep.formatSearchResults(results));
 
 // Cleanup stale entries
-await raggrep.cleanup('./my-project');
+await raggrep.cleanup("./my-project");
 ```
 
 ## CLI Reference
@@ -75,6 +75,7 @@ await raggrep.cleanup('./my-project');
 ```bash
 # Index commands
 raggrep index                              # Index current directory
+raggrep index --watch                      # Watch mode: re-index on file changes
 raggrep index --model bge-small-en-v1.5    # Use different embedding model
 raggrep index --verbose                    # Show detailed progress
 
@@ -86,6 +87,7 @@ raggrep query "interface" --type ts        # Filter by file type
 
 # Maintenance
 raggrep cleanup                            # Remove stale index entries
+raggrep status                             # Show index status
 ```
 
 ## How It Works
@@ -106,6 +108,7 @@ Query → BM25 filter (symbolic) → Load candidates → Semantic search → Res
 **File types:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`
 
 **Code structures:**
+
 - Functions (regular, async, arrow)
 - Classes (including abstract)
 - Interfaces
@@ -114,6 +117,7 @@ Query → BM25 filter (symbolic) → Load candidates → Semantic search → Res
 - Exported variables
 
 **Automatically ignored:**
+
 - `node_modules`, `dist`, `build`, `.git`
 - `.next`, `.nuxt`, `__pycache__`, `venv`
 - See [Configuration](./docs/configuration.md) for full list
@@ -127,11 +131,11 @@ Query → BM25 filter (symbolic) → Load candidates → Semantic search → Res
 
 ## Performance
 
-| Operation | Time | Notes |
-|-----------|------|-------|
-| Initial index (1k files) | 1-2 min | Embedding generation is the bottleneck |
-| Incremental update | <2s | Only changed files |
-| Search | ~100-500ms | Depends on codebase size |
+| Operation                | Time       | Notes                                  |
+| ------------------------ | ---------- | -------------------------------------- |
+| Initial index (1k files) | 1-2 min    | Embedding generation is the bottleneck |
+| Incremental update       | <2s        | Only changed files                     |
+| Search                   | ~100-500ms | Depends on codebase size               |
 
 ## Requirements
 
