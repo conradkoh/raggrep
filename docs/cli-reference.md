@@ -69,6 +69,7 @@ raggrep query <search query> [options]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--top <n>` | `-k` | Number of results to return (default: 10) |
+| `--min-score <n>` | `-s` | Minimum similarity score threshold 0-1 (default: 0.15) |
 | `--help` | `-h` | Show help message |
 
 **Examples:**
@@ -79,6 +80,9 @@ raggrep query "user authentication"
 
 # Limit results
 raggrep query "handle errors" --top 5
+
+# Search with lower threshold (find more results)
+raggrep query "database" --min-score 0.1
 
 # Search for specific patterns
 raggrep query "database connection pooling"

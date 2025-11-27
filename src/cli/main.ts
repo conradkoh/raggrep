@@ -6,15 +6,31 @@ import { EMBEDDING_MODELS, getCacheDir, type EmbeddingModelName } from '../utils
 const args = process.argv.slice(2);
 const command = args[0];
 
-// Parse CLI flags
-function parseFlags(args: string[]): { 
-  model?: EmbeddingModelName; 
+/**
+ * Parsed CLI flags from command line arguments
+ */
+interface ParsedFlags {
+  /** Embedding model to use */
+  model?: EmbeddingModelName;
+  /** Number of results to return */
   topK?: number;
+  /** Minimum similarity score threshold (0-1) */
+  minScore?: number;
+  /** Show help message */
   help: boolean;
+  /** Show detailed progress */
   verbose: boolean;
+  /** Remaining positional arguments */
   remaining: string[];
-} {
-  const flags: { model?: EmbeddingModelName; topK?: number; help: boolean; verbose: boolean; remaining: string[] } = {
+}
+
+/**
+ * Parse CLI flags from command line arguments
+ * @param args - Array of command line arguments (excluding command name)
+ * @returns Parsed flags object
+ */
+function parseFlags(args: string[]): ParsedFlags {
+  const flags: ParsedFlags = {
     help: false,
     verbose: false,
     remaining: [],
@@ -40,6 +56,14 @@ function parseFlags(args: string[]): {
       const k = parseInt(args[++i], 10);
       if (!isNaN(k) && k > 0) {
         flags.topK = k;
+      }
+    } else if (arg === '--min-score' || arg === '-s') {
+      const score = parseFloat(args[++i]);
+      if (!isNaN(score) && score >= 0 && score <= 1) {
+        flags.minScore = score;
+      } else {
+        console.error(`Invalid min-score: ${args[i]}. Must be a number between 0 and 1.`);
+        process.exit(1);
       }
     } else if (!arg.startsWith('-')) {
       flags.remaining.push(arg);
@@ -109,12 +133,14 @@ Usage:
   raggrep query <search query> [options]
 
 Options:
-  -k, --top <n>    Number of results to return (default: 10)
-  -h, --help       Show this help message
+  -k, --top <n>        Number of results to return (default: 10)
+  -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
+  -h, --help           Show this help message
 
 Examples:
   raggrep query "user authentication"
   raggrep query "handle errors" --top 5
+  raggrep query "database" --min-score 0.1
 `);
         process.exit(0);
       }
@@ -131,7 +157,10 @@ Examples:
       console.log('RAGgrep Search');
       console.log('==============\n');
       try {
-        const results = await search(process.cwd(), query, { topK: flags.topK ?? 10 });
+        const results = await search(process.cwd(), query, { 
+          topK: flags.topK ?? 10,
+          minScore: flags.minScore,
+        });
         console.log(formatSearchResults(results));
       } catch (error) {
         console.error('Error during search:', error);
