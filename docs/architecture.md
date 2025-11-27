@@ -1,5 +1,23 @@
 # Architecture
 
+## Design Goals
+
+RAGgrep is built around three core principles:
+
+| Goal | Description |
+|------|-------------|
+| **Local-first** | Runs entirely on your machine — no servers or external API calls. |
+| **Filesystem-based** | Index is just JSON files. Human-readable, debuggable, portable. |
+| **Persistent** | Index lives alongside your code. No rebuilding on every search. |
+
+Additional goals:
+
+| Goal | Description |
+|------|-------------|
+| **Incremental** | Only re-indexes changed files. Fast updates via file watching or pre-commit hooks. |
+| **Transparent** | The index can be inspected, backed up, or versioned. |
+| **Scalable** | Optimized for small-to-medium codebases (1k–100k files). |
+
 ## Overview
 
 RAGgrep follows Clean Architecture principles with clear separation between:
@@ -43,115 +61,42 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
-## Layer Responsibilities
+## Two-Tier Index System
 
-### Domain Layer (`src/domain/`)
+RAGgrep uses a two-layer index for efficient search on large codebases:
 
-Pure business logic with **no external dependencies**.
-
-- **entities/**: Core data structures (Chunk, FileIndex, Config, etc.)
-- **ports/**: Interfaces for external dependencies (FileSystem, EmbeddingProvider)
-- **services/**: Pure algorithms (BM25 search, keyword extraction)
-
-### Infrastructure Layer (`src/infrastructure/`)
-
-Adapters implementing domain ports.
-
-- **filesystem/**: Node.js filesystem adapter
-- **embeddings/**: Transformers.js embedding provider
-- **storage/**: File-based index storage
-
-### Application Layer (`src/application/`)
-
-Use cases orchestrating domain and infrastructure.
-
-- **indexDirectory**: Index a codebase
-- **searchIndex**: Search the index
-- **cleanupIndex**: Remove stale entries
-
-## Core Components
-
-### Domain Entities (`src/domain/entities/`)
-
-Core data structures with no dependencies:
-
-| Entity         | Description                                     |
-| -------------- | ----------------------------------------------- |
-| `Chunk`        | A semantic unit of code (function, class, etc.) |
-| `FileIndex`    | Index data for a single file (Tier 2)           |
-| `FileSummary`  | Lightweight file summary (Tier 1)               |
-| `SearchResult` | A search result with score                      |
-| `Config`       | Application configuration                       |
-
-### Domain Services (`src/domain/services/`)
-
-Pure algorithms and business logic:
-
-| Service           | Description                               |
-| ----------------- | ----------------------------------------- |
-| `BM25Index`       | Keyword-based search using BM25 algorithm |
-| `extractKeywords` | Extract keywords from code                |
-| `tokenize`        | Tokenize text for search                  |
-
-### Domain Ports (`src/domain/ports/`)
-
-Interfaces for external dependencies:
-
-| Port                | Description                    |
-| ------------------- | ------------------------------ |
-| `FileSystem`        | Abstract filesystem operations |
-| `EmbeddingProvider` | Abstract embedding generation  |
-| `IndexStorage`      | Abstract index persistence     |
-
-### Infrastructure (`src/infrastructure/`)
-
-Concrete implementations of domain ports:
-
-| Adapter                         | Port              | Description       |
-| ------------------------------- | ----------------- | ----------------- |
-| `NodeFileSystem`                | FileSystem        | Node.js fs/path   |
-| `TransformersEmbeddingProvider` | EmbeddingProvider | Transformers.js   |
-| `FileIndexStorage`              | IndexStorage      | JSON file storage |
-
-### Index Modules (`src/modules/`)
-
-Pluggable index modules that implement the `IndexModule` interface.
-
-**Current Modules:**
-
-- `semantic` - Text embeddings using Transformers.js
-
-**Module Interface:**
-
-```typescript
-interface IndexModule {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-
-  initialize?(config: ModuleConfig): Promise<void>;
-  indexFile(
-    filepath: string,
-    content: string,
-    ctx: IndexContext
-  ): Promise<FileIndex | null>;
-  search(
-    query: string,
-    ctx: SearchContext,
-    options: SearchOptions
-  ): Promise<SearchResult[]>;
-}
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              SYMBOLIC INDEX (Lightweight)                       │
+│         Per-file summaries with extracted keywords              │
+│                    Persisted BM25 index                         │
+│                                                                 │
+│  symbolic/                                                      │
+│  ├── _meta.json (BM25 stats)                                   │
+│  └── src/                                                       │
+│      └── auth/                                                  │
+│          └── authService.json (keywords, exports)               │
+└───────────────────────┬─────────────────────────────────────────┘
+                        │ BM25 filter → candidates
+                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│           EMBEDDING INDEX (Full Semantic Data)                  │
+│            Chunk embeddings for semantic search                 │
+│              Only loaded for candidate files                    │
+│                                                                 │
+│  src/auth/authService.json  ← loaded on demand                  │
+│  (chunks + 384-dim embeddings)                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Utilities (`src/utils/`)
+### Why Two Tiers?
 
-Shared utilities used across the codebase.
-
-**Files:**
-
-- `config.ts` - Configuration loading and path utilities
-- `embeddings.ts` - Local embedding provider using Transformers.js
+| Problem | Solution |
+|---------|----------|
+| Loading all embeddings is slow | Symbolic index filters first, load only candidates |
+| Single large index file doesn't scale | Per-file storage, parallel reads |
+| BM25 rebuild on every search is expensive | Persist BM25 during indexing |
+| Memory grows with codebase size | Only relevant files loaded into memory |
 
 ## Data Flow
 
@@ -159,68 +104,31 @@ Shared utilities used across the codebase.
 
 ```
 1. CLI parses arguments
-2. Indexer loads config from .raggrep/config.json (or uses defaults)
-3. Indexer finds all matching files (respecting ignore patterns)
-4. For each enabled module:
-   a. Module parses file into chunks (functions, classes, etc.)
-   b. Module generates embeddings for each chunk
-   c. Index data written to .raggrep/index/<module-id>/
-   d. Manifest updated with file metadata
-5. Summary displayed to user
+2. Load config from .raggrep/config.json (or use defaults)
+3. Find all matching files (respecting ignore patterns)
+4. For each file:
+   a. Parse into chunks (functions, classes, etc.)
+   b. Generate embeddings for each chunk
+   c. Extract keywords for symbolic index
+   d. Write per-file index to .raggrep/index/<module>/
+5. Build and persist BM25 index
+6. Update manifests
 ```
 
-### Search Flow (Symbolic + Semantic Hybrid Search)
-
-RAGgrep uses a two-layer index system for efficient search on large codebases:
+### Search Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│              SYMBOLIC INDEX (Lightweight)                   │
-│         Per-file summaries with extracted keywords          │
-│                    Persisted BM25 index                     │
-│                                                             │
-│  symbolic/                                                  │
-│  ├── _meta.json (BM25 stats)                               │
-│  └── src/                                                   │
-│      └── auth/                                              │
-│          └── authService.json (keywords, exports)           │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ BM25 filter → candidates
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│           EMBEDDING INDEX (Full Semantic Data)              │
-│            Chunk embeddings for semantic search             │
-│              Only loaded for candidate files                │
-│                                                             │
-│  src/auth/authService.json  ← loaded on demand              │
-│  (chunks + 384-dim embeddings)                              │
-└─────────────────────────────────────────────────────────────┘
+1. Load symbolic index (_meta.json)
+2. BM25 search on file keywords
+3. Select top candidate files (3× requested results)
+4. Load embedding indexes only for candidates
+5. For each chunk:
+   - Compute cosine similarity (semantic score)
+   - Compute BM25 score (keyword score)
+   - Hybrid score = 0.7 × semantic + 0.3 × BM25
+6. Sort by hybrid score
+7. Return top K results
 ```
-
-**Search Steps:**
-
-```
-1. CLI parses query and options
-2. Symbolic Index: Fast keyword filtering
-   a. Load _meta.json + file summaries
-   b. BM25 search on file keywords
-   c. Select top candidate files (3× topK)
-3. Embedding Index: Load only candidate files
-   a. Query embedding generated
-   b. For each chunk in candidate files:
-      - Cosine similarity computed (semantic score)
-      - BM25 score computed (keyword score)
-      - Hybrid score = 0.7 × semantic + 0.3 × BM25
-4. Results sorted by hybrid score
-5. Top K results returned
-```
-
-**Benefits of Two-Layer Approach:**
-
-- **Scales to large codebases**: Per-file storage, no single giant file
-- **Memory efficient**: Only loads relevant files, not entire index
-- **Persistent BM25**: Built once during indexing, not every search
-- **Filesystem-based**: Keeps index on disk, queries from disk
 
 ## Index Structure
 
@@ -243,7 +151,7 @@ RAGgrep uses a two-layer index system for efficient search on large codebases:
 
 ### Symbolic Index Format
 
-**\_meta.json** - BM25 statistics:
+**\_meta.json** — BM25 statistics:
 
 ```json
 {
@@ -251,8 +159,8 @@ RAGgrep uses a two-layer index system for efficient search on large codebases:
   "moduleId": "semantic",
   "fileCount": 8,
   "bm25Data": {
-    "avgDocLength": 0,
-    "documentFrequencies": {},
+    "avgDocLength": 45.2,
+    "documentFrequencies": { "login": 3, "user": 5, "auth": 2 },
     "totalDocs": 8
   }
 }
@@ -265,15 +173,15 @@ RAGgrep uses a two-layer index system for efficient search on large codebases:
   "filepath": "src/auth/authService.ts",
   "chunkCount": 6,
   "chunkTypes": ["interface", "function"],
-  "keywords": ["login", "credentials", "email", "password", "authresult", ...],
+  "keywords": ["login", "credentials", "email", "password", "authresult"],
   "exports": ["LoginCredentials", "AuthResult", "login", "logout"],
   "lastModified": "2025-11-25T09:28:14.665Z"
 }
 ```
 
-### Embedding Index Format (Per-File)
+### Embedding Index Format
 
-Each indexed file produces a JSON file with full chunk data:
+**Per-file index** (e.g., `src/auth/authService.json`):
 
 ```json
 {
@@ -285,7 +193,9 @@ Each indexed file produces a JSON file with full chunk data:
       "content": "export async function login...",
       "startLine": 24,
       "endLine": 55,
-      "type": "function"
+      "type": "function",
+      "name": "login",
+      "isExported": true
     }
   ],
   "moduleData": {
@@ -296,51 +206,142 @@ Each indexed file produces a JSON file with full chunk data:
 }
 ```
 
+## Layer Details
+
+### Domain Layer (`src/domain/`)
+
+Pure business logic with **no external dependencies**.
+
+| Component | Description |
+|-----------|-------------|
+| `entities/` | Core data structures (Chunk, FileIndex, Config, etc.) |
+| `ports/` | Interfaces for external dependencies |
+| `services/` | Pure algorithms (BM25 search, keyword extraction) |
+
+### Infrastructure Layer (`src/infrastructure/`)
+
+Adapters implementing domain ports.
+
+| Adapter | Port | Implementation |
+|---------|------|----------------|
+| `NodeFileSystem` | `FileSystem` | Node.js `fs` and `path` |
+| `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js |
+| `FileIndexStorage` | `IndexStorage` | JSON file storage |
+
+### Application Layer (`src/application/`)
+
+Use cases orchestrating domain and infrastructure.
+
+| Use Case | Description |
+|----------|-------------|
+| `indexDirectory` | Index a codebase |
+| `searchIndex` | Search the index |
+| `cleanupIndex` | Remove stale entries |
+
+### Index Modules (`src/modules/`)
+
+Pluggable modules implementing the `IndexModule` interface.
+
+**Current:** `semantic` — Text embeddings using Transformers.js
+
+```typescript
+interface IndexModule {
+  id: string;
+  name: string;
+  
+  initialize?(config: ModuleConfig): Promise<void>;
+  indexFile(filepath: string, content: string, ctx: IndexContext): Promise<FileIndex | null>;
+  finalize?(ctx: IndexContext): Promise<void>;
+  search(query: string, ctx: SearchContext, options: SearchOptions): Promise<SearchResult[]>;
+}
+```
+
 ## Embedding Model
 
 RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for local embeddings.
 
 **Default Model:** `all-MiniLM-L6-v2`
 
-- 384 dimensions
-- ~23MB download
-- Good balance of speed and quality
+| Property | Value |
+|----------|-------|
+| Dimensions | 384 |
+| Download size | ~23MB |
+| Cache location | `~/.cache/raggrep/models/` |
 
-**Model Caching:**
+**Available Models:**
 
-- Models downloaded on first use
-- Cached at `~/.cache/raggrep/models/`
-- Subsequent runs load from cache
+| Model | Size | Notes |
+|-------|------|-------|
+| `all-MiniLM-L6-v2` | ~23MB | Default, good balance |
+| `all-MiniLM-L12-v2` | ~33MB | Higher quality |
+| `bge-small-en-v1.5` | ~33MB | Good for code |
+| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest |
 
 ## Chunk Types
 
-The semantic module uses the TypeScript Compiler API for accurate AST-based parsing.
-It identifies these code structures:
+The semantic module uses the TypeScript Compiler API for AST-based parsing.
 
-| Type        | Description                                             |
-| ----------- | ------------------------------------------------------- |
-| `function`  | Function declarations, arrow functions, async functions |
-| `class`     | Class definitions                                       |
-| `interface` | TypeScript interfaces                                   |
-| `type`      | TypeScript type aliases                                 |
-| `enum`      | Enum declarations                                       |
-| `variable`  | Exported constants/variables                            |
-| `block`     | Code blocks (for non-TS files)                          |
-| `file`      | Entire file (fallback for small files)                  |
+| Type | Description |
+|------|-------------|
+| `function` | Function declarations, arrow functions, async functions |
+| `class` | Class definitions |
+| `interface` | TypeScript interfaces |
+| `type` | TypeScript type aliases |
+| `enum` | Enum declarations |
+| `variable` | Exported constants/variables |
+| `block` | Code blocks (for non-TS files) |
+| `file` | Entire file (fallback for small files) |
 
-### Chunk Metadata
+## Performance Characteristics
 
-Each chunk also includes:
+| Operation | Expected Time | Notes |
+|-----------|---------------|-------|
+| Initial indexing (1k files) | 1-2 min | Embedding generation is the bottleneck |
+| Incremental update (10 files) | <2s | Per-file writes only |
+| Search latency | ~100-500ms | Depends on candidate count |
+| Concurrent writes | Safe | Per-file updates, no global lock |
 
-- **name** - The identifier name (function name, class name, etc.)
-- **isExported** - Whether the construct is exported
-- **jsDoc** - JSDoc comments if present
+**Scaling limits:**
+- Optimized for 1k–100k files
+- Beyond 100k files, consider sharding or dedicated vector databases
 
-## Future Extensions
+## Design Decisions
 
-The modular architecture supports adding:
+### Why Filesystem vs. SQLite?
 
-- **TypeScript LSP Module** - Index symbols, references, type information
-- **AST Module** - Syntax-aware code structure indexing
-- **Dependency Module** - Track import/export relationships
-- **Comment Module** - Index documentation and comments separately
+| Factor | Filesystem | SQLite |
+|--------|------------|--------|
+| Setup complexity | ⭐ Simple | ⭐ Simple |
+| Transparency | ⭐⭐⭐⭐ | ⭐ |
+| Incremental updates | ⭐⭐⭐⭐ | ⭐⭐ |
+| Bulk search speed | ⭐⭐ | ⭐⭐⭐⭐ |
+| Memory footprint | ⭐⭐⭐⭐ | ⭐⭐ |
+| Concurrency | ⭐⭐⭐⭐ | ⭐⭐ |
+| Debuggability | ⭐⭐⭐⭐ | ⭐ |
+
+**Verdict:** Filesystem wins for transparency, incremental updates, and debuggability. SQLite is better for complex queries and bulk operations.
+
+### Why Local Embeddings?
+
+- **Privacy**: Code never leaves your machine
+- **Offline**: Works without internet
+- **Speed**: No network latency for embedding calls
+- **Cost**: No API fees
+
+Trade-off: Local models are smaller than cloud models (384 vs 1536+ dimensions), but sufficient for code search.
+
+## Future Enhancements
+
+### Planned
+
+- [ ] **Cross-reference boosting**: Boost files imported by matched results
+- [ ] **Code-aware embeddings**: Use `codebert` or similar for better code understanding
+- [ ] **Watch mode**: Real-time index updates on file changes
+- [ ] **Pre-commit hook**: Auto-index changed files before commit
+
+### Possible Extensions
+
+- **TypeScript LSP Module**: Index symbols, references, type information
+- **Dependency Graph Module**: Track import/export relationships
+- **Comment Module**: Index documentation separately
+- **Binary storage**: Float32 arrays for faster embedding loading
