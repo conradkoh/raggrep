@@ -98,6 +98,38 @@ Results are sorted by relevance score and include:
 
 ---
 
+### `raggrep cleanup`
+
+Remove stale index entries for files that have been deleted.
+
+```bash
+raggrep cleanup [options]
+```
+
+**Options:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--verbose` | `-v` | Show detailed progress |
+| `--help` | `-h` | Show help message |
+
+**Examples:**
+
+```bash
+# Clean up stale index entries
+raggrep cleanup
+
+# Show detailed progress
+raggrep cleanup --verbose
+```
+
+**Notes:**
+- Removes index entries for files that no longer exist
+- Cleans up empty directories in the index
+- Run this after deleting files from your project
+
+---
+
 ### `raggrep --help`
 
 Show general help and available commands.

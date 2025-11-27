@@ -169,6 +169,48 @@ Examples:
       break;
     }
 
+    case 'cleanup': {
+      if (flags.help) {
+        console.log(`
+raggrep cleanup - Remove stale index entries for deleted files
+
+Usage:
+  raggrep cleanup [options]
+
+Options:
+  -v, --verbose        Show detailed progress
+  -h, --help           Show this help message
+
+Description:
+  Scans the index and removes entries for files that no longer exist.
+  Run this command after deleting files to clean up the index.
+
+Examples:
+  raggrep cleanup
+  raggrep cleanup --verbose
+`);
+        process.exit(0);
+      }
+
+      const { cleanupIndex } = await import('../indexer');
+      console.log('RAGgrep Cleanup');
+      console.log('===============\n');
+      try {
+        const results = await cleanupIndex(process.cwd(), { 
+          verbose: flags.verbose,
+        });
+        console.log('\n===============');
+        console.log('Summary:');
+        for (const result of results) {
+          console.log(`  ${result.moduleId}: ${result.removed} removed, ${result.kept} kept`);
+        }
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
       console.log(`
 raggrep - Local filesystem-based RAG system for codebases
@@ -177,8 +219,9 @@ Usage:
   raggrep <command> [options]
 
 Commands:
-  index   Index the current directory
-  query   Search the indexed codebase
+  index    Index the current directory
+  query    Search the indexed codebase
+  cleanup  Remove stale index entries for deleted files
 
 Options:
   -h, --help   Show help for a command
@@ -188,6 +231,7 @@ Examples:
   raggrep index --model bge-small-en-v1.5
   raggrep query "user login"
   raggrep query "handle errors" --top 5
+  raggrep cleanup
 
 Run 'raggrep <command> --help' for more information.
 `);

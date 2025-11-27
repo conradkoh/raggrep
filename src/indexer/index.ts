@@ -35,6 +35,14 @@ export interface IndexOptions {
   verbose?: boolean;
 }
 
+export interface CleanupResult {
+  moduleId: string;
+  /** Number of stale entries removed */
+  removed: number;
+  /** Number of valid entries kept */
+  kept: number;
+}
+
 /**
  * Index a directory using all enabled modules
  */
@@ -267,4 +275,142 @@ async function updateGlobalManifest(
 
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+/**
+ * Clean up stale index entries for files that no longer exist
+ * @param rootDir - Root directory of the project
+ * @param options - Cleanup options
+ * @returns Array of cleanup results per module
+ */
+export async function cleanupIndex(
+  rootDir: string, 
+  options: { verbose?: boolean } = {}
+): Promise<CleanupResult[]> {
+  const verbose = options.verbose ?? false;
+  
+  // Ensure absolute path
+  rootDir = path.resolve(rootDir);
+  
+  console.log(`Cleaning up index in: ${rootDir}`);
+
+  // Load config
+  const config = await loadConfig(rootDir);
+
+  // Register built-in modules
+  await registerBuiltInModules();
+
+  // Get enabled modules
+  const enabledModules = registry.getEnabled(config);
+
+  if (enabledModules.length === 0) {
+    console.log('No modules enabled.');
+    return [];
+  }
+
+  const results: CleanupResult[] = [];
+
+  for (const module of enabledModules) {
+    console.log(`\n[${module.name}] Checking for stale entries...`);
+    
+    const result = await cleanupModuleIndex(rootDir, module.id, config, verbose);
+    results.push(result);
+    
+    console.log(`[${module.name}] Removed ${result.removed} stale entries, kept ${result.kept} valid entries`);
+  }
+
+  return results;
+}
+
+/**
+ * Clean up stale index entries for a specific module
+ */
+async function cleanupModuleIndex(
+  rootDir: string,
+  moduleId: string,
+  config: Config,
+  verbose: boolean
+): Promise<CleanupResult> {
+  const result: CleanupResult = {
+    moduleId,
+    removed: 0,
+    kept: 0,
+  };
+
+  // Load manifest
+  const manifest = await loadModuleManifest(rootDir, moduleId, config);
+  const indexPath = getModuleIndexPath(rootDir, moduleId, config);
+  
+  const filesToRemove: string[] = [];
+  const updatedFiles: ModuleManifest['files'] = {};
+
+  // Check each indexed file
+  for (const [filepath, entry] of Object.entries(manifest.files)) {
+    const fullPath = path.join(rootDir, filepath);
+    
+    try {
+      await fs.access(fullPath);
+      // File exists, keep it
+      updatedFiles[filepath] = entry;
+      result.kept++;
+    } catch {
+      // File doesn't exist, mark for removal
+      filesToRemove.push(filepath);
+      result.removed++;
+      
+      if (verbose) {
+        console.log(`  Removing stale entry: ${filepath}`);
+      }
+    }
+  }
+
+  // Remove stale index files
+  for (const filepath of filesToRemove) {
+    const indexFilePath = path.join(indexPath, filepath.replace(/\.[^.]+$/, '.json'));
+    try {
+      await fs.unlink(indexFilePath);
+    } catch {
+      // Index file may not exist, that's okay
+    }
+  }
+
+  // Update manifest with only valid files
+  manifest.files = updatedFiles;
+  manifest.lastUpdated = new Date().toISOString();
+  await writeModuleManifest(rootDir, moduleId, manifest, config);
+
+  // Clean up empty directories in the index
+  await cleanupEmptyDirectories(indexPath);
+
+  return result;
+}
+
+/**
+ * Recursively remove empty directories
+ */
+async function cleanupEmptyDirectories(dir: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    
+    // Process subdirectories first
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const subDir = path.join(dir, entry.name);
+        await cleanupEmptyDirectories(subDir);
+      }
+    }
+    
+    // Check if directory is now empty (re-read after potential subdirectory removal)
+    const remainingEntries = await fs.readdir(dir);
+    
+    // Don't remove the root index directory or manifest files
+    if (remainingEntries.length === 0) {
+      await fs.rmdir(dir);
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
 }
