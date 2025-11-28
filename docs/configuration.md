@@ -1,39 +1,57 @@
 # Configuration
 
-RAGgrep works out of the box with sensible defaults, but can be customized via a configuration file.
+RAGgrep works out of the box with sensible defaults. Configuration is optional.
 
-## Configuration File
+> **Note:** For detailed configuration options, see [Advanced](./advanced.md).
 
-Create `.raggrep/config.json` in your project root to customize behavior:
+## Default Behavior
+
+Without any configuration, RAGgrep:
+
+- **Indexes:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`, `.txt`
+- **Ignores:** `node_modules`, `dist`, `build`, `.git`, `.next`, `.nuxt`, `__pycache__`, `venv`, etc.
+- **Uses model:** `all-MiniLM-L6-v2` (~23MB)
+
+## Quick Configuration
+
+### Change Embedding Model
+
+```bash
+raggrep index --model bge-small-en-v1.5
+```
+
+Available models:
+
+| Model                     | Size  | Notes                 |
+| ------------------------- | ----- | --------------------- |
+| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
+| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
+| `bge-small-en-v1.5`       | ~33MB | Good for code         |
+| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
+
+### Configuration File
+
+The config file is stored in the index directory:
+
+```bash
+# Find your index location
+raggrep status
+
+# Edit config at: <index-location>/config.json
+```
+
+Example configuration:
 
 ```json
 {
-  "version": "0.1.0",
-  "indexDir": ".raggrep",
-  "extensions": [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".py",
-    ".go",
-    ".rs",
-    ".java",
-    ".md"
-  ],
-  "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep"],
+  "extensions": [".ts", ".tsx"],
+  "ignorePaths": ["node_modules", ".git", "dist", "build", "__tests__"],
   "modules": [
-    {
-      "id": "core",
-      "enabled": true,
-      "options": {}
-    },
+    { "id": "core", "enabled": true },
     {
       "id": "language/typescript",
       "enabled": true,
-      "options": {
-        "embeddingModel": "all-MiniLM-L6-v2"
-      }
+      "options": { "embeddingModel": "bge-small-en-v1.5" }
     }
   ]
 }
@@ -41,257 +59,72 @@ Create `.raggrep/config.json` in your project root to customize behavior:
 
 ## Configuration Options
 
-### `version`
-
-Schema version for the configuration file.
-
-**Default:** `"0.1.0"`
-
-### `indexDir`
-
-*Note: This setting is currently ignored. Index data is stored in a system temp directory to avoid cluttering your project.*
-
-**Default location:** `/tmp/raggrep-indexes/<project-hash>/`
-
-Use `raggrep status` to see the exact location for your project.
-
 ### `extensions`
 
-Array of file extensions to index.
-
-**Default:**
+File extensions to index.
 
 ```json
-[".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".md"]
-```
-
-**Example - TypeScript only:**
-
-```json
-{
-  "extensions": [".ts", ".tsx"]
-}
+{ "extensions": [".ts", ".tsx"] }
 ```
 
 ### `ignorePaths`
 
-Array of directory/file names to ignore during indexing.
-
-**Default:**
+Directories to skip.
 
 ```json
-[
-  "node_modules",
-  ".pnpm-store",
-  ".yarn",
-  "vendor",
-  ".git",
-  "dist",
-  "build",
-  "out",
-  ".output",
-  "target",
-  ".next",
-  ".nuxt",
-  ".svelte-kit",
-  ".vercel",
-  ".netlify",
-  ".cache",
-  ".turbo",
-  ".parcel-cache",
-  ".eslintcache",
-  "coverage",
-  ".nyc_output",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".pytest_cache",
-  ".idea",
-  ".raggrep"
-]
-```
-
-**Example - Add additional ignores:**
-
-```json
-{
-  "ignorePaths": [
-    "node_modules",
-    ".git",
-    "dist",
-    "build",
-    ".raggrep",
-    "__tests__",
-    "*.test.ts"
-  ]
-}
+{ "ignorePaths": ["node_modules", ".git", "dist", "__tests__"] }
 ```
 
 ### `modules`
 
-Array of module configurations. Both modules are enabled by default.
-
-**Structure:**
+Enable/disable modules or change settings.
 
 ```json
 {
   "modules": [
-    {
-      "id": "core",
-      "enabled": true,
-      "options": {}
-    },
+    { "id": "core", "enabled": true },
     {
       "id": "language/typescript",
       "enabled": true,
-      "options": {
-        // Module-specific options
-      }
+      "options": { "embeddingModel": "all-MiniLM-L6-v2" }
     }
   ]
 }
 ```
 
-## Module Options
+## Default Ignored Paths
 
-### Core Module (`core`)
-
-Fast, language-agnostic text search using regex-based symbol extraction and BM25 keyword matching. Works on any file type.
-
-| Option | Type | Default | Description              |
-| ------ | ---- | ------- | ------------------------ |
-| (none) | -    | -       | No configuration options |
-
-**Features:**
-
-- Extracts symbols (functions, classes, variables) via regex patterns
-- BM25 keyword indexing for fast deterministic search
-- Line-based chunking with overlap
-- No embedding model required
-
-### TypeScript Module (`language/typescript`)
-
-| Option           | Type   | Default              | Description            |
-| ---------------- | ------ | -------------------- | ---------------------- |
-| `embeddingModel` | string | `"all-MiniLM-L6-v2"` | Embedding model to use |
-
-### Search Defaults
-
-| Setting    | Default | Description                                                                                                 |
-| ---------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `topK`     | `10`    | Number of results to return                                                                                 |
-| `minScore` | `0.15`  | Minimum similarity threshold (0-1). Lower values return more results but may include less relevant matches. |
-
-**Available Models:**
-
-| Model                     | Size  | Dimensions | Notes                 |
-| ------------------------- | ----- | ---------- | --------------------- |
-| `all-MiniLM-L6-v2`        | ~23MB | 384        | Default, good balance |
-| `all-MiniLM-L12-v2`       | ~33MB | 384        | Higher quality        |
-| `bge-small-en-v1.5`       | ~33MB | 384        | Good for code         |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | 384        | Fastest               |
-
-**Example - Use BGE model:**
-
-```json
-{
-  "modules": [
-    {
-      "id": "language/typescript",
-      "enabled": true,
-      "options": {
-        "embeddingModel": "bge-small-en-v1.5"
-      }
-    }
-  ]
-}
 ```
-
-## CLI Overrides
-
-Some configuration options can be overridden via CLI flags:
-
-| Config Option                                         | CLI Flag        | Example                                   |
-| ----------------------------------------------------- | --------------- | ----------------------------------------- |
-| `modules[language/typescript].options.embeddingModel` | `--model`, `-m` | `raggrep index --model bge-small-en-v1.5` |
-
-CLI flags take precedence over configuration file settings.
+node_modules, .pnpm-store, .yarn, vendor
+.git
+dist, build, out, .output, target
+.next, .nuxt, .svelte-kit, .vercel, .netlify
+.cache, .turbo, .parcel-cache, .eslintcache
+coverage, .nyc_output
+__pycache__, .venv, venv, .pytest_cache
+.idea
+```
 
 ## Environment
 
 ### Model Cache
 
-Embedding models are cached globally at:
+Embedding models are cached globally:
 
 ```
 ~/.cache/raggrep/models/
 ```
 
-This directory is shared across all projects to avoid re-downloading models.
+### Index Location
 
-### Index Storage
-
-Each project's index is stored at:
+Index is stored in system temp:
 
 ```
-<project-root>/.raggrep/
+/tmp/raggrep-indexes/<project-hash>/
 ```
 
-This directory should be added to `.gitignore`:
+Use `raggrep status` to see the exact location.
 
-```gitignore
-.raggrep/
-```
+---
 
-## Example Configurations
-
-### Minimal (TypeScript Project)
-
-```json
-{
-  "extensions": [".ts", ".tsx"],
-  "ignorePaths": ["node_modules", ".git", "dist", ".raggrep"]
-}
-```
-
-### Python Project
-
-```json
-{
-  "extensions": [".py"],
-  "ignorePaths": ["__pycache__", ".git", "venv", ".raggrep", ".pytest_cache"]
-}
-```
-
-### Monorepo
-
-```json
-{
-  "extensions": [".ts", ".tsx", ".js", ".jsx"],
-  "ignorePaths": [
-    "node_modules",
-    ".git",
-    "dist",
-    "build",
-    ".raggrep",
-    "**/node_modules",
-    "**/dist"
-  ]
-}
-```
-
-### High-Quality Search
-
-```json
-{
-  "modules": [
-    {
-      "id": "language/typescript",
-      "enabled": true,
-      "options": {
-        "embeddingModel": "all-MiniLM-L12-v2"
-      }
-    }
-  ]
-}
-```
+For more advanced configuration and maintenance commands, see [Advanced](./advanced.md).

@@ -518,3 +518,4 @@ function detectFramework(content: string): string | undefined {
   }
   return undefined;
 }
+

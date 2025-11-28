@@ -1,160 +1,127 @@
 # RAGgrep
 
-**Local filesystem-based RAG system for codebases** — semantic search using local embeddings.
+**Local semantic search for codebases** — find code using natural language queries.
 
-RAGgrep indexes your code and allows semantic search using natural language queries. Everything runs locally on your machine — no external API calls required.
+RAGgrep indexes your code and lets you search it using natural language. Everything runs locally — no external API calls required.
 
 ## Features
 
-- **🏠 Local-first** — All indexing and search happens locally. No cloud dependencies.
-- **📁 Filesystem-based** — Index stored as readable JSON files in system temp directory.
-- **⚡ Tiered search** — Fast keyword filtering + semantic search for efficiency.
-- **🔍 Hybrid scoring** — Combines semantic similarity with BM25 keyword matching.
-- **🔄 Incremental** — Only re-indexes files that have changed.
-- **📝 TypeScript-optimized** — AST-based parsing extracts functions, classes, interfaces, types.
-- **🎯 Zero config** — Works out of the box with sensible defaults.
+- **Zero-config search** — Just run `raggrep query` and it works. Index is created and updated automatically.
+- **Local-first** — All indexing and search happens on your machine. No cloud dependencies.
+- **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
+- **Watch mode** — Keep the index fresh in real-time as you code.
+- **Hybrid search** — Combines semantic similarity with keyword matching for best results.
 
 ## Installation
 
 ```bash
-# Install globally with npm
+# Install globally
 npm install -g raggrep
 
-# Or with Bun (recommended)
-bun install -g raggrep
-
 # Or use without installing
-npx raggrep --help
+npx raggrep query "your search"
 ```
 
-## Quick Start
+## Usage
+
+### Search Your Code
 
 ```bash
-# Index your project
 cd your-project
-raggrep index
-
-# Search your codebase
 raggrep query "user authentication"
 ```
+
+That's it. The first query creates the index automatically. Subsequent queries are instant if files haven't changed. Modified files are re-indexed on the fly.
 
 ### Example Output
 
 ```
+Index updated: 42 indexed
+
+RAGgrep Search
+==============
+
+Searching for: "user authentication"
+
 Found 3 results:
 
 1. src/auth/authService.ts:24-55 (login)
-   Score: 34.4% | Type: function | exported
-      export async function login(credentials: LoginCredentials): Promise<AuthResult> ...
+   Score: 34.4% | Type: function | via TypeScript | exported
+      export async function login(credentials: LoginCredentials): Promise<AuthResult> {
+        const { email, password } = credentials;
 
-2. src/auth/authService.ts:60-62 (logout)
-   Score: 27.5% | Type: function | exported
-      export async function logout(token: string): Promise<void> {
+2. src/auth/session.ts:10-25 (createSession)
+   Score: 28.2% | Type: function | via TypeScript | exported
+      export function createSession(user: User): Session {
 
 3. src/users/types.ts:3-12 (User)
-   Score: 26.0% | Type: interface | exported
+   Score: 26.0% | Type: interface | via TypeScript | exported
       export interface User {
         id: string;
 ```
 
-## Programmatic API
+### Watch Mode
 
-```typescript
-import raggrep from "raggrep";
-
-// Index a directory
-await raggrep.index("./my-project");
-
-// Search
-const results = await raggrep.search("./my-project", "user authentication");
-console.log(raggrep.formatSearchResults(results));
-
-// Cleanup stale entries
-await raggrep.cleanup("./my-project");
-```
-
-## CLI Reference
+Keep your index fresh in real-time while you code:
 
 ```bash
-# Index commands
-raggrep index                              # Index current directory
-raggrep index --watch                      # Watch mode: re-index on file changes
-raggrep index --model bge-small-en-v1.5    # Use different embedding model
-raggrep index --verbose                    # Show detailed progress
+raggrep index --watch
+```
 
-# Search commands
-raggrep query "user login"                 # Basic search
-raggrep query "error handling" --top 5     # Limit results
-raggrep query "database" --min-score 0.1   # Lower threshold (more results)
-raggrep query "interface" --type ts        # Filter by file type
+This monitors file changes and re-indexes automatically. Useful during active development when you want instant search results.
 
-# Maintenance
-raggrep cleanup                            # Remove stale index entries
-raggrep status                             # Show index status
+```
+┌─────────────────────────────────────────┐
+│  Watching for changes... (Ctrl+C to stop) │
+└─────────────────────────────────────────┘
+
+[Watch] language/typescript: 2 indexed, 0 errors
+```
+
+## CLI Quick Reference
+
+```bash
+# Search (auto-indexes if needed)
+raggrep query "user login"
+raggrep query "error handling" --top 5
+raggrep query "database" --type ts
+
+# Watch mode
+raggrep index --watch
+
+# Check index status
+raggrep status
 ```
 
 ## How It Works
 
-RAGgrep uses a **dual-module architecture** with two complementary index types:
+1. **First query** — Creates the index (takes 1-2 min for ~1000 files)
+2. **Subsequent queries** — Uses cached index (instant if no changes)
+3. **Files changed** — Re-indexes only modified files automatically
+4. **Files deleted** — Stale entries cleaned up automatically
 
-### Core Module
-
-- **Language-agnostic** regex-based symbol extraction
-- **BM25 keyword matching** for fast, deterministic search
-- Works on any text file
-
-### TypeScript Module
-
-- **AST-based parsing** via TypeScript Compiler API
-- **Semantic embeddings** for natural language understanding
-- **Symbolic index** for fast BM25 candidate filtering
-
-Search combines results from both modules:
-
-```
-Query → Core (symbol/BM25) ─┐
-                           ├→ Merge & rank → Results
-Query → TypeScript (BM25 filter → semantic) ─┘
-```
+The index is stored in a system temp directory, keeping your project clean.
 
 ## What Gets Indexed
 
-**File types:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`
+**File types:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`, `.txt`
 
-**Code structures:**
+**Code structures:** Functions, classes, interfaces, types, enums, exports
 
-- Functions (regular, async, arrow)
-- Classes (including abstract)
-- Interfaces
-- Type aliases
-- Enums
-- Exported variables
-
-**Automatically ignored:**
-
-- `node_modules`, `dist`, `build`, `.git`
-- `.next`, `.nuxt`, `__pycache__`, `venv`
-- See [Configuration](./docs/configuration.md) for full list
+**Automatically ignored:** `node_modules`, `dist`, `build`, `.git`, and other common directories
 
 ## Documentation
 
-- [Getting Started](./docs/getting-started.md) — Installation and first steps
+- [Getting Started](./docs/getting-started.md) — Installation options and first steps
 - [CLI Reference](./docs/cli-reference.md) — All commands and options
-- [Configuration](./docs/configuration.md) — Customize indexing behavior
+- [SDK Reference](./docs/sdk.md) — Programmatic API for Node.js/Bun
+- [Advanced](./docs/advanced.md) — Configuration, maintenance commands
 - [Architecture](./docs/architecture.md) — How RAGgrep works internally
-
-## Performance
-
-| Operation                | Time       | Notes                                  |
-| ------------------------ | ---------- | -------------------------------------- |
-| Initial index (1k files) | 1-2 min    | Embedding generation is the bottleneck |
-| Incremental update       | <2s        | Only changed files                     |
-| Search                   | ~100-500ms | Depends on codebase size               |
 
 ## Requirements
 
 - Node.js 18+ or Bun 1.0+
-- ~50MB disk space for models (cached globally at `~/.cache/raggrep/models/`)
+- ~50MB disk space for models (cached at `~/.cache/raggrep/models/`)
 
 ## License
 

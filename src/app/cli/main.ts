@@ -233,8 +233,11 @@ Options:
   -h, --help           Show this help message
 
 Note:
-  If the current directory has not been indexed, raggrep will
-  automatically index it before searching.
+  The index is managed automatically like a cache:
+  - First query creates the index
+  - Changed files are re-indexed automatically
+  - Deleted files are cleaned up automatically
+  - Unchanged files use the cached index (instant)
 
 Examples:
   raggrep query "user authentication"
@@ -246,7 +249,7 @@ Examples:
       }
 
       const { search, formatSearchResults } = await import("../search");
-      const { getIndexStatus, indexDirectory } = await import("../indexer");
+      const { ensureIndexFresh } = await import("../indexer");
       const query = flags.remaining[0];
 
       if (!query) {
@@ -256,27 +259,22 @@ Examples:
       }
 
       try {
-        // Check if index exists, if not, create it first
-        const status = await getIndexStatus(process.cwd());
+        // Ensure index is fresh (creates if needed, updates if changed)
+        const freshStats = await ensureIndexFresh(process.cwd(), {
+          model: flags.model,
+          quiet: true, // Suppress detailed indexing output
+        });
 
-        if (!status.exists) {
-          console.log("No index found. Indexing directory first...\n");
-          console.log("RAGgrep Indexer");
-          console.log("================\n");
-
-          const indexResults = await indexDirectory(process.cwd(), {
-            model: flags.model,
-            verbose: false,
-          });
-
-          console.log("\n================");
-          console.log("Summary:");
-          for (const result of indexResults) {
-            console.log(
-              `  ${result.moduleId}: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`
-            );
+        // Show brief update message if there were changes
+        if (freshStats.indexed > 0 || freshStats.removed > 0) {
+          const parts: string[] = [];
+          if (freshStats.indexed > 0) {
+            parts.push(`${freshStats.indexed} indexed`);
           }
-          console.log("");
+          if (freshStats.removed > 0) {
+            parts.push(`${freshStats.removed} removed`);
+          }
+          console.log(`Index updated: ${parts.join(", ")}\n`);
         }
 
         console.log("RAGgrep Search");

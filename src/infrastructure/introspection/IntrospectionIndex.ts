@@ -211,3 +211,4 @@ export class IntrospectionIndex {
     this.structure = null;
   }
 }
+

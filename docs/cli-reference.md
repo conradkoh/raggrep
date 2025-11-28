@@ -1,10 +1,181 @@
 # CLI Reference
 
-## Commands
+## Primary Commands
+
+### `raggrep query`
+
+Search your codebase using natural language. **This is the main command you'll use.**
+
+```bash
+raggrep query <search query> [options]
+```
+
+The index is managed automatically:
+- First query creates the index
+- Changed files are re-indexed automatically
+- Deleted files are cleaned up automatically
+- Unchanged files use the cached index (instant)
+
+**Arguments:**
+
+| Argument         | Description                              |
+| ---------------- | ---------------------------------------- |
+| `<search query>` | Natural language search query (required) |
+
+**Options:**
+
+| Flag              | Short | Description                                  |
+| ----------------- | ----- | -------------------------------------------- |
+| `--top <n>`       | `-k`  | Number of results to return (default: 10)    |
+| `--min-score <n>` | `-s`  | Minimum similarity 0-1 (default: 0.15)       |
+| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js) |
+| `--help`          | `-h`  | Show help message                            |
+
+**Examples:**
+
+```bash
+# Basic search
+raggrep query "user authentication"
+
+# Limit results
+raggrep query "handle errors" --top 5
+
+# Lower threshold for more results
+raggrep query "database" --min-score 0.1
+
+# Filter by file type
+raggrep query "interface" --type ts
+
+# Combine options
+raggrep query "component" --type tsx --top 5
+```
+
+**Output Format:**
+
+```
+Found 3 results:
+
+1. src/auth/authService.ts:24-55 (login)
+   Score: 34.4% | Type: function | via TypeScript | exported
+      export async function login(credentials: LoginCredentials): Promise<AuthResult> {
+
+2. src/users/types.ts:3-12 (User)
+   Score: 26.0% | Type: interface | via TypeScript | exported
+      export interface User {
+```
+
+Results include:
+- File path and line numbers
+- Symbol name (if applicable)
+- Relevance score (percentage)
+- Code type (function, class, interface, etc.)
+- Contributing module (TypeScript, Core)
+- Export status
+- Code preview
+
+---
+
+### `raggrep index --watch`
+
+Keep the index fresh in real-time while you code.
+
+```bash
+raggrep index --watch [options]
+```
+
+**Options:**
+
+| Flag             | Short | Description                                          |
+| ---------------- | ----- | ---------------------------------------------------- |
+| `--watch`        | `-w`  | Watch for file changes (required for watch mode)     |
+| `--model <name>` | `-m`  | Embedding model to use (default: `all-MiniLM-L6-v2`) |
+| `--verbose`      | `-v`  | Show detailed progress for each file                 |
+| `--help`         | `-h`  | Show help message                                    |
+
+**Examples:**
+
+```bash
+# Watch mode
+raggrep index --watch
+
+# Watch with verbose output
+raggrep index --watch --verbose
+
+# Watch with different model
+raggrep index --watch --model bge-small-en-v1.5
+```
+
+**Watch Mode Output:**
+
+```
+RAGgrep Indexer
+================
+
+Indexing directory: /Users/you/project
+Index location: /tmp/raggrep-indexes/abc123
+...
+
+┌─────────────────────────────────────────┐
+│  Watching for changes... (Ctrl+C to stop) │
+└─────────────────────────────────────────┘
+
+[Watch] language/typescript: 2 indexed, 0 errors
+```
+
+Watch mode:
+- Monitors file changes using efficient native events
+- Debounces rapid changes (e.g., during git operations)
+- Only re-indexes changed files
+- Press `Ctrl+C` to stop
+
+---
+
+## Utility Commands
+
+### `raggrep status`
+
+Show the current state of the index.
+
+```bash
+raggrep status
+```
+
+**Output (indexed):**
+
+```
+┌─────────────────────────────────────────┐
+│  RAGgrep Status                         │
+├─────────────────────────────────────────┤
+│  ● Indexed                              │
+└─────────────────────────────────────────┘
+
+  Files:    49         Updated: 2h ago
+  Location: /tmp/raggrep-indexes/abc123
+
+  Modules:
+    └─ core (49 files)
+    └─ language/typescript (49 files)
+```
+
+**Output (not indexed):**
+
+```
+┌─────────────────────────────────────────┐
+│  RAGgrep Status                         │
+├─────────────────────────────────────────┤
+│  ○ Not indexed                          │
+└─────────────────────────────────────────┘
+
+  Directory: /Users/you/project
+
+  Run "raggrep query" to create an index.
+```
+
+---
 
 ### `raggrep index`
 
-Index the current directory for semantic search.
+Explicitly index the current directory. Usually not needed since `raggrep query` auto-indexes.
 
 ```bash
 raggrep index [options]
@@ -21,12 +192,12 @@ raggrep index [options]
 
 **Available Models:**
 
-| Model                     | Description                                        |
-| ------------------------- | -------------------------------------------------- |
-| `all-MiniLM-L6-v2`        | Default. Good balance of speed and quality (~23MB) |
-| `all-MiniLM-L12-v2`       | Higher quality, slightly slower                    |
-| `bge-small-en-v1.5`       | Good for code                                      |
-| `paraphrase-MiniLM-L3-v2` | Smallest/fastest option                            |
+| Model                     | Size  | Notes                 |
+| ------------------------- | ----- | --------------------- |
+| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
+| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
+| `bge-small-en-v1.5`       | ~33MB | Good for code         |
+| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
 
 **Examples:**
 
@@ -34,104 +205,18 @@ raggrep index [options]
 # Basic indexing
 raggrep index
 
-# Watch mode - continuously re-index on file changes
-raggrep index --watch
-
 # Use a different model
 raggrep index --model bge-small-en-v1.5
 
-# Watch mode with verbose output
-raggrep index --watch --verbose
+# Verbose output
+raggrep index --verbose
 ```
-
-**Notes:**
-
-- On first run, the embedding model is downloaded and cached at `~/.cache/raggrep/models/`
-- Incremental indexing: unchanged files are automatically skipped
-- Index is stored in `.raggrep/` directory in your project
-
-**Watch Mode:**
-
-Watch mode (`--watch` or `-w`) enables continuous indexing:
-
-- Monitors file changes in real-time using efficient native file system events
-- Debounces rapid changes (e.g., during git operations) to batch updates
-- Automatically handles file additions, modifications, and deletions
-- Only re-indexes changed files for minimal overhead
-- Press `Ctrl+C` to stop watching
-
-Example output:
-
-```
-┌─────────────────────────────────────────┐
-│  Watching for changes... (Ctrl+C to stop) │
-└─────────────────────────────────────────┘
-
-[Watch] language/typescript: 2 indexed, 0 errors
-```
-
----
-
-### `raggrep query`
-
-Search the indexed codebase using natural language.
-
-```bash
-raggrep query <search query> [options]
-```
-
-**Arguments:**
-
-| Argument         | Description                              |
-| ---------------- | ---------------------------------------- |
-| `<search query>` | Natural language search query (required) |
-
-**Options:**
-
-| Flag              | Short | Description                                                                               |
-| ----------------- | ----- | ----------------------------------------------------------------------------------------- |
-| `--top <n>`       | `-k`  | Number of results to return (default: 10)                                                 |
-| `--min-score <n>` | `-s`  | Minimum similarity score threshold 0-1 (default: 0.15). Lower values return more results. |
-| `--type <ext>`    | `-t`  | Filter results by file extension (e.g., ts, tsx, js)                                      |
-| `--help`          | `-h`  | Show help message                                                                         |
-
-**Examples:**
-
-```bash
-# Basic search
-raggrep query "user authentication"
-
-# Limit results
-raggrep query "handle errors" --top 5
-
-# Search with lower threshold (find more results)
-raggrep query "database" --min-score 0.1
-
-# Filter by file type
-raggrep query "interface" --type ts
-
-# Combine options
-raggrep query "user" --type tsx --top 5
-```
-
-**Output Format:**
-
-Results are sorted by relevance score and include:
-
-- File path and line numbers
-- Relevance score (percentage)
-- Code type (function, class, file, etc.)
-- Preview of the matching code
-
-**Auto-indexing:**
-
-If the current directory has not been indexed, `raggrep query` will automatically run `raggrep index` first before searching. This makes it easy to start searching immediately without a separate indexing step.
 
 ---
 
 ### `raggrep cleanup`
 
-Remove stale index entries for files that have been deleted.
+Remove stale index entries for deleted files. Usually not needed since `raggrep query` handles this automatically.
 
 ```bash
 raggrep cleanup [options]
@@ -147,82 +232,26 @@ raggrep cleanup [options]
 **Examples:**
 
 ```bash
-# Clean up stale index entries
 raggrep cleanup
-
-# Show detailed progress
 raggrep cleanup --verbose
-```
-
-**Notes:**
-
-- Removes index entries for files that no longer exist
-- Cleans up empty directories in the index
-- Run this after deleting files from your project
-
----
-
-### `raggrep status`
-
-Show the current state of the index.
-
-```bash
-raggrep status
-```
-
-**Example Output (indexed directory):**
-
-```
-┌─────────────────────────────────────────┐
-│  RAGgrep Status                         │
-├─────────────────────────────────────────┤
-│  ● Indexed                              │
-└─────────────────────────────────────────┘
-
-  Files:    49         Updated: 2h ago
-  Location: /Users/you/project/.raggrep
-
-  Modules:
-    └─ core (49 files)
-    └─ language/typescript (49 files)
-```
-
-**Example Output (not indexed):**
-
-```
-┌─────────────────────────────────────────┐
-│  RAGgrep Status                         │
-├─────────────────────────────────────────┤
-│  ○ Not indexed                          │
-└─────────────────────────────────────────┘
-
-  Directory: /Users/you/project
-
-  Run "raggrep index" to create an index.
 ```
 
 ---
 
 ### `raggrep --version`
 
-Show the current version of raggrep.
+Show the current version.
 
 ```bash
 raggrep --version
 raggrep -v
 ```
 
-**Example Output:**
-
-```
-raggrep v0.1.5
-```
-
 ---
 
 ### `raggrep --help`
 
-Show general help and available commands.
+Show help and available commands.
 
 ```bash
 raggrep --help
@@ -238,7 +267,7 @@ raggrep -h
 
 ## Environment
 
-**Model Cache Location:**
+**Model Cache:**
 
 ```
 ~/.cache/raggrep/models/
@@ -247,5 +276,7 @@ raggrep -h
 **Index Location:**
 
 ```
-<project-root>/.raggrep/
+/tmp/raggrep-indexes/<project-hash>/
 ```
+
+Use `raggrep status` to see the exact location.

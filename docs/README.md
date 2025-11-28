@@ -1,59 +1,63 @@
 # RAGgrep Documentation
 
-RAGgrep is a **local filesystem-based RAG system** for codebases. It indexes your code and enables semantic search using natural language queries — all running locally on your machine.
+RAGgrep is a **local semantic search tool** for codebases. It indexes your code and lets you search using natural language — all running locally on your machine.
 
 ## Table of Contents
 
 - [Getting Started](./getting-started.md) — Installation and first steps
 - [CLI Reference](./cli-reference.md) — All commands and options
-- [Configuration](./configuration.md) — Customize indexing behavior
+- [SDK Reference](./sdk.md) — Programmatic API for Node.js/Bun
+- [Advanced](./advanced.md) — Configuration and maintenance
 - [Architecture](./architecture.md) — How RAGgrep works internally
-- [Design: Introspection](./design/introspection.md) — Multi-index architecture design
 
 ## Quick Start
 
 ```bash
-# Install globally with npm or Bun
+# Install globally
 npm install -g raggrep
-# or: bun install -g raggrep
 
-# Or use without installing
-npx raggrep index
-
-# Navigate to your project and index
+# Search your codebase (auto-indexes on first run)
 cd your-project
-raggrep index
-
-# Search your codebase
 raggrep query "user authentication"
 ```
 
+That's it. No separate index command needed — the index is created and maintained automatically.
+
 ## Key Features
 
-| Feature                  | Description                                                       |
-| ------------------------ | ----------------------------------------------------------------- |
-| **Local-first**          | All processing happens locally. No external API calls.            |
-| **Filesystem-based**     | Index stored as readable JSON files in system temp directory.     |
-| **Dual-module search**   | Core (BM25/symbols) + TypeScript (AST/embeddings) modules.        |
-| **Hybrid scoring**       | Combines semantic similarity (70%) with keyword matching (30%).   |
-| **Incremental**          | Only re-indexes files that have changed.                          |
-| **TypeScript-optimized** | AST-based parsing extracts functions, classes, interfaces, types. |
-| **Zero config**          | Works out of the box with sensible defaults.                      |
+| Feature                | Description                                                     |
+| ---------------------- | --------------------------------------------------------------- |
+| **Zero-config search** | Just run `raggrep query` and it works. Index managed auto.      |
+| **Local-first**        | All processing happens locally. No external API calls.          |
+| **Incremental**        | Only re-indexes files that have changed.                        |
+| **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`.     |
+| **Hybrid scoring**     | Combines semantic similarity with keyword matching.             |
+| **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.      |
+
+## How Auto-Indexing Works
+
+The `raggrep query` command manages the index like a cache:
+
+| Scenario         | What Happens                             |
+| ---------------- | ---------------------------------------- |
+| First query      | Creates full index, then searches        |
+| No changes       | Uses cached index (instant)              |
+| Files modified   | Re-indexes changed files, then searches  |
+| Files deleted    | Removes stale entries, then searches     |
 
 ## Design Philosophy
 
 RAGgrep is built around three core principles:
 
-1. **Lightweight** — No heavy dependencies, no databases, no servers.
-2. **Filesystem-based** — The index is just JSON files. Human-readable, debuggable, portable.
-3. **Persistent** — Index persists in temp directory. No rebuilding on every search.
+1. **Just Works** — Search your code without thinking about indexes.
+2. **Filesystem-based** — The index is just JSON files. Human-readable, debuggable.
+3. **Local-first** — Everything runs on your machine. No servers, no API calls.
 
 This makes it ideal for:
 
 - Developer tools (IDE extensions, CLI utilities)
 - Small-to-medium codebases (1k–100k files)
 - Offline development environments
-- Projects where transparency matters
 
 ## What It's Not
 

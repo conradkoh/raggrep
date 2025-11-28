@@ -195,3 +195,4 @@ export function matchConventions(filepath: string): ConventionMatch[] {
 export { entryPointConventions } from "./entryPoints";
 export { configFileConventions } from "./configFiles";
 export { frameworkProviders, getAllFrameworkConventions } from "./frameworks";
+
