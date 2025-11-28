@@ -105,14 +105,14 @@ describe("RAGgrep Integration Tests", () => {
   // Test 1: File name is considered in indexing
   // --------------------------------------------------------------------------
   describe("File name indexing", () => {
-    const testFile = "test-files/password.md";
+    const testFile = "test-files/password.txt";
 
     afterAll(async () => {
       await removeTestFile(testFile);
     });
 
     test("should find file by filename when searching for filename term", async () => {
-      // Create a file named password.md with content "password 123"
+      // Create a file named password.txt with content "password 123"
       // This tests that the filename "password" is considered in indexing
       await createTestFile(testFile, "password 123");
 
@@ -131,9 +131,9 @@ describe("RAGgrep Integration Tests", () => {
         { topK: 10, minScore: 0.01 }
       );
 
-      // Verify that password.md is found in results
+      // Verify that password.txt is found in results
       const passwordResult = searchResults.find(
-        (result) => result.filepath.includes("password.md")
+        (result) => result.filepath.includes("password.txt")
       );
 
       // Assert: file should be found
@@ -141,7 +141,7 @@ describe("RAGgrep Integration Tests", () => {
 
       // Assert: file should be ranked in top 5 results
       const passwordFileIndex = searchResults.findIndex(
-        (result) => result.filepath.includes("password.md")
+        (result) => result.filepath.includes("password.txt")
       );
       expect(passwordFileIndex).toBeGreaterThanOrEqual(0);
       expect(passwordFileIndex).toBeLessThan(5);
