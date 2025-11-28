@@ -313,6 +313,19 @@ function detectFramework(content: string): string | undefined {
 export function introspectionToKeywords(intro: FileIntrospection): string[] {
   const keywords: string[] = [];
 
+  // Add filename keywords (without extension) - important for filename-based search
+  const filename = path.basename(intro.filepath);
+  const filenameWithoutExt = filename.replace(/\.[^.]+$/, "");
+  // Split camelCase/PascalCase/snake_case/kebab-case into parts
+  const filenameParts = filenameWithoutExt
+    .split(/[-_.]/)
+    .flatMap(part => part.split(/(?=[A-Z])/))
+    .map(part => part.toLowerCase())
+    .filter(part => part.length > 1);
+  keywords.push(...filenameParts);
+  // Also add the full filename without extension as a keyword
+  keywords.push(filenameWithoutExt.toLowerCase());
+
   // Add project name keywords
   if (intro.project.name && intro.project.name !== "root") {
     keywords.push(intro.project.name.toLowerCase());

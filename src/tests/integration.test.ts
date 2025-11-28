@@ -7,7 +7,15 @@
  * Tests are run sequentially to ensure proper state management.
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+} from "bun:test";
 import * as fs from "fs/promises";
 import * as path from "path";
 import raggrep from "../index";
@@ -125,23 +133,22 @@ describe("RAGgrep Integration Tests", () => {
       expect(totalIndexed).toBeGreaterThan(0);
 
       // Search for "password"
-      const searchResults = await raggrep.search(
-        SIMULATION_DIR,
-        "password",
-        { topK: 10, minScore: 0.01 }
-      );
+      const searchResults = await raggrep.search(SIMULATION_DIR, "password", {
+        topK: 10,
+        minScore: 0.01,
+      });
 
       // Verify that password.txt is found in results
-      const passwordResult = searchResults.find(
-        (result) => result.filepath.includes("password.txt")
+      const passwordResult = searchResults.find((result) =>
+        result.filepath.includes("password.txt")
       );
 
       // Assert: file should be found
       expect(passwordResult).toBeDefined();
 
       // Assert: file should be ranked in top 5 results
-      const passwordFileIndex = searchResults.findIndex(
-        (result) => result.filepath.includes("password.txt")
+      const passwordFileIndex = searchResults.findIndex((result) =>
+        result.filepath.includes("password.txt")
       );
       expect(passwordFileIndex).toBeGreaterThanOrEqual(0);
       expect(passwordFileIndex).toBeLessThan(5);

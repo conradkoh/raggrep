@@ -167,11 +167,22 @@ describe("introspectionToKeywords", () => {
     expect(keywords).toContain("api");
   });
 
-  test("excludes common segments", () => {
+  test("excludes common path segments but includes filename", () => {
     const intro = introspectFile("src/index.ts", singleProjectStructure);
     const keywords = introspectionToKeywords(intro);
+    // "src" is excluded as a common path segment
     expect(keywords).not.toContain("src");
-    expect(keywords).not.toContain("index");
+    // "index" is included because it's the filename (filename keywords are always included)
+    expect(keywords).toContain("index");
+  });
+
+  test("includes filename keywords", () => {
+    const intro = introspectFile("src/userService.ts", singleProjectStructure);
+    const keywords = introspectionToKeywords(intro);
+    // Filename "userService" should be split into "user" and "service"
+    expect(keywords).toContain("user");
+    expect(keywords).toContain("service");
+    expect(keywords).toContain("userservice"); // full filename without extension
   });
 });
 

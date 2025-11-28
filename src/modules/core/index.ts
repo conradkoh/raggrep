@@ -27,9 +27,18 @@ import type {
   ModuleConfig,
   ChunkType,
 } from "../../domain/entities";
-import { BM25Index, tokenize, normalizeScore } from "../../domain/services/bm25";
+import {
+  BM25Index,
+  tokenize,
+  normalizeScore,
+} from "../../domain/services/bm25";
 import { getRaggrepDir } from "../../infrastructure/config";
-import { extractSymbols, symbolsToKeywords, type ExtractedSymbol } from "./symbols";
+import { introspectionToKeywords } from "../../introspection";
+import {
+  extractSymbols,
+  symbolsToKeywords,
+  type ExtractedSymbol,
+} from "./symbols";
 
 /** Default minimum score for core search results */
 const DEFAULT_MIN_SCORE = 0.1;
@@ -93,7 +102,12 @@ export class CoreModule implements IndexModule {
 
     // Tokenize content for BM25
     const contentTokens = tokenize(content);
-    const allTokens = [...new Set([...contentTokens, ...symbolKeywords])];
+    
+    // Get introspection keywords (includes filename, path segments, etc.)
+    const intro = ctx.getIntrospection?.(filepath);
+    const introKeywords = intro ? introspectionToKeywords(intro) : [];
+    
+    const allTokens = [...new Set([...contentTokens, ...symbolKeywords, ...introKeywords])];
 
     // Create line-based chunks
     const chunks = this.createChunks(filepath, content, symbols);
@@ -134,7 +148,11 @@ export class CoreModule implements IndexModule {
     const chunks: Chunk[] = [];
 
     // Create overlapping chunks
-    for (let start = 0; start < lines.length; start += LINES_PER_CHUNK - CHUNK_OVERLAP) {
+    for (
+      let start = 0;
+      start < lines.length;
+      start += LINES_PER_CHUNK - CHUNK_OVERLAP
+    ) {
       const end = Math.min(start + LINES_PER_CHUNK, lines.length);
       const chunkLines = lines.slice(start, end);
       const chunkContent = chunkLines.join("\n");
@@ -203,7 +221,11 @@ export class CoreModule implements IndexModule {
    */
   async finalize(ctx: IndexContext): Promise<void> {
     const config = ctx.config;
-    const coreDir = path.join(getRaggrepDir(ctx.rootDir, config), "index", "core");
+    const coreDir = path.join(
+      getRaggrepDir(ctx.rootDir, config),
+      "index",
+      "core"
+    );
 
     // Ensure directory exists
     await fs.mkdir(coreDir, { recursive: true });
@@ -227,7 +249,9 @@ export class CoreModule implements IndexModule {
       JSON.stringify(symbolIndexData, null, 2)
     );
 
-    console.log(`  [Core] Symbol index built with ${this.symbolIndex.size} files`);
+    console.log(
+      `  [Core] Symbol index built with ${this.symbolIndex.size} files`
+    );
   }
 
   /**
@@ -281,7 +305,11 @@ export class CoreModule implements IndexModule {
         if (!fileIndex) continue;
 
         // Find best matching chunk
-        const bestChunk = this.findBestChunk(fileIndex.chunks, queryTokens, entry.symbols);
+        const bestChunk = this.findBestChunk(
+          fileIndex.chunks,
+          queryTokens,
+          entry.symbols
+        );
 
         results.push({
           filepath,
@@ -297,9 +325,7 @@ export class CoreModule implements IndexModule {
     }
 
     // Sort by score and limit
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK);
+    return results.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
   /**
@@ -416,4 +442,3 @@ export class CoreModule implements IndexModule {
     this.bm25Index = null;
   }
 }
-
