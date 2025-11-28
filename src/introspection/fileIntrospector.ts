@@ -12,6 +12,7 @@ import type {
   Scope,
 } from "./types";
 import { findProjectForFile, detectScopeFromName } from "./projectDetector";
+import { getConventionKeywords } from "./conventions";
 
 /**
  * Layer detection patterns.
@@ -20,14 +21,30 @@ const LAYER_PATTERNS: Record<string, string[]> = {
   controller: ["controller", "api", "routes", "route", "handler"],
   service: ["service", "logic", "usecase", "usecases", "handler"],
   repository: ["repository", "repo", "dao", "store", "persistence"],
-  model: ["model", "models", "entity", "entities", "schema", "schemas", "types", "type"],
+  model: [
+    "model",
+    "models",
+    "entity",
+    "entities",
+    "schema",
+    "schemas",
+    "types",
+    "type",
+  ],
   util: ["util", "utils", "helper", "helpers", "common", "lib"],
   config: ["config", "configuration", "settings"],
   middleware: ["middleware", "middlewares"],
   domain: ["domain"],
   infrastructure: ["infrastructure", "infra"],
   application: ["application", "app"],
-  presentation: ["presentation", "ui", "views", "view", "component", "components"],
+  presentation: [
+    "presentation",
+    "ui",
+    "views",
+    "view",
+    "component",
+    "components",
+  ],
   test: ["test", "tests", "spec", "specs", "__tests__", "e2e"],
 };
 
@@ -298,8 +315,12 @@ function detectScope(
 function detectFramework(content: string): string | undefined {
   for (const [framework, indicators] of Object.entries(FRAMEWORK_INDICATORS)) {
     for (const indicator of indicators) {
-      if (content.includes(`from '${indicator}`) || content.includes(`from "${indicator}`) ||
-          content.includes(`require('${indicator}`) || content.includes(`require("${indicator}`)) {
+      if (
+        content.includes(`from '${indicator}`) ||
+        content.includes(`from "${indicator}`) ||
+        content.includes(`require('${indicator}`) ||
+        content.includes(`require("${indicator}`)
+      ) {
         return framework;
       }
     }
@@ -319,9 +340,9 @@ export function introspectionToKeywords(intro: FileIntrospection): string[] {
   // Split camelCase/PascalCase/snake_case/kebab-case into parts
   const filenameParts = filenameWithoutExt
     .split(/[-_.]/)
-    .flatMap(part => part.split(/(?=[A-Z])/))
-    .map(part => part.toLowerCase())
-    .filter(part => part.length > 1);
+    .flatMap((part) => part.split(/(?=[A-Z])/))
+    .map((part) => part.toLowerCase())
+    .filter((part) => part.length > 1);
   keywords.push(...filenameParts);
   // Also add the full filename without extension as a keyword
   keywords.push(filenameWithoutExt.toLowerCase());
@@ -364,6 +385,9 @@ export function introspectionToKeywords(intro: FileIntrospection): string[] {
     }
   }
 
+  // Add convention-based keywords (config files, entry points, frameworks, etc.)
+  const conventionKeywords = getConventionKeywords(intro.filepath);
+  keywords.push(...conventionKeywords);
+
   return [...new Set(keywords)];
 }
-
