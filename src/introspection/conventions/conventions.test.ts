@@ -218,6 +218,133 @@ describe("getConventionKeywords", () => {
   });
 
   // ============================================================================
+  // Go
+  // ============================================================================
+  describe("Go language", () => {
+    test("recognizes go.mod", () => {
+      const keywords = getConventionKeywords("go.mod");
+      expect(keywords).toContain("go");
+      expect(keywords).toContain("golang");
+      expect(keywords).toContain("module");
+      expect(keywords).toContain("dependencies");
+    });
+
+    test("recognizes go.sum", () => {
+      const keywords = getConventionKeywords("go.sum");
+      expect(keywords).toContain("go");
+      expect(keywords).toContain("golang");
+      expect(keywords).toContain("checksum");
+    });
+
+    test("recognizes go.work for workspaces", () => {
+      const keywords = getConventionKeywords("go.work");
+      expect(keywords).toContain("go");
+      expect(keywords).toContain("workspace");
+      expect(keywords).toContain("monorepo");
+    });
+
+    test("recognizes main.go as entry point", () => {
+      const keywords = getConventionKeywords("cmd/myapp/main.go");
+      expect(keywords).toContain("entry");
+      expect(keywords).toContain("main");
+      expect(keywords).toContain("go");
+      expect(keywords).toContain("golang");
+      expect(keywords).toContain("myapp"); // Dynamic keyword from parent folder
+    });
+
+    test("recognizes Makefile", () => {
+      const keywords = getConventionKeywords("Makefile");
+      expect(keywords).toContain("make");
+      expect(keywords).toContain("build");
+      expect(keywords).toContain("automation");
+    });
+  });
+
+  // ============================================================================
+  // Python
+  // ============================================================================
+  describe("Python language", () => {
+    test("recognizes requirements.txt", () => {
+      const keywords = getConventionKeywords("requirements.txt");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("pip");
+      expect(keywords).toContain("dependencies");
+    });
+
+    test("recognizes pyproject.toml", () => {
+      const keywords = getConventionKeywords("pyproject.toml");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("project");
+      expect(keywords).toContain("poetry");
+    });
+
+    test("recognizes setup.py", () => {
+      const keywords = getConventionKeywords("setup.py");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("setup");
+      expect(keywords).toContain("package");
+    });
+
+    test("recognizes Pipfile", () => {
+      const keywords = getConventionKeywords("Pipfile");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("pipenv");
+      expect(keywords).toContain("dependencies");
+    });
+
+    test("recognizes conftest.py (pytest)", () => {
+      const keywords = getConventionKeywords("tests/conftest.py");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("pytest");
+      expect(keywords).toContain("fixtures");
+    });
+
+    test("recognizes __init__.py as entry point", () => {
+      const keywords = getConventionKeywords("mypackage/__init__.py");
+      expect(keywords).toContain("entry");
+      expect(keywords).toContain("package");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("mypackage"); // Dynamic keyword
+    });
+
+    test("recognizes __main__.py as entry point", () => {
+      const keywords = getConventionKeywords("myapp/__main__.py");
+      expect(keywords).toContain("entry");
+      expect(keywords).toContain("main");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("cli");
+    });
+
+    test("recognizes manage.py (Django)", () => {
+      const keywords = getConventionKeywords("manage.py");
+      expect(keywords).toContain("entry");
+      expect(keywords).toContain("django");
+      expect(keywords).toContain("manage");
+    });
+
+    test("recognizes wsgi.py", () => {
+      const keywords = getConventionKeywords("myapp/wsgi.py");
+      expect(keywords).toContain("wsgi");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("server");
+    });
+
+    test("recognizes ruff.toml", () => {
+      const keywords = getConventionKeywords("ruff.toml");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("ruff");
+      expect(keywords).toContain("linting");
+    });
+
+    test("recognizes mypy.ini", () => {
+      const keywords = getConventionKeywords("mypy.ini");
+      expect(keywords).toContain("python");
+      expect(keywords).toContain("mypy");
+      expect(keywords).toContain("types");
+    });
+  });
+
+  // ============================================================================
   // Type Definitions
   // ============================================================================
   describe("type definitions", () => {

@@ -56,6 +56,156 @@ export const configFileConventions: FileConvention[] = [
   },
 
   // ============================================================================
+  // Go
+  // ============================================================================
+  {
+    id: "go-mod",
+    name: "Go Module",
+    description: "Go module definition file",
+    category: "configuration",
+    match: (filepath, filename) => filename === "go.mod",
+    keywords: ["go", "golang", "module", "dependencies", "package", "workspace"],
+  },
+  {
+    id: "go-sum",
+    name: "Go Sum",
+    description: "Go module checksum file",
+    category: "configuration",
+    match: (filepath, filename) => filename === "go.sum",
+    keywords: ["go", "golang", "dependencies", "checksum", "lock", "versions"],
+  },
+  {
+    id: "go-work",
+    name: "Go Workspace",
+    description: "Go workspace configuration for multi-module development",
+    category: "configuration",
+    match: (filepath, filename) => filename === "go.work" || filename === "go.work.sum",
+    keywords: ["go", "golang", "workspace", "monorepo", "modules"],
+  },
+  {
+    id: "makefile",
+    name: "Makefile",
+    description: "Make build automation file",
+    category: "build",
+    match: (filepath, filename) =>
+      filename === "Makefile" || filename === "makefile" || filename === "GNUmakefile",
+    keywords: ["make", "build", "automation", "tasks", "compile"],
+  },
+
+  // ============================================================================
+  // Python
+  // ============================================================================
+  {
+    id: "requirements-txt",
+    name: "Python Requirements",
+    description: "Python pip requirements file",
+    category: "configuration",
+    match: (filepath, filename) =>
+      filename === "requirements.txt" ||
+      filename.startsWith("requirements-") ||
+      filename.startsWith("requirements_"),
+    keywords: ["python", "pip", "dependencies", "packages", "requirements"],
+  },
+  {
+    id: "pyproject-toml",
+    name: "Python Project",
+    description: "Python project configuration (PEP 518/621)",
+    category: "configuration",
+    match: (filepath, filename) => filename === "pyproject.toml",
+    keywords: ["python", "project", "config", "poetry", "build", "dependencies", "package"],
+  },
+  {
+    id: "setup-py",
+    name: "Python Setup",
+    description: "Python package setup script",
+    category: "configuration",
+    match: (filepath, filename) => filename === "setup.py",
+    keywords: ["python", "setup", "package", "install", "distribution"],
+  },
+  {
+    id: "setup-cfg",
+    name: "Python Setup Config",
+    description: "Python setup configuration file",
+    category: "configuration",
+    match: (filepath, filename) => filename === "setup.cfg",
+    keywords: ["python", "setup", "config", "package", "metadata"],
+  },
+  {
+    id: "pipfile",
+    name: "Pipfile",
+    description: "Pipenv dependency file",
+    category: "configuration",
+    match: (filepath, filename) => filename === "Pipfile" || filename === "Pipfile.lock",
+    keywords: ["python", "pipenv", "dependencies", "packages", "virtualenv"],
+  },
+  {
+    id: "poetry-lock",
+    name: "Poetry Lock",
+    description: "Poetry dependency lock file",
+    category: "configuration",
+    match: (filepath, filename) => filename === "poetry.lock",
+    keywords: ["python", "poetry", "dependencies", "lock", "versions"],
+  },
+  {
+    id: "tox-ini",
+    name: "Tox Config",
+    description: "Tox testing automation configuration",
+    category: "test",
+    match: (filepath, filename) => filename === "tox.ini",
+    keywords: ["python", "tox", "testing", "automation", "environments"],
+  },
+  {
+    id: "pytest-ini",
+    name: "Pytest Config",
+    description: "Pytest configuration file",
+    category: "test",
+    match: (filepath, filename) =>
+      filename === "pytest.ini" || filename === "conftest.py",
+    keywords: ["python", "pytest", "testing", "test", "fixtures"],
+  },
+  {
+    id: "mypy-ini",
+    name: "Mypy Config",
+    description: "Mypy type checker configuration",
+    category: "configuration",
+    match: (filepath, filename) => filename === "mypy.ini" || filename === ".mypy.ini",
+    keywords: ["python", "mypy", "types", "type checking", "static analysis"],
+  },
+  {
+    id: "flake8",
+    name: "Flake8 Config",
+    description: "Flake8 linter configuration",
+    category: "configuration",
+    match: (filepath, filename) => filename === ".flake8",
+    keywords: ["python", "flake8", "linting", "lint", "style"],
+  },
+  {
+    id: "pylintrc",
+    name: "Pylint Config",
+    description: "Pylint linter configuration",
+    category: "configuration",
+    match: (filepath, filename) =>
+      filename === ".pylintrc" || filename === "pylintrc" || filename === "pylint.toml",
+    keywords: ["python", "pylint", "linting", "lint", "code quality"],
+  },
+  {
+    id: "ruff-toml",
+    name: "Ruff Config",
+    description: "Ruff linter/formatter configuration",
+    category: "configuration",
+    match: (filepath, filename) => filename === "ruff.toml" || filename === ".ruff.toml",
+    keywords: ["python", "ruff", "linting", "formatting", "fast"],
+  },
+  {
+    id: "black-toml",
+    name: "Black Config",
+    description: "Black formatter configuration",
+    category: "configuration",
+    match: (filepath, filename) => filename === ".black.toml",
+    keywords: ["python", "black", "formatting", "format", "style"],
+  },
+
+  // ============================================================================
   // TypeScript
   // ============================================================================
   {

@@ -107,4 +107,77 @@ export const entryPointConventions: FileConvention[] = [
     },
     keywords: ["entry", "crate", "rust", "module"],
   },
+
+  // ============================================================================
+  // Go Entry Points
+  // ============================================================================
+  {
+    id: "go-main",
+    name: "Go Main Entry",
+    description: "Go application main entry point",
+    category: "entry-point",
+    match: (filepath, filename) => {
+      return filename === "main.go";
+    },
+    keywords: ["entry", "main", "go", "golang", "entrypoint"],
+    dynamicKeywords: (filepath) => {
+      const parent = getParentFolder(filepath);
+      // cmd/myapp/main.go -> "myapp"
+      if (parent && !["cmd", "src", ".", ""].includes(parent)) {
+        return [parent.toLowerCase()];
+      }
+      return [];
+    },
+  },
+
+  // ============================================================================
+  // Python Entry Points
+  // ============================================================================
+  {
+    id: "python-main",
+    name: "Python Main Module",
+    description: "Python package main entry point",
+    category: "entry-point",
+    match: (filepath, filename) => {
+      return filename === "__main__.py";
+    },
+    keywords: ["entry", "main", "python", "entrypoint", "cli"],
+    dynamicKeywords: (filepath) => {
+      const parent = getParentFolder(filepath);
+      if (["src", "lib", ".", ""].includes(parent)) {
+        return [];
+      }
+      return [parent.toLowerCase()];
+    },
+  },
+  {
+    id: "python-app",
+    name: "Python App Entry",
+    description: "Common Python application entry points",
+    category: "entry-point",
+    match: (filepath, filename) => {
+      return filename === "app.py" || filename === "main.py" || filename === "run.py";
+    },
+    keywords: ["entry", "main", "python", "app", "entrypoint"],
+  },
+  {
+    id: "python-manage",
+    name: "Django Manage",
+    description: "Django management script",
+    category: "entry-point",
+    match: (filepath, filename) => {
+      return filename === "manage.py";
+    },
+    keywords: ["entry", "django", "python", "manage", "cli", "admin"],
+  },
+  {
+    id: "python-wsgi",
+    name: "Python WSGI Entry",
+    description: "Python WSGI application entry point",
+    category: "entry-point",
+    match: (filepath, filename) => {
+      return filename === "wsgi.py" || filename === "asgi.py";
+    },
+    keywords: ["entry", "wsgi", "asgi", "python", "server", "web"],
+  },
 ];
