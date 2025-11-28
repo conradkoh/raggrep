@@ -154,4 +154,56 @@ describe("RAGgrep Integration Tests", () => {
       expect(passwordFileIndex).toBeLessThan(5);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Test 2: Folder path is considered in indexing
+  // --------------------------------------------------------------------------
+  describe("Folder path indexing", () => {
+    const testFile = "test-files/secrets/config.txt";
+
+    afterAll(async () => {
+      await removeTestFile(testFile);
+      // Also remove the secrets directory
+      try {
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/secrets"));
+      } catch {
+        // Directory may not exist or not empty
+      }
+    });
+
+    test("should find file by folder name when searching for folder term", async () => {
+      // Create a file in a folder named "secrets"
+      // This tests that the folder path is considered in indexing
+      await createTestFile(testFile, "API_KEY=abc123");
+
+      // Index the simulation directory
+      const indexResults = await raggrep.index(SIMULATION_DIR);
+      expect(indexResults.length).toBeGreaterThan(0);
+
+      // Verify that at least one module indexed files
+      const totalIndexed = indexResults.reduce((sum, r) => sum + r.indexed, 0);
+      expect(totalIndexed).toBeGreaterThan(0);
+
+      // Search for "secrets" (the folder name)
+      const searchResults = await raggrep.search(SIMULATION_DIR, "secrets", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      // Verify that the file in secrets folder is found
+      const secretsResult = searchResults.find((result) =>
+        result.filepath.includes("secrets/config.txt")
+      );
+
+      // Assert: file should be found by folder name
+      expect(secretsResult).toBeDefined();
+
+      // Assert: file should be ranked in top 5 results
+      const secretsFileIndex = searchResults.findIndex((result) =>
+        result.filepath.includes("secrets/config.txt")
+      );
+      expect(secretsFileIndex).toBeGreaterThanOrEqual(0);
+      expect(secretsFileIndex).toBeLessThan(5);
+    });
+  });
 });
