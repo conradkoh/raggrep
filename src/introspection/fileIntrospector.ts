@@ -12,6 +12,7 @@ import type {
   Scope,
 } from "./types";
 import { findProjectForFile, detectScopeFromName } from "./projectDetector";
+import { getConventionKeywords } from "./conventions";
 
 /**
  * Layer detection patterns.
@@ -363,6 +364,10 @@ export function introspectionToKeywords(intro: FileIntrospection): string[] {
       keywords.push(segment.toLowerCase());
     }
   }
+
+  // Add convention-based keywords (config files, entry points, frameworks, etc.)
+  const conventionKeywords = getConventionKeywords(intro.filepath);
+  keywords.push(...conventionKeywords);
 
   return [...new Set(keywords)];
 }
