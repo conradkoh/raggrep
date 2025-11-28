@@ -1,23 +1,30 @@
 /**
  * Domain Services
- * 
+ *
  * Pure algorithms and business logic with no external dependencies.
  * These services operate only on domain entities and primitive data.
  */
 
 // BM25 keyword search
-export { 
-  BM25Index, 
-  tokenize, 
+export {
+  BM25Index,
+  tokenize,
   normalizeScore,
   type BM25Document,
   type BM25Result,
-} from './bm25';
+  type BM25SerializedData,
+} from "./bm25";
 
 // Keyword extraction
-export { 
-  extractKeywords, 
+export {
+  extractKeywords,
   extractPathKeywords,
+  parsePathContext,
+  formatPathContextForEmbedding,
   COMMON_KEYWORDS,
-} from './keywords';
+  type PathContext,
+} from "./keywords";
+
+// Vector similarity
+export { cosineSimilarity, euclideanDistance } from "./similarity";
 

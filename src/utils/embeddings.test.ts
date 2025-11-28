@@ -61,7 +61,7 @@ describe('cosineSimilarity', () => {
   test('throws for vectors of different lengths', () => {
     const a = [1, 2, 3];
     const b = [1, 2];
-    expect(() => cosineSimilarity(a, b)).toThrow('Vectors must have the same length');
+    expect(() => cosineSimilarity(a, b)).toThrow('Vector length mismatch');
   });
 
   test('handles very small values', () => {

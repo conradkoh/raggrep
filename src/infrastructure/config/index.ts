@@ -1,20 +1,24 @@
 /**
- * Configuration utilities
+ * Configuration Infrastructure
  *
- * @deprecated Import from 'infrastructure/config' instead.
- * This file re-exports for backwards compatibility.
+ * Handles loading and saving RAGgrep configuration from the filesystem.
  */
 
 export {
+  // Constants
   DEFAULT_CONFIG,
   EMBEDDING_MODELS,
+  // Path utilities
   getRaggrepDir,
   getModuleIndexPath,
   getModuleManifestPath,
   getGlobalManifestPath,
   getConfigPath,
+  // I/O operations
   loadConfig,
   saveConfig,
+  // Config utilities
   getModuleConfig,
   getEmbeddingConfigFromModule,
-} from "../infrastructure/config";
+} from "./configLoader";
+
