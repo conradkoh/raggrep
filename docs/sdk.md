@@ -240,3 +240,4 @@ async function searchCode(query: string) {
 - Index is stored in a system temp directory (not in your project)
 - First search may take longer as the index is created
 - Subsequent searches are fast if files haven't changed
+

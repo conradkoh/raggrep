@@ -59,9 +59,6 @@ export interface SemanticModuleData {
   [key: string]: unknown; // Index signature for compatibility with Record<string, unknown>
 }
 
-/** Number of candidate files to retrieve from Tier 1 before loading Tier 2 */
-const TIER1_CANDIDATE_MULTIPLIER = 3;
-
 export class TypeScriptModule implements IndexModule {
   readonly id = 'language/typescript';
   readonly name = 'TypeScript Search';
@@ -224,31 +221,26 @@ export class TypeScriptModule implements IndexModule {
   ): Promise<SearchResult[]> {
     const { topK = DEFAULT_TOP_K, minScore = DEFAULT_MIN_SCORE, filePatterns } = options;
 
-    // Load symbolic index for candidate filtering
+    // Load symbolic index for BM25 scoring (not filtering)
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
     const symbolicIndex = new SymbolicIndex(indexDir, this.id);
     
-    let candidateFiles: string[];
+    // Get ALL indexed files - semantic search needs to check all embeddings
+    // BM25 contributes to the hybrid score but doesn't filter candidates
+    let allFiles: string[];
     
     try {
       await symbolicIndex.initialize();
-      
-      // Use BM25 keyword search on symbolic index to find candidate files
-      const maxCandidates = topK * TIER1_CANDIDATE_MULTIPLIER;
-      candidateFiles = symbolicIndex.findCandidates(query, maxCandidates);
-      
-      // If no candidates found via BM25, fall back to all files
-      if (candidateFiles.length === 0) {
-        candidateFiles = symbolicIndex.getAllFiles();
-      }
+      allFiles = symbolicIndex.getAllFiles();
     } catch {
       // Symbolic index doesn't exist, fall back to loading all files
-      candidateFiles = await ctx.listIndexedFiles();
+      allFiles = await ctx.listIndexedFiles();
     }
 
-    // Apply file pattern filter
+    // Apply file pattern filter if specified
+    let filesToSearch = allFiles;
     if (filePatterns && filePatterns.length > 0) {
-      candidateFiles = candidateFiles.filter(filepath => {
+      filesToSearch = allFiles.filter(filepath => {
         return filePatterns.some(pattern => {
           if (pattern.startsWith('*.')) {
             const ext = pattern.slice(1);
@@ -262,7 +254,8 @@ export class TypeScriptModule implements IndexModule {
     // Get query embedding for semantic search
     const queryEmbedding = await getEmbedding(query);
 
-    // Tier 2: Load only candidate files and compute scores
+    // Load all indexed files and compute scores
+    // BM25 is used for keyword scoring, not filtering
     const bm25Index = new BM25Index();
     const allChunksData: Array<{
       filepath: string;
@@ -270,7 +263,7 @@ export class TypeScriptModule implements IndexModule {
       embedding: number[];
     }> = [];
 
-    for (const filepath of candidateFiles) {
+    for (const filepath of filesToSearch) {
       const fileIndex = await ctx.loadFileIndex(filepath);
       if (!fileIndex) continue;
 
@@ -307,7 +300,7 @@ export class TypeScriptModule implements IndexModule {
     
     // Build path boost map from file summaries
     const pathBoosts = new Map<string, number>();
-    for (const filepath of candidateFiles) {
+    for (const filepath of filesToSearch) {
       const summary = symbolicIndex.getFileSummary(filepath);
       if (summary?.pathContext) {
         let boost = 0;

@@ -261,7 +261,7 @@ Examples:
       try {
         // Ensure index is fresh (creates if needed, updates if changed)
         const freshStats = await ensureIndexFresh(process.cwd(), {
-          model: flags.model,
+            model: flags.model,
           quiet: true, // Suppress detailed indexing output
         });
 

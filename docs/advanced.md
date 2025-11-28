@@ -300,3 +300,4 @@ rm -rf ~/.cache/raggrep/models
 | Incremental update       | <2s        | Only changed files       |
 | Search (cached)          | ~100-500ms | Depends on codebase size |
 | Search (with updates)    | +1-2s      | Per changed file         |
+
