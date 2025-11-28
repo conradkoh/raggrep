@@ -74,13 +74,13 @@ export async function createServiceContainer(rootDir: string): Promise<ServiceCo
 
 import type { 
   IndexDirectoryDependencies 
-} from './application/usecases/indexDirectory';
+} from './domain/usecases/indexDirectory';
 import type { 
   SearchIndexDependencies 
-} from './application/usecases/searchIndex';
+} from './domain/usecases/searchIndex';
 import type { 
   CleanupIndexDependencies 
-} from './application/usecases/cleanupIndex';
+} from './domain/usecases/cleanupIndex';
 
 /**
  * Create dependencies for the indexDirectory use case.

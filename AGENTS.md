@@ -13,34 +13,34 @@ with strict dependency rules.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Presentation                           │
-│                      (src/cli/)                             │
+│                      (src/app/cli/)                         │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Application                            │
-│                   (src/application/)                        │
-│                   Use cases, orchestration                  │
+│                   (src/app/)                                │
+│                   Orchestration (indexer, search)           │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┴───────────────┐
               ▼                               ▼
-┌─────────────────────────┐     ┌─────────────────────────────┐
-│      Domain Layer       │     │    Infrastructure Layer     │
-│    (src/domain/)        │     │    (src/infrastructure/)    │
-│                         │     │                             │
-│  ├── entities/          │     │  ├── config/                │
-│  │   Pure data types    │     │  │   Config loading/saving  │
-│  │                      │     │  │                          │
-│  ├── ports/             │◄────│  ├── embeddings/            │
-│  │   Interfaces         │     │  │   Transformers.js        │
-│  │                      │     │  │                          │
-│  └── services/          │     │  ├── filesystem/            │
-│      Pure algorithms    │     │  │   Node.js fs             │
-│                         │     │  │                          │
-│                         │     │  └── storage/               │
-│                         │     │      Index file I/O         │
-└─────────────────────────┘     └─────────────────────────────┘
+┌─────────────────────────────┐     ┌─────────────────────────────┐
+│      Domain Layer           │     │    Infrastructure Layer     │
+│    (src/domain/)            │     │    (src/infrastructure/)    │
+│                             │     │                             │
+│  ├── entities/              │     │  ├── config/                │
+│  │   Pure data types        │     │  │   Config loading/saving  │
+│  │                          │     │  │                          │
+│  ├── ports/                 │◄────│  ├── embeddings/            │
+│  │   Interfaces             │     │  │   Transformers.js        │
+│  │                          │     │  │                          │
+│  ├── services/              │     │  ├── filesystem/            │
+│  │   Pure algorithms        │     │  │   Node.js fs             │
+│  │                          │     │  │                          │
+│  └── usecases/              │     │  └── storage/               │
+│      Business logic         │     │      Index file I/O         │
+└─────────────────────────────┘     └─────────────────────────────┘
 ```
 
 ## Layer Rules
@@ -52,7 +52,7 @@ The domain layer MUST contain only pure business logic with NO external dependen
 #### `src/domain/entities/`
 
 - MUST contain only data types (interfaces, types, classes)
-- MUST NOT import from `infrastructure/`, `application/`, or external packages
+- MUST NOT import from `infrastructure/`, `app/`, or external packages
 - MUST NOT perform I/O operations
 - MAY import from other domain entities
 
@@ -78,6 +78,18 @@ The domain layer MUST contain only pure business logic with NO external dependen
 - `BM25Index` - BM25 search algorithm
 - `extractKeywords()` - Keyword extraction logic
 - `cosineSimilarity()` - Vector similarity calculation
+
+#### `src/domain/usecases/`
+
+- MUST contain business logic use cases
+- MAY depend on domain entities, ports, and services
+- SHOULD accept dependencies through parameters (dependency injection)
+- MUST NOT perform I/O directly (use injected dependencies)
+
+**Examples of what belongs here:**
+- `indexDirectory()` - Orchestrates indexing a directory
+- `searchIndex()` - Orchestrates searching the index
+- `cleanupIndex()` - Removes stale entries
 
 ### Infrastructure Layer (`src/infrastructure/`)
 
@@ -112,24 +124,28 @@ The infrastructure layer implements domain ports using external technologies.
 - Includes: Reading/writing JSON index files, manifest management
 - Currently: `FileIndexStorage`, `SymbolicIndex`
 
-### Application Layer (`src/application/`)
+### Application Layer (`src/app/`)
 
-- MUST contain use cases that orchestrate domain and infrastructure
-- MUST NOT contain business logic (delegate to domain services)
-- SHOULD be thin orchestration code
+The application layer orchestrates domain use cases and infrastructure.
 
-#### `src/application/usecases/`
+#### `src/app/indexer/`
 
-Each use case SHOULD:
-- Accept dependencies through parameters or constructor injection
-- Call domain services for business logic
-- Call infrastructure adapters for I/O
+- Orchestrates the indexing process
+- Coordinates modules, handles file discovery
+- Currently: `index.ts`, `watcher.ts`
 
-### Presentation Layer (`src/cli/`)
+#### `src/app/search/`
 
+- Orchestrates the search process
+- Aggregates results from multiple modules
+- Currently: `index.ts`
+
+#### `src/app/cli/`
+
+- Presentation layer (CLI interface)
 - MUST handle user input/output
 - MUST NOT contain business logic
-- SHOULD delegate to application use cases
+- SHOULD delegate to app orchestration code
 
 ## Special Directories
 
@@ -151,19 +167,15 @@ Planned migration:
 - `projectDetector.ts` (file I/O) → `infrastructure/`
 - `IntrospectionIndex` (file I/O) → `infrastructure/storage/`
 
-### `src/indexer/` and `src/search/`
-
-These orchestrate modules and SHOULD be considered application-level code.
-
 ## Dependency Rules
 
 ### MUST Follow
 
 1. Domain MUST NOT import from Infrastructure
-2. Domain MUST NOT import from Application
+2. Domain MUST NOT import from App (except usecases may import types)
 3. Infrastructure MAY import from Domain (entities and ports only)
-4. Application MAY import from Domain and Infrastructure
-5. Presentation MAY import from Application
+4. App MAY import from Domain and Infrastructure
+5. CLI MAY import from App
 
 ### Import Patterns
 
@@ -172,18 +184,22 @@ These orchestrate modules and SHOULD be considered application-level code.
 // src/infrastructure/embeddings/transformersEmbedding.ts
 import type { IEmbeddingProvider } from '../../domain/ports';
 
-// ✅ CORRECT: Application uses domain and infrastructure
-// src/application/usecases/indexDirectory.ts
+// ✅ CORRECT: App uses domain and infrastructure
+// src/app/indexer/index.ts
 import type { Config } from '../../domain/entities';
-import { NodeFileSystem } from '../../infrastructure/filesystem';
+import { loadConfig } from '../../infrastructure/config';
+
+// ✅ CORRECT: Use case accepts injected dependencies
+// src/domain/usecases/indexDirectory.ts
+import type { FileSystem } from '../ports';
 
 // ❌ WRONG: Domain importing from infrastructure
 // src/domain/services/search.ts
 import { readFile } from 'fs/promises'; // NO!
 
-// ❌ WRONG: Domain importing from application
+// ❌ WRONG: Domain importing from app
 // src/domain/entities/config.ts
-import { indexDirectory } from '../../application/usecases'; // NO!
+import { indexDirectory } from '../../app/indexer'; // NO!
 ```
 
 ## File Naming Conventions
@@ -209,14 +225,17 @@ When adding new code, ask:
 3. **Is it an interface for external capabilities?**
    → `domain/ports/`
 
-4. **Does it do file/network I/O?**
+4. **Is it business logic that orchestrates other services?**
+   → `domain/usecases/`
+
+5. **Does it do file/network I/O?**
    → `infrastructure/<category>/`
 
-5. **Does it orchestrate multiple services?**
-   → `application/usecases/`
+6. **Does it coordinate multiple modules or services?**
+   → `app/<category>/`
 
-6. **Does it handle user input/output?**
-   → `cli/` or presentation layer
+7. **Does it handle user input/output?**
+   → `app/cli/`
 
 ### Example: Adding a New Feature
 
@@ -229,12 +248,18 @@ src/
 │   │   └── complexity.ts      # ComplexityScore type
 │   ├── ports/
 │   │   └── complexity.ts      # IComplexityAnalyzer interface
-│   └── services/
-│       └── complexity.ts      # calculateComplexity() pure function
+│   ├── services/
+│   │   └── complexity.ts      # calculateComplexity() pure function
+│   └── usecases/
+│       └── analyzeComplexity.ts  # Orchestrates analysis
 │
-└── infrastructure/
+├── infrastructure/
+│   └── complexity/
+│       └── tsComplexity.ts    # TypeScript AST-based implementation
+│
+└── app/
     └── complexity/
-        └── tsComplexity.ts    # TypeScript AST-based implementation
+        └── index.ts           # Coordinates analysis workflow
 ```
 
 ## Testing
@@ -249,4 +274,3 @@ src/
 - Each directory SHOULD have an `index.ts` that re-exports public API
 - Each module SHOULD have TSDoc comments on public functions
 - Architecture decisions SHOULD be documented in `docs/`
-

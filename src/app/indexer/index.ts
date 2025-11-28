@@ -9,7 +9,7 @@ import {
   ModuleManifest,
   GlobalManifest,
   FileIndex,
-} from '../types';
+} from '../../types';
 import {
   DEFAULT_CONFIG,
   loadConfig,
@@ -17,10 +17,10 @@ import {
   getModuleManifestPath,
   getGlobalManifestPath,
   getModuleConfig,
-} from '../infrastructure/config';
-import { registry, registerBuiltInModules } from '../modules/registry';
-import type { EmbeddingModelName } from '../domain/ports';
-import { IntrospectionIndex } from '../introspection';
+} from '../../infrastructure/config';
+import { registry, registerBuiltInModules } from '../../modules/registry';
+import type { EmbeddingModelName } from '../../domain/ports';
+import { IntrospectionIndex } from '../../introspection';
 
 export interface IndexResult {
   moduleId: string;

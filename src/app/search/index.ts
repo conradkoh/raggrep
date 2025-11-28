@@ -9,14 +9,14 @@ import {
   FileIndex,
   IndexModule,
   GlobalManifest,
-} from '../types';
+} from '../../types';
 import {
   loadConfig,
   getModuleIndexPath,
   getGlobalManifestPath,
   getModuleConfig,
-} from '../infrastructure/config';
-import { registry, registerBuiltInModules } from '../modules/registry';
+} from '../../infrastructure/config';
+import { registry, registerBuiltInModules } from '../../modules/registry';
 
 /**
  * Search across all enabled modules

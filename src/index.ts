@@ -18,13 +18,13 @@
  * ```
  */
 
-import { indexDirectory, cleanupIndex } from './indexer';
-import type { IndexResult, IndexOptions, CleanupResult } from './indexer';
-import { search as searchIndex, formatSearchResults } from './search';
+import { indexDirectory, cleanupIndex } from './app/indexer';
+import type { IndexResult, IndexOptions, CleanupResult } from './app/indexer';
+import { search as searchIndex, formatSearchResults } from './app/search';
 import type { SearchOptions, SearchResult } from './types';
 
 // Re-export types
-export type { IndexResult, IndexOptions, CleanupResult } from './indexer';
+export type { IndexResult, IndexOptions, CleanupResult } from './app/indexer';
 export type { SearchOptions, SearchResult, Chunk, FileIndex } from './types';
 
 /**

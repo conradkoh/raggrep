@@ -6,8 +6,8 @@
  * and infrastructure services.
  */
 
-import type { Config } from '../../domain/entities';
-import type { FileSystem } from '../../domain/ports';
+import type { Config } from '../entities';
+import type { FileSystem } from '../ports';
 import type { IndexModule, IndexContext } from '../../types';
 
 /**

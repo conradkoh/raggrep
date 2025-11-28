@@ -4,8 +4,8 @@
  * Removes stale index entries for files that no longer exist.
  */
 
-import type { Config, ModuleManifest } from '../../domain/entities';
-import type { FileSystem } from '../../domain/ports';
+import type { Config, ModuleManifest } from '../entities';
+import type { FileSystem } from '../ports';
 import type { IndexModule } from '../../types';
 
 /**

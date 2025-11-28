@@ -4,8 +4,8 @@
  * Orchestrates searching the indexed codebase.
  */
 
-import type { Config, SearchResult, SearchOptions } from '../../domain/entities';
-import type { FileSystem } from '../../domain/ports';
+import type { Config, SearchResult, SearchOptions } from '../entities';
+import type { FileSystem } from '../ports';
 import type { IndexModule, SearchContext, FileIndex } from '../../types';
 
 /**

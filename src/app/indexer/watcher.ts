@@ -11,8 +11,8 @@
 
 import { watch, type FSWatcher } from 'chokidar';
 import * as path from 'path';
-import { loadConfig } from '../infrastructure/config';
-import type { Config } from '../domain/entities';
+import { loadConfig } from '../../infrastructure/config';
+import type { Config } from '../../domain/entities';
 import { indexDirectory, cleanupIndex, type IndexOptions, type IndexResult } from './index';
 
 /** Default debounce delay in milliseconds */
