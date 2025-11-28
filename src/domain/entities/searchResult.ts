@@ -82,10 +82,10 @@ export interface SearchResult {
 export interface SearchOptions {
   /** Maximum number of results to return (default: 10) */
   topK?: number;
-  
+
   /** Minimum similarity score threshold 0-1 (default: 0.15) */
   minScore?: number;
-  
+
   /** Filter to specific file patterns (e.g., ['*.ts', '*.tsx']) */
   filePatterns?: string[];
 }
@@ -98,4 +98,3 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   minScore: 0.15,
   filePatterns: [],
 };
-

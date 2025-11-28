@@ -297,12 +297,12 @@ Both modules run in parallel during indexing and search. Results are merged by s
 
 Shared metadata extraction for context-aware search boosting.
 
-| Component | Description |
-|-----------|-------------|
-| `types.ts` | Type definitions (FileIntrospection, ProjectStructure, Scope) |
-| `projectDetector.ts` | Auto-detect monorepo structure and project types |
-| `fileIntrospector.ts` | Extract metadata from file paths (layer, domain, scope) |
-| `index.ts` | IntrospectionIndex class for managing file metadata |
+| Component             | Description                                                   |
+| --------------------- | ------------------------------------------------------------- |
+| `types.ts`            | Type definitions (FileIntrospection, ProjectStructure, Scope) |
+| `projectDetector.ts`  | Auto-detect monorepo structure and project types              |
+| `fileIntrospector.ts` | Extract metadata from file paths (layer, domain, scope)       |
+| `index.ts`            | IntrospectionIndex class for managing file metadata           |
 
 **Detected metadata:**
 
