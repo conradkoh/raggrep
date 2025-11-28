@@ -7,6 +7,8 @@
 
 import * as path from "path";
 import * as fs from "fs/promises";
+import * as os from "os";
+import * as crypto from "crypto";
 import type { Config, ModuleConfig } from "../../domain/entities";
 import { createDefaultConfig } from "../../domain/entities";
 import type { EmbeddingConfig, EmbeddingModelName } from "../../domain/ports";
@@ -17,6 +19,9 @@ import type { EmbeddingConfig, EmbeddingModelName } from "../../domain/ports";
 
 /** Default configuration instance */
 export const DEFAULT_CONFIG: Config = createDefaultConfig();
+
+/** Base directory for raggrep temp indexes */
+const RAGGREP_TEMP_BASE = path.join(os.tmpdir(), "raggrep-indexes");
 
 /** Available embedding models (for validation) */
 export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
@@ -31,13 +36,56 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
 // ============================================================================
 
 /**
- * Get the root .raggrep directory path
+ * Generate a short hash of a string for use in directory names.
+ * Uses first 12 characters of SHA256 hash.
+ */
+function hashPath(inputPath: string): string {
+  return crypto.createHash("sha256").update(inputPath).digest("hex").slice(0, 12);
+}
+
+/**
+ * Get the index storage directory path.
+ * 
+ * Index data is stored in a system temp directory to avoid cluttering
+ * the user's project with index files. The temp path is derived from
+ * a hash of the project's absolute path to ensure uniqueness.
+ * 
+ * Structure: {tmpdir}/raggrep-indexes/{hash}/
+ * 
+ * @param rootDir - Absolute path to the project root
+ * @returns Absolute path to the index storage directory
  */
 export function getRaggrepDir(
   rootDir: string,
-  config: Config = DEFAULT_CONFIG
+  _config: Config = DEFAULT_CONFIG
 ): string {
-  return path.join(rootDir, config.indexDir);
+  // Ensure we have an absolute path
+  const absoluteRoot = path.resolve(rootDir);
+  
+  // Generate a unique hash for this project
+  const projectHash = hashPath(absoluteRoot);
+  
+  // Return the temp directory path
+  return path.join(RAGGREP_TEMP_BASE, projectHash);
+}
+
+/**
+ * Get the index storage path and also return useful metadata.
+ * Helpful for debugging and user feedback.
+ */
+export function getIndexLocation(rootDir: string): {
+  indexDir: string;
+  projectRoot: string;
+  projectHash: string;
+} {
+  const absoluteRoot = path.resolve(rootDir);
+  const projectHash = hashPath(absoluteRoot);
+  
+  return {
+    indexDir: path.join(RAGGREP_TEMP_BASE, projectHash),
+    projectRoot: absoluteRoot,
+    projectHash,
+  };
 }
 
 /**
@@ -48,7 +96,8 @@ export function getModuleIndexPath(
   moduleId: string,
   config: Config = DEFAULT_CONFIG
 ): string {
-  return path.join(rootDir, config.indexDir, "index", moduleId);
+  const indexDir = getRaggrepDir(rootDir, config);
+  return path.join(indexDir, "index", moduleId);
 }
 
 /**
@@ -59,7 +108,8 @@ export function getModuleManifestPath(
   moduleId: string,
   config: Config = DEFAULT_CONFIG
 ): string {
-  return path.join(rootDir, config.indexDir, "index", moduleId, "manifest.json");
+  const indexDir = getRaggrepDir(rootDir, config);
+  return path.join(indexDir, "index", moduleId, "manifest.json");
 }
 
 /**
@@ -69,17 +119,20 @@ export function getGlobalManifestPath(
   rootDir: string,
   config: Config = DEFAULT_CONFIG
 ): string {
-  return path.join(rootDir, config.indexDir, "manifest.json");
+  const indexDir = getRaggrepDir(rootDir, config);
+  return path.join(indexDir, "manifest.json");
 }
 
 /**
- * Get the config file path
+ * Get the config file path.
+ * Note: Config is still stored in the temp index directory, not the project.
  */
 export function getConfigPath(
   rootDir: string,
   config: Config = DEFAULT_CONFIG
 ): string {
-  return path.join(rootDir, config.indexDir, "config.json");
+  const indexDir = getRaggrepDir(rootDir, config);
+  return path.join(indexDir, "config.json");
 }
 
 // ============================================================================

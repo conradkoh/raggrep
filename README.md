@@ -7,7 +7,7 @@ RAGgrep indexes your code and allows semantic search using natural language quer
 ## Features
 
 - **🏠 Local-first** — All indexing and search happens locally. No cloud dependencies.
-- **📁 Filesystem-based** — Index stored as readable JSON files alongside your code.
+- **📁 Filesystem-based** — Index stored as readable JSON files in system temp directory.
 - **⚡ Tiered search** — Fast keyword filtering + semantic search for efficiency.
 - **🔍 Hybrid scoring** — Combines semantic similarity with BM25 keyword matching.
 - **🔄 Incremental** — Only re-indexes files that have changed.

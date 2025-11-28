@@ -135,8 +135,13 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 
 ## Index Structure
 
+Index data is stored in a **system temp directory** (not in your project) to keep your codebase clean:
+
 ```
-.raggrep/
+# Location: /tmp/raggrep-indexes/<project-hash>/
+# The <project-hash> is derived from your project's absolute path
+
+<temp>/raggrep-indexes/<hash>/
 ├── config.json              # Project configuration (optional)
 ├── manifest.json            # Global manifest (lists active modules)
 ├── introspection/           # Shared file metadata

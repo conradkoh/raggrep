@@ -17,6 +17,7 @@ import {
   getModuleManifestPath,
   getGlobalManifestPath,
   getModuleConfig,
+  getIndexLocation,
 } from '../../infrastructure/config';
 import { registry, registerBuiltInModules } from '../../modules/registry';
 import type { EmbeddingModelName } from '../../domain/ports';
@@ -72,7 +73,10 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
   
+  // Show index location
+  const location = getIndexLocation(rootDir);
   console.log(`Indexing directory: ${rootDir}`);
+  console.log(`Index location: ${location.indexDir}`);
 
   // Load config
   const config = await loadConfig(rootDir);
@@ -483,7 +487,10 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   
   // Load config
   const config = await loadConfig(rootDir);
-  const indexDir = path.join(rootDir, config.indexDir);
+  
+  // Get index location (now in temp directory)
+  const location = getIndexLocation(rootDir);
+  const indexDir = location.indexDir;
   
   const status: IndexStatus = {
     exists: false,

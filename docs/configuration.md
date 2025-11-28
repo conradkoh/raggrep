@@ -49,9 +49,11 @@ Schema version for the configuration file.
 
 ### `indexDir`
 
-Directory name for storing index data (relative to project root).
+*Note: This setting is currently ignored. Index data is stored in a system temp directory to avoid cluttering your project.*
 
-**Default:** `".raggrep"`
+**Default location:** `/tmp/raggrep-indexes/<project-hash>/`
+
+Use `raggrep status` to see the exact location for your project.
 
 ### `extensions`
 

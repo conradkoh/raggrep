@@ -10,6 +10,7 @@ export {
   EMBEDDING_MODELS,
   // Path utilities
   getRaggrepDir,
+  getIndexLocation,
   getModuleIndexPath,
   getModuleManifestPath,
   getGlobalManifestPath,

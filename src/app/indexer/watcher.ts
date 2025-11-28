@@ -11,7 +11,7 @@
 
 import { watch, type FSWatcher } from 'chokidar';
 import * as path from 'path';
-import { loadConfig } from '../../infrastructure/config';
+import { loadConfig, getIndexLocation } from '../../infrastructure/config';
 import type { Config } from '../../domain/entities';
 import { indexDirectory, cleanupIndex, type IndexOptions, type IndexResult } from './index';
 
@@ -64,14 +64,26 @@ export async function watchDirectory(
   // Load config
   const config = await loadConfig(rootDir);
   
-  // Build glob patterns for watched files
-  const watchPatterns = config.extensions.map(ext => `**/*${ext}`);
+  // Get index location (now in temp directory, so no need to ignore in project)
+  const indexLocation = getIndexLocation(rootDir);
   
-  // Build ignore patterns
+  // Create a set of valid extensions for fast lookup
+  const validExtensions = new Set(config.extensions);
+  
+  // Build ignore patterns - watch directory, filter by extension
   const ignorePatterns = [
     ...config.ignorePaths.map(p => `**/${p}/**`),
-    `**/${config.indexDir}/**`, // Always ignore the index directory
+    '**/node_modules/**',
+    '**/.git/**',
   ];
+  
+  /**
+   * Check if a file should be watched based on its extension
+   */
+  function shouldWatchFile(filepath: string): boolean {
+    const ext = path.extname(filepath);
+    return validExtensions.has(ext);
+  }
 
   // State management
   let isRunning = true;
@@ -184,6 +196,12 @@ export async function watchDirectory(
     // Convert to relative path
     const relativePath = path.relative(rootDir, filepath);
 
+    // Skip if file doesn't have a valid extension
+    // For unlink events, we still need to check the extension to only clean up indexed files
+    if (!shouldWatchFile(filepath)) {
+      return;
+    }
+
     // Skip if it's in an ignored directory (extra safety check)
     for (const ignorePath of config.ignorePaths) {
       if (relativePath.startsWith(ignorePath) || relativePath.includes(`/${ignorePath}/`)) {
@@ -205,9 +223,9 @@ export async function watchDirectory(
     scheduleProcessing();
   }
 
-  // Create the watcher
-  watcher = watch(watchPatterns, {
-    cwd: rootDir,
+  // Create the watcher - watch the directory itself (not glob patterns)
+  // This ensures new files in new directories are detected
+  watcher = watch(rootDir, {
     ignored: ignorePatterns,
     persistent: true,
     ignoreInitial: true, // Don't trigger events for existing files
@@ -218,12 +236,15 @@ export async function watchDirectory(
     // Performance optimizations
     usePolling: false, // Use native fs events when possible
     atomic: true, // Handle atomic writes (common in editors)
+    // Watch directories for new file detection
+    depth: 99, // Watch deeply nested directories
   });
 
   // Set up event handlers
-  watcher.on('add', (filepath) => handleFileEvent('add', path.join(rootDir, filepath)));
-  watcher.on('change', (filepath) => handleFileEvent('change', path.join(rootDir, filepath)));
-  watcher.on('unlink', (filepath) => handleFileEvent('unlink', path.join(rootDir, filepath)));
+  // When watching a directory directly, chokidar gives us absolute paths
+  watcher.on('add', (filepath) => handleFileEvent('add', filepath));
+  watcher.on('change', (filepath) => handleFileEvent('change', filepath));
+  watcher.on('unlink', (filepath) => handleFileEvent('unlink', filepath));
 
   watcher.on('error', (error: unknown) => {
     const err = error instanceof Error ? error : new Error(String(error));

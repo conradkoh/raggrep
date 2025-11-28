@@ -168,35 +168,39 @@ RAGgrep uses a tiered index system designed for large codebases:
 
 ## Index Storage
 
-The index is stored in `.raggrep/` in your project root:
+The index is stored in a **system temp directory** to avoid cluttering your project:
 
 ```
-your-project/
-├── .raggrep/
-│   ├── config.json              # Optional configuration
-│   ├── manifest.json            # Global manifest
-│   └── index/
-│       ├── core/                # Core module index
-│       │   ├── manifest.json
-│       │   ├── symbols.json     # Symbol + BM25 index
-│       │   └── src/...          # Per-file chunks
-│       └── language/
-│           └── typescript/
-│               ├── manifest.json
-│               ├── symbolic/    # Keyword index (BM25)
-│               │   ├── _meta.json
-│               │   └── src/...
-│               └── src/         # Embedding index
-│                   └── ...
-├── src/
-└── ...
+# macOS/Linux
+/tmp/raggrep-indexes/<project-hash>/
+
+# Windows
+%TEMP%\raggrep-indexes\<project-hash>\
 ```
 
-Add `.raggrep/` to your `.gitignore`:
+The `<project-hash>` is derived from your project's absolute path, ensuring each project has its own isolated index.
 
-```gitignore
-.raggrep/
+**Index structure:**
 ```
+<temp>/raggrep-indexes/<hash>/
+├── config.json              # Configuration (if customized)
+├── manifest.json            # Global manifest
+└── index/
+    ├── core/                # Core module index
+    │   ├── manifest.json
+    │   ├── symbols.json     # Symbol + BM25 index
+    │   └── src/...
+    └── language/
+        └── typescript/
+            ├── manifest.json
+            ├── symbolic/    # Keyword index (BM25)
+            └── src/...      # Embedding index
+```
+
+**Benefits:**
+- Your project stays clean — no `.raggrep/` folder to .gitignore
+- Index persists across sessions (until system temp is cleared)
+- Use `raggrep status` to see your index location
 
 ## Next Steps
 

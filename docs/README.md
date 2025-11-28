@@ -33,7 +33,7 @@ raggrep query "user authentication"
 | Feature                  | Description                                                       |
 | ------------------------ | ----------------------------------------------------------------- |
 | **Local-first**          | All processing happens locally. No external API calls.            |
-| **Filesystem-based**     | Index stored as readable JSON files alongside your code.          |
+| **Filesystem-based**     | Index stored as readable JSON files in system temp directory.     |
 | **Dual-module search**   | Core (BM25/symbols) + TypeScript (AST/embeddings) modules.        |
 | **Hybrid scoring**       | Combines semantic similarity (70%) with keyword matching (30%).   |
 | **Incremental**          | Only re-indexes files that have changed.                          |
@@ -46,7 +46,7 @@ RAGgrep is built around three core principles:
 
 1. **Lightweight** — No heavy dependencies, no databases, no servers.
 2. **Filesystem-based** — The index is just JSON files. Human-readable, debuggable, portable.
-3. **Persistent** — Index lives alongside your code. No rebuilding on every search.
+3. **Persistent** — Index persists in temp directory. No rebuilding on every search.
 
 This makes it ideal for:
 
