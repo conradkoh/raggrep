@@ -1,46 +1,46 @@
 /**
  * RAGgrep - Local filesystem-based RAG system for codebases
- * 
+ *
  * Provides semantic search over code using local embeddings.
- * 
+ *
  * @example
  * ```ts
  * import raggrep from 'raggrep';
- * 
+ *
  * // Index a directory
  * await raggrep.index('/path/to/project');
- * 
+ *
  * // Search the index
  * const results = await raggrep.search('/path/to/project', 'user authentication');
- * 
+ *
  * // Clean up stale entries
  * await raggrep.cleanup('/path/to/project');
  * ```
  */
 
-import { indexDirectory, cleanupIndex } from './app/indexer';
-import type { IndexResult, IndexOptions, CleanupResult } from './app/indexer';
-import { search as searchIndex, formatSearchResults } from './app/search';
-import type { SearchOptions, SearchResult } from './types';
+import { indexDirectory, cleanupIndex } from "./app/indexer";
+import type { IndexResult, IndexOptions, CleanupResult } from "./app/indexer";
+import { search as searchIndex, formatSearchResults } from "./app/search";
+import type { SearchOptions, SearchResult } from "./types";
 
 // Re-export types
-export type { IndexResult, IndexOptions, CleanupResult } from './app/indexer';
-export type { SearchOptions, SearchResult, Chunk, FileIndex } from './types';
+export type { IndexResult, IndexOptions, CleanupResult } from "./app/indexer";
+export type { SearchOptions, SearchResult, Chunk, FileIndex } from "./types";
 
 /**
  * Index a directory for semantic search.
- * 
+ *
  * Creates a `.raggrep/` folder with the index data.
- * 
+ *
  * @param directory - Path to the directory to index
  * @param options - Index options
  * @returns Array of results per module
- * 
+ *
  * @example
  * ```ts
  * // Basic indexing
  * await raggrep.index('./my-project');
- * 
+ *
  * // With options
  * await raggrep.index('./my-project', {
  *   model: 'bge-small-en-v1.5',
@@ -49,7 +49,7 @@ export type { SearchOptions, SearchResult, Chunk, FileIndex } from './types';
  * ```
  */
 export async function index(
-  directory: string, 
+  directory: string,
   options: IndexOptions = {}
 ): Promise<IndexResult[]> {
   return indexDirectory(directory, options);
@@ -57,17 +57,17 @@ export async function index(
 
 /**
  * Search the indexed codebase.
- * 
+ *
  * @param directory - Path to the indexed directory
  * @param query - Natural language search query
  * @param options - Search options
  * @returns Array of search results sorted by relevance
- * 
+ *
  * @example
  * ```ts
  * // Basic search
  * const results = await raggrep.search('./my-project', 'user login');
- * 
+ *
  * // With options
  * const results = await raggrep.search('./my-project', 'database query', {
  *   topK: 5,
@@ -86,11 +86,11 @@ export async function search(
 
 /**
  * Clean up stale index entries for files that no longer exist.
- * 
+ *
  * @param directory - Path to the indexed directory
  * @param options - Cleanup options
  * @returns Array of cleanup results per module
- * 
+ *
  * @example
  * ```ts
  * const results = await raggrep.cleanup('./my-project');
@@ -106,7 +106,7 @@ export async function cleanup(
 
 /**
  * Format search results for display.
- * 
+ *
  * @param results - Array of search results
  * @returns Formatted string for console output
  */
@@ -121,4 +121,3 @@ const raggrep = {
 };
 
 export default raggrep;
-
