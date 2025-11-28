@@ -1,14 +1,14 @@
 // Module registry - manages available index modules
-import { IndexModule, ModuleRegistry, Config } from '../types';
+import { IndexModule, ModuleRegistry, Config } from "../types";
 
 class ModuleRegistryImpl implements ModuleRegistry {
   private modules = new Map<string, IndexModule>();
 
   register(module: IndexModule): void {
-    if (this.modules.has(module.id)) {
-      console.warn(`Module '${module.id}' is already registered, overwriting...`);
+    // Idempotent registration: avoid noisy logs when called multiple times
+    if (!this.modules.has(module.id)) {
+      this.modules.set(module.id, module);
     }
-    this.modules.set(module.id, module);
   }
 
   get(id: string): IndexModule | undefined {
@@ -21,12 +21,10 @@ class ModuleRegistryImpl implements ModuleRegistry {
 
   getEnabled(config: Config): IndexModule[] {
     const enabledIds = new Set(
-      config.modules
-        .filter(m => m.enabled)
-        .map(m => m.id)
+      config.modules.filter((m) => m.enabled).map((m) => m.id)
     );
-    
-    return this.list().filter(m => enabledIds.has(m.id));
+
+    return this.list().filter((m) => enabledIds.has(m.id));
   }
 }
 
@@ -36,12 +34,12 @@ export const registry: ModuleRegistry = new ModuleRegistryImpl();
 // Auto-register built-in modules
 export async function registerBuiltInModules(): Promise<void> {
   // Dynamic import to avoid circular dependencies
-  const { CoreModule } = await import('./core');
-  const { TypeScriptModule } = await import('./language/typescript');
-  
+  const { CoreModule } = await import("./core");
+  const { TypeScriptModule } = await import("./language/typescript");
+
   // Register core module first (fast, language-agnostic)
   registry.register(new CoreModule());
-  
+
   // Register language-specific modules
   registry.register(new TypeScriptModule());
 }

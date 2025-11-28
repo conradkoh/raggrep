@@ -146,9 +146,6 @@ export class IntrospectionIndex {
       await fs.writeFile(introFilePath, JSON.stringify(intro, null, 2));
     }
 
-    console.log(
-      `  [Introspection] Saved metadata for ${this.files.size} files`
-    );
   }
 
   /**

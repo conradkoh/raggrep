@@ -51,7 +51,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
   constructor(config?: Partial<EmbeddingConfig>) {
     this.config = {
       model: config?.model ?? 'all-MiniLM-L6-v2',
-      showProgress: config?.showProgress ?? true,
+      showProgress: config?.showProgress ?? false, // Silent by default
     };
   }
 
@@ -206,7 +206,7 @@ export async function isModelCached(model: EmbeddingModelName): Promise<boolean>
 let globalProvider: TransformersEmbeddingProvider | null = null;
 let globalConfig: EmbeddingConfig = {
   model: 'all-MiniLM-L6-v2',
-  showProgress: true,
+  showProgress: false, // Silent by default for CLI usage
 };
 
 /**

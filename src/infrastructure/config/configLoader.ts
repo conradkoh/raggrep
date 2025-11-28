@@ -40,18 +40,22 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
  * Uses first 12 characters of SHA256 hash.
  */
 function hashPath(inputPath: string): string {
-  return crypto.createHash("sha256").update(inputPath).digest("hex").slice(0, 12);
+  return crypto
+    .createHash("sha256")
+    .update(inputPath)
+    .digest("hex")
+    .slice(0, 12);
 }
 
 /**
  * Get the index storage directory path.
- * 
+ *
  * Index data is stored in a system temp directory to avoid cluttering
  * the user's project with index files. The temp path is derived from
  * a hash of the project's absolute path to ensure uniqueness.
- * 
+ *
  * Structure: {tmpdir}/raggrep-indexes/{hash}/
- * 
+ *
  * @param rootDir - Absolute path to the project root
  * @returns Absolute path to the index storage directory
  */
@@ -61,10 +65,10 @@ export function getRaggrepDir(
 ): string {
   // Ensure we have an absolute path
   const absoluteRoot = path.resolve(rootDir);
-  
+
   // Generate a unique hash for this project
   const projectHash = hashPath(absoluteRoot);
-  
+
   // Return the temp directory path
   return path.join(RAGGREP_TEMP_BASE, projectHash);
 }
@@ -80,7 +84,7 @@ export function getIndexLocation(rootDir: string): {
 } {
   const absoluteRoot = path.resolve(rootDir);
   const projectHash = hashPath(absoluteRoot);
-  
+
   return {
     indexDir: path.join(RAGGREP_TEMP_BASE, projectHash),
     projectRoot: absoluteRoot,
@@ -199,7 +203,7 @@ export function getEmbeddingConfigFromModule(
 
   return {
     model: modelName as EmbeddingModelName,
-    showProgress: options.showProgress !== false,
+    // Default to NO progress logs unless explicitly enabled
+    showProgress: options.showProgress === true,
   };
 }
-

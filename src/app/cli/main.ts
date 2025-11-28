@@ -261,11 +261,14 @@ Examples:
       try {
         // Ensure index is fresh (creates if needed, updates if changed)
         const freshStats = await ensureIndexFresh(process.cwd(), {
-            model: flags.model,
+          model: flags.model,
           quiet: true, // Suppress detailed indexing output
         });
 
-        // Show brief update message if there were changes
+        console.log("RAGgrep Search");
+        console.log("==============\n");
+
+        // Show brief index status summary
         if (freshStats.indexed > 0 || freshStats.removed > 0) {
           const parts: string[] = [];
           if (freshStats.indexed > 0) {
@@ -274,11 +277,10 @@ Examples:
           if (freshStats.removed > 0) {
             parts.push(`${freshStats.removed} removed`);
           }
-          console.log(`Index updated: ${parts.join(", ")}\n`);
+          console.log(`Using updated index: ${parts.join(", ")}\n`);
+        } else {
+          console.log("Using cached index (no changes detected).\n");
         }
-
-        console.log("RAGgrep Search");
-        console.log("==============\n");
 
         // Build file patterns if type filter specified
         const filePatterns = flags.fileType

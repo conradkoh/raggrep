@@ -251,9 +251,6 @@ export class CoreModule implements IndexModule {
       JSON.stringify(symbolIndexData, null, 2)
     );
 
-    console.log(
-      `  [Core] Symbol index built with ${this.symbolIndex.size} files`
-    );
   }
 
   /**
