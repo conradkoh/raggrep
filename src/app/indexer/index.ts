@@ -357,6 +357,7 @@ export async function ensureIndexFresh(
       if (verbose) {
         console.log(`  Removing stale: ${filepath}`);
       }
+      // Remove main index file
       const indexFilePath = path.join(
         indexPath,
         filepath.replace(/\.[^.]+$/, ".json")
@@ -365,6 +366,17 @@ export async function ensureIndexFresh(
         await fs.unlink(indexFilePath);
       } catch {
         // Index file may not exist
+      }
+      // Remove symbolic index file
+      const symbolicFilePath = path.join(
+        indexPath,
+        "symbolic",
+        filepath.replace(/\.[^.]+$/, ".json")
+      );
+      try {
+        await fs.unlink(symbolicFilePath);
+      } catch {
+        // Symbolic file may not exist
       }
       delete manifest.files[filepath];
       totalRemoved++;
