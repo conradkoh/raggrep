@@ -20,6 +20,7 @@ import {
 } from '../utils/config';
 import { registry, registerBuiltInModules } from '../modules/registry';
 import { EmbeddingModelName } from '../utils/embeddings';
+import { IntrospectionIndex } from '../introspection';
 
 export interface IndexResult {
   moduleId: string;
@@ -76,6 +77,16 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
   // Load config
   const config = await loadConfig(rootDir);
 
+  // Initialize introspection
+  const introspection = new IntrospectionIndex(rootDir);
+  await introspection.initialize();
+  if (verbose) {
+    const structure = introspection.getStructure();
+    if (structure?.isMonorepo) {
+      console.log(`Detected monorepo with ${structure.projects.length} projects`);
+    }
+  }
+
   // Register built-in modules
   await registerBuiltInModules();
 
@@ -113,7 +124,7 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
       await module.initialize(configWithOverrides);
     }
 
-    const result = await indexWithModule(rootDir, files, module, config, verbose);
+    const result = await indexWithModule(rootDir, files, module, config, verbose, introspection);
     results.push(result);
 
     // Call finalize to build secondary indexes (Tier 1, BM25, etc.)
@@ -138,6 +149,9 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
     console.log(`[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`);
   }
 
+  // Save introspection data
+  await introspection.save(config);
+
   // Update global manifest
   await updateGlobalManifest(rootDir, enabledModules, config);
 
@@ -152,7 +166,8 @@ async function indexWithModule(
   files: string[],
   module: IndexModule,
   config: Config,
-  verbose: boolean
+  verbose: boolean,
+  introspection: IntrospectionIndex
 ): Promise<IndexResult> {
   const result: IndexResult = {
     moduleId: module.id,
@@ -177,6 +192,7 @@ async function indexWithModule(
       const stats = await fs.stat(fullPath);
       return { lastModified: stats.mtime.toISOString() };
     },
+    getIntrospection: (filepath: string) => introspection.getFile(filepath),
   };
 
   // Process each file
@@ -199,6 +215,9 @@ async function indexWithModule(
 
       // Read and index file
       const content = await fs.readFile(filepath, 'utf-8');
+      
+      // Add introspection for this file
+      introspection.addFile(relativePath, content);
       
       if (verbose) {
         console.log(`  Processing ${relativePath}...`);

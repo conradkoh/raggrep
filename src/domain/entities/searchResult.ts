@@ -1,10 +1,57 @@
 /**
  * SearchResult Entity
- * 
+ *
  * Represents a single result from a search query.
  */
 
-import type { Chunk } from './chunk';
+import type { Chunk } from "./chunk";
+
+/**
+ * Contribution from the core index.
+ */
+export interface CoreContribution {
+  /** Symbol name match score (0-1) */
+  symbolMatch: number;
+  /** BM25 keyword match score (0-1) */
+  keywordMatch: number;
+}
+
+/**
+ * Contribution from a language-specific index.
+ */
+export interface LanguageContribution {
+  /** Semantic embedding similarity (0-1) */
+  semanticMatch: number;
+  /** BM25 keyword match score (0-1) */
+  keywordMatch: number;
+}
+
+/**
+ * Contribution from introspection boosting.
+ */
+export interface IntrospectionContribution {
+  /** Boost from domain match */
+  domainBoost: number;
+  /** Boost from layer match */
+  layerBoost: number;
+  /** Boost from scope match */
+  scopeBoost: number;
+  /** Boost from path segment match */
+  pathBoost: number;
+}
+
+/**
+ * Tracks which indexes contributed to a search result's score.
+ * Used for learning and tuning.
+ */
+export interface SearchContributions {
+  /** Core index contribution */
+  core?: CoreContribution;
+  /** Language-specific index contribution (keyed by module ID) */
+  language?: Record<string, LanguageContribution>;
+  /** Introspection boost contribution */
+  introspection?: IntrospectionContribution;
+}
 
 /**
  * A search result with relevance score and source information.
@@ -12,16 +59,19 @@ import type { Chunk } from './chunk';
 export interface SearchResult {
   /** Path to the file containing the result */
   filepath: string;
-  
+
   /** The matching chunk */
   chunk: Chunk;
-  
-  /** Relevance score (0-1, higher is better) */
+
+  /** Final relevance score (0-1, higher is better) */
   score: number;
-  
+
   /** ID of the module that produced this result */
   moduleId: string;
-  
+
+  /** Contribution tracking for learning */
+  contributions?: SearchContributions;
+
   /** Additional context from the search (e.g., semantic vs keyword scores) */
   context?: Record<string, unknown>;
 }

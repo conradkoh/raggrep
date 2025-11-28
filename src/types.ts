@@ -17,6 +17,10 @@ export type {
   Tier1Manifest,
   SearchResult,
   SearchOptions,
+  SearchContributions,
+  CoreContribution,
+  LanguageContribution,
+  IntrospectionContribution,
   Config,
   ModuleConfig,
 } from './domain/entities';
@@ -38,6 +42,8 @@ import type { Config, FileIndex, SearchResult, SearchOptions, ModuleConfig } fro
 /**
  * Context provided to modules during indexing
  */
+import type { FileIntrospection } from './introspection';
+
 export interface IndexContext {
   rootDir: string;
   config: Config;
@@ -45,6 +51,8 @@ export interface IndexContext {
   readFile: (filepath: string) => Promise<string>;
   /** Get file stats */
   getFileStats: (filepath: string) => Promise<{ lastModified: string }>;
+  /** Get introspection data for a file (if available) */
+  getIntrospection?: (filepath: string) => FileIntrospection | undefined;
 }
 
 /**

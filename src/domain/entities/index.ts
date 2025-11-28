@@ -25,7 +25,14 @@ export type {
 } from "./fileSummary";
 
 // SearchResult - Query results
-export type { SearchResult, SearchOptions } from "./searchResult";
+export type {
+  SearchResult,
+  SearchOptions,
+  SearchContributions,
+  CoreContribution,
+  LanguageContribution,
+  IntrospectionContribution,
+} from "./searchResult";
 export { DEFAULT_SEARCH_OPTIONS } from "./searchResult";
 
 // Config - Application configuration

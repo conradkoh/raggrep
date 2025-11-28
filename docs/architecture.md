@@ -136,21 +136,28 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 .raggrep/
 ├── config.json              # Project configuration (optional)
 ├── manifest.json            # Global manifest (lists active modules)
+├── introspection/           # Shared file metadata
+│   ├── _project.json        # Detected project structure
+│   └── files/               # Per-file introspection
+│       └── src/auth/
+│           └── authService.json
+│
 └── index/
-    ├── core/                # (Future) Language-agnostic text index
-    │   └── ...
+    ├── core/                # Language-agnostic text index
+    │   ├── manifest.json
+    │   ├── symbols.json     # Symbol index + BM25 data
+    │   └── src/auth/
+    │       └── authService.json
     │
     └── language/            # Language-specific indexes
         └── typescript/      # TypeScript/JavaScript index
             ├── manifest.json    # Module manifest (file list, timestamps)
             ├── symbolic/        # Symbolic index (keywords + BM25)
             │   ├── _meta.json   # BM25 statistics
-            │   └── src/
-            │       └── auth/
-            │           └── authService.json  # File summary
-            └── src/
-                └── auth/
-                    └── authService.json  # Full index (chunks + embeddings)
+            │   └── src/auth/
+            │       └── authService.json  # File summary
+            └── src/auth/
+                └── authService.json  # Full index (chunks + embeddings)
 ```
 
 ### Symbolic Index Format
@@ -286,7 +293,27 @@ Pluggable modules implementing the `IndexModule` interface.
 
 Both modules run in parallel during indexing and search. Results are merged by score.
 
-See [design/introspection.md](./design/introspection.md) for the planned multi-index architecture.
+### Introspection Layer (`src/introspection/`)
+
+Shared metadata extraction for context-aware search boosting.
+
+| Component | Description |
+|-----------|-------------|
+| `types.ts` | Type definitions (FileIntrospection, ProjectStructure, Scope) |
+| `projectDetector.ts` | Auto-detect monorepo structure and project types |
+| `fileIntrospector.ts` | Extract metadata from file paths (layer, domain, scope) |
+| `index.ts` | IntrospectionIndex class for managing file metadata |
+
+**Detected metadata:**
+
+- **Project**: Name, root path, type (app, library, service, script)
+- **Scope**: frontend, backend, shared, tooling
+- **Layer**: controller, service, repository, model, util, etc.
+- **Domain**: auth, users, payments, etc.
+- **Language**: typescript, javascript, python, etc.
+- **Framework**: nextjs, express, fastify, etc.
+
+See [design/introspection.md](./design/introspection.md) for the full design document.
 
 ```typescript
 interface IndexModule {
