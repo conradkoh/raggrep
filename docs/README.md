@@ -25,25 +25,25 @@ That's it. No separate index command needed — the index is created and maintai
 
 ## Key Features
 
-| Feature                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| **Zero-config search** | Just run `raggrep query` and it works. Index managed auto.      |
-| **Local-first**        | All processing happens locally. No external API calls.          |
-| **Incremental**        | Only re-indexes files that have changed.                        |
-| **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`.     |
-| **Hybrid scoring**     | Combines semantic similarity with keyword matching.             |
-| **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.      |
+| Feature                | Description                                                 |
+| ---------------------- | ----------------------------------------------------------- |
+| **Zero-config search** | Just run `raggrep query` and it works. Index managed auto.  |
+| **Local-first**        | All processing happens locally. No external API calls.      |
+| **Incremental**        | Only re-indexes files that have changed.                    |
+| **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`. |
+| **Hybrid scoring**     | Combines semantic similarity with keyword matching.         |
+| **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.  |
 
 ## How Auto-Indexing Works
 
 The `raggrep query` command manages the index like a cache:
 
-| Scenario         | What Happens                             |
-| ---------------- | ---------------------------------------- |
-| First query      | Creates full index, then searches        |
-| No changes       | Uses cached index (instant)              |
-| Files modified   | Re-indexes changed files, then searches  |
-| Files deleted    | Removes stale entries, then searches     |
+| Scenario       | What Happens                            |
+| -------------- | --------------------------------------- |
+| First query    | Creates full index, then searches       |
+| No changes     | Uses cached index (instant)             |
+| Files modified | Re-indexes changed files, then searches |
+| Files deleted  | Removes stale entries, then searches    |
 
 ## Design Philosophy
 

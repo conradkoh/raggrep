@@ -93,12 +93,12 @@ Results include:
 
 RAGgrep manages the index automatically like a cache:
 
-| Scenario             | What Happens                             |
-| -------------------- | ---------------------------------------- |
-| First query          | Creates full index, then searches        |
-| No changes           | Uses cached index (instant)              |
-| Files modified       | Re-indexes changed files, then searches  |
-| Files deleted        | Removes stale entries, then searches     |
+| Scenario       | What Happens                            |
+| -------------- | --------------------------------------- |
+| First query    | Creates full index, then searches       |
+| No changes     | Uses cached index (instant)             |
+| Files modified | Re-indexes changed files, then searches |
+| Files deleted  | Removes stale entries, then searches    |
 
 You never need to manually index unless you want watch mode.
 

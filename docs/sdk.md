@@ -45,20 +45,20 @@ for (const result of results) {
 
 **Parameters:**
 
-| Parameter           | Type     | Default              | Description                 |
-| ------------------- | -------- | -------------------- | --------------------------- |
-| `directory`         | `string` | required             | Path to directory to index  |
-| `options.model`     | `string` | `"all-MiniLM-L6-v2"` | Embedding model to use      |
-| `options.verbose`   | `boolean`| `false`              | Show detailed progress      |
+| Parameter         | Type      | Default              | Description                |
+| ----------------- | --------- | -------------------- | -------------------------- |
+| `directory`       | `string`  | required             | Path to directory to index |
+| `options.model`   | `string`  | `"all-MiniLM-L6-v2"` | Embedding model to use     |
+| `options.verbose` | `boolean` | `false`              | Show detailed progress     |
 
 **Returns:** `Promise<IndexResult[]>`
 
 ```typescript
 interface IndexResult {
-  moduleId: string;  // "core" | "language/typescript"
-  indexed: number;   // Files indexed
-  skipped: number;   // Files skipped (unchanged)
-  errors: number;    // Files with errors
+  moduleId: string; // "core" | "language/typescript"
+  indexed: number; // Files indexed
+  skipped: number; // Files skipped (unchanged)
+  errors: number; // Files with errors
 }
 ```
 
@@ -68,8 +68,8 @@ Search the indexed codebase.
 
 ```typescript
 const results = await raggrep.search("./my-project", "user login", {
-  topK: 5,           // Number of results
-  minScore: 0.2,     // Minimum similarity (0-1)
+  topK: 5, // Number of results
+  minScore: 0.2, // Minimum similarity (0-1)
   filePatterns: ["*.ts", "*.tsx"], // Filter by file type
 });
 
@@ -82,32 +82,32 @@ for (const result of results) {
 
 **Parameters:**
 
-| Parameter              | Type       | Default | Description                    |
-| ---------------------- | ---------- | ------- | ------------------------------ |
-| `directory`            | `string`   | required| Path to indexed directory      |
-| `query`                | `string`   | required| Natural language search query  |
-| `options.topK`         | `number`   | `10`    | Number of results to return    |
-| `options.minScore`     | `number`   | `0.15`  | Minimum similarity threshold   |
-| `options.filePatterns` | `string[]` | all     | File patterns to filter        |
+| Parameter              | Type       | Default  | Description                   |
+| ---------------------- | ---------- | -------- | ----------------------------- |
+| `directory`            | `string`   | required | Path to indexed directory     |
+| `query`                | `string`   | required | Natural language search query |
+| `options.topK`         | `number`   | `10`     | Number of results to return   |
+| `options.minScore`     | `number`   | `0.15`   | Minimum similarity threshold  |
+| `options.filePatterns` | `string[]` | all      | File patterns to filter       |
 
 **Returns:** `Promise<SearchResult[]>`
 
 ```typescript
 interface SearchResult {
-  filepath: string;    // Relative path to file
-  chunk: Chunk;        // Matched code chunk
-  score: number;       // Relevance score (0-1)
-  moduleId: string;    // Module that found this result
+  filepath: string; // Relative path to file
+  chunk: Chunk; // Matched code chunk
+  score: number; // Relevance score (0-1)
+  moduleId: string; // Module that found this result
 }
 
 interface Chunk {
-  id: string;          // Unique chunk ID
-  content: string;     // Code content
-  startLine: number;   // Start line in file
-  endLine: number;     // End line in file
-  type: string;        // "function" | "class" | "interface" | etc.
-  name?: string;       // Symbol name if applicable
-  isExported?: boolean;// Whether exported
+  id: string; // Unique chunk ID
+  content: string; // Code content
+  startLine: number; // Start line in file
+  endLine: number; // End line in file
+  type: string; // "function" | "class" | "interface" | etc.
+  name?: string; // Symbol name if applicable
+  isExported?: boolean; // Whether exported
 }
 ```
 
@@ -127,18 +127,18 @@ for (const result of results) {
 
 **Parameters:**
 
-| Parameter         | Type      | Default | Description            |
-| ----------------- | --------- | ------- | ---------------------- |
-| `directory`       | `string`  | required| Path to indexed directory |
-| `options.verbose` | `boolean` | `false` | Show detailed progress |
+| Parameter         | Type      | Default  | Description               |
+| ----------------- | --------- | -------- | ------------------------- |
+| `directory`       | `string`  | required | Path to indexed directory |
+| `options.verbose` | `boolean` | `false`  | Show detailed progress    |
 
 **Returns:** `Promise<CleanupResult[]>`
 
 ```typescript
 interface CleanupResult {
   moduleId: string;
-  removed: number;  // Stale entries removed
-  kept: number;     // Valid entries kept
+  removed: number; // Stale entries removed
+  kept: number; // Valid entries kept
 }
 ```
 
@@ -153,9 +153,9 @@ console.log(raggrep.formatSearchResults(results));
 
 **Parameters:**
 
-| Parameter | Type             | Description        |
-| --------- | ---------------- | ------------------ |
-| `results` | `SearchResult[]` | Search results     |
+| Parameter | Type             | Description    |
+| --------- | ---------------- | -------------- |
+| `results` | `SearchResult[]` | Search results |
 
 **Returns:** `string` — Formatted output for console
 

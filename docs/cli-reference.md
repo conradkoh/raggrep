@@ -11,6 +11,7 @@ raggrep query <search query> [options]
 ```
 
 The index is managed automatically:
+
 - First query creates the index
 - Changed files are re-indexed automatically
 - Deleted files are cleaned up automatically
@@ -65,6 +66,7 @@ Found 3 results:
 ```
 
 Results include:
+
 - File path and line numbers
 - Symbol name (if applicable)
 - Relevance score (percentage)
@@ -123,6 +125,7 @@ Index location: /tmp/raggrep-indexes/abc123
 ```
 
 Watch mode:
+
 - Monitors file changes using efficient native events
 - Debounces rapid changes (e.g., during git operations)
 - Only re-indexes changed files

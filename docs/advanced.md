@@ -81,10 +81,30 @@ raggrep status
 ```json
 {
   "version": "0.1.0",
-  "extensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".md", ".txt"],
+  "extensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".py",
+    ".go",
+    ".rs",
+    ".java",
+    ".md",
+    ".txt"
+  ],
   "ignorePaths": [
-    "node_modules", ".git", "dist", "build", ".next", ".nuxt",
-    "__pycache__", "venv", ".venv", "coverage", ".cache"
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "__pycache__",
+    "venv",
+    ".venv",
+    "coverage",
+    ".cache"
   ],
   "modules": [
     { "id": "core", "enabled": true },
@@ -105,7 +125,7 @@ File extensions to index.
 
 ```json
 {
-  "extensions": [".ts", ".tsx"]  // TypeScript only
+  "extensions": [".ts", ".tsx"] // TypeScript only
 }
 ```
 
@@ -116,9 +136,12 @@ Directories to skip during indexing.
 ```json
 {
   "ignorePaths": [
-    "node_modules", ".git", "dist", "build",
-    "__tests__",     // Add your own
-    "generated"      // Add your own
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "__tests__", // Add your own
+    "generated" // Add your own
   ]
 }
 ```
@@ -130,12 +153,12 @@ Enable/disable index modules or change their settings.
 ```json
 {
   "modules": [
-    { "id": "core", "enabled": false },  // Disable core module
+    { "id": "core", "enabled": false }, // Disable core module
     {
       "id": "language/typescript",
       "enabled": true,
       "options": {
-        "embeddingModel": "bge-small-en-v1.5"  // Different model
+        "embeddingModel": "bge-small-en-v1.5" // Different model
       }
     }
   ]
@@ -224,13 +247,13 @@ raggrep query "component" --type tsx   # Only .tsx files
 
 The `raggrep query` command manages the index automatically:
 
-| Scenario               | What Happens                              |
-| ---------------------- | ----------------------------------------- |
-| No index exists        | Creates full index, then searches         |
-| Index exists, no changes | Uses cached index (instant)              |
-| Files modified         | Re-indexes changed files, then searches   |
-| Files deleted          | Removes stale entries, then searches      |
-| Incompatible version   | Rebuilds entire index, then searches      |
+| Scenario                 | What Happens                            |
+| ------------------------ | --------------------------------------- |
+| No index exists          | Creates full index, then searches       |
+| Index exists, no changes | Uses cached index (instant)             |
+| Files modified           | Re-indexes changed files, then searches |
+| Files deleted            | Removes stale entries, then searches    |
+| Incompatible version     | Rebuilds entire index, then searches    |
 
 This means you never need to run `raggrep index` manually unless you want watch mode or verbose output.
 
@@ -253,11 +276,13 @@ rm -rf ~/.cache/raggrep/models
 ### For Large Codebases
 
 1. **Use watch mode** during development:
+
    ```bash
    raggrep index --watch
    ```
 
 2. **Limit file types** to what matters:
+
    ```json
    { "extensions": [".ts", ".tsx"] }
    ```
@@ -269,9 +294,9 @@ rm -rf ~/.cache/raggrep/models
 
 ### Expected Performance
 
-| Operation                | Time       | Notes                        |
-| ------------------------ | ---------- | ---------------------------- |
-| Initial index (1k files) | 1-2 min    | Embedding generation         |
-| Incremental update       | <2s        | Only changed files           |
-| Search (cached)          | ~100-500ms | Depends on codebase size     |
-| Search (with updates)    | +1-2s      | Per changed file             |
+| Operation                | Time       | Notes                    |
+| ------------------------ | ---------- | ------------------------ |
+| Initial index (1k files) | 1-2 min    | Embedding generation     |
+| Incremental update       | <2s        | Only changed files       |
+| Search (cached)          | ~100-500ms | Depends on codebase size |
+| Search (with updates)    | +1-2s      | Per changed file         |
