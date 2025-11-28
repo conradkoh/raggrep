@@ -13,4 +13,5 @@ export {
   normalizeScore,
   type BM25Document,
   type BM25Result,
+  type BM25SerializedData,
 } from '../domain/services/bm25';

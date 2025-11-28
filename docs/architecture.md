@@ -281,8 +281,10 @@ Pluggable modules implementing the `IndexModule` interface.
 
 | Module ID             | Location                           | Description                                    |
 | --------------------- | ---------------------------------- | ---------------------------------------------- |
+| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25     |
 | `language/typescript` | `src/modules/language/typescript/` | TypeScript/JavaScript AST parsing + embeddings |
-| `core`                | (planned)                          | Language-agnostic text search                  |
+
+Both modules run in parallel during indexing and search. Results are merged by score.
 
 See [design/introspection.md](./design/introspection.md) for the planned multi-index architecture.
 

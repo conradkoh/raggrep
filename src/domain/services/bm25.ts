@@ -166,6 +166,59 @@ export class BM25Index {
     this.avgDocLength = 0;
     this.totalDocs = 0;
   }
+
+  /**
+   * Add a single document by ID and pre-computed tokens.
+   *
+   * @param id - Document identifier
+   * @param tokens - Pre-computed tokens
+   */
+  addDocument(id: string, tokens: string[]): void {
+    this.addDocuments([{ id, content: "", tokens }]);
+  }
+
+  /**
+   * Serialize the index to a JSON-compatible object.
+   */
+  serialize(): BM25SerializedData {
+    const documents: Record<string, string[]> = {};
+    for (const [id, { tokens }] of this.documents) {
+      documents[id] = tokens;
+    }
+
+    return {
+      documents,
+      avgDocLength: this.avgDocLength,
+      documentFrequencies: Object.fromEntries(this.documentFrequencies),
+      totalDocs: this.totalDocs,
+    };
+  }
+
+  /**
+   * Deserialize a BM25 index from saved data.
+   */
+  static deserialize(data: BM25SerializedData): BM25Index {
+    const index = new BM25Index();
+    index.avgDocLength = data.avgDocLength;
+    index.totalDocs = data.totalDocs;
+    index.documentFrequencies = new Map(Object.entries(data.documentFrequencies));
+
+    for (const [id, tokens] of Object.entries(data.documents)) {
+      index.documents.set(id, { content: "", tokens });
+    }
+
+    return index;
+  }
+}
+
+/**
+ * Serialized BM25 index data.
+ */
+export interface BM25SerializedData {
+  documents: Record<string, string[]>;
+  avgDocLength: number;
+  documentFrequencies: Record<string, number>;
+  totalDocs: number;
 }
 
 /**

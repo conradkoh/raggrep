@@ -89,6 +89,11 @@ Array of module configurations.
 {
   "modules": [
     {
+      "id": "core",
+      "enabled": true,
+      "options": {}
+    },
+    {
       "id": "language/typescript",
       "enabled": true,
       "options": {
@@ -100,6 +105,14 @@ Array of module configurations.
 ```
 
 ## Module Options
+
+### Core Module (`core`)
+
+Fast, language-agnostic text search using regex-based symbol extraction and BM25 keyword matching.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| (none) | - | - | No configuration needed |
 
 ### TypeScript Module (`language/typescript`)
 

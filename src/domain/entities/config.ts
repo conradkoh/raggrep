@@ -115,6 +115,11 @@ export function createDefaultConfig(): Config {
     ignorePaths: DEFAULT_IGNORE_PATHS,
     modules: [
       {
+        id: "core",
+        enabled: true,
+        options: {},
+      },
+      {
         id: "language/typescript",
         enabled: true,
         options: {

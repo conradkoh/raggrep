@@ -36,6 +36,12 @@ export const registry: ModuleRegistry = new ModuleRegistryImpl();
 // Auto-register built-in modules
 export async function registerBuiltInModules(): Promise<void> {
   // Dynamic import to avoid circular dependencies
+  const { CoreModule } = await import('./core');
   const { TypeScriptModule } = await import('./language/typescript');
+  
+  // Register core module first (fast, language-agnostic)
+  registry.register(new CoreModule());
+  
+  // Register language-specific modules
   registry.register(new TypeScriptModule());
 }
