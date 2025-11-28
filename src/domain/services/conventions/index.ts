@@ -1,8 +1,8 @@
 /**
- * File Conventions Module
+ * File Conventions Service
  *
- * Provides semantic keywords for files based on common conventions.
- * This helps improve search relevance by recognizing special file patterns.
+ * Pure functions for matching files against conventions and extracting keywords.
+ * No I/O operations - all functions operate on file paths.
  *
  * Categories:
  * - Entry Points: index.ts, main.ts, App.tsx, etc.
@@ -16,24 +16,21 @@
  */
 
 import * as path from "path";
-import type { FileConvention, ConventionMatch } from "./types";
+import type {
+  FileConvention,
+  ConventionMatch,
+} from "../../entities/conventions";
 import { entryPointConventions } from "./entryPoints";
 import { configFileConventions } from "./configFiles";
 import { getAllFrameworkConventions } from "./frameworks";
 
-// Re-export types
-export type { FileConvention, ConventionCategory, ConventionMatch, FrameworkConventions } from "./types";
-
-/**
- * All conventions combined.
- */
-function getAllConventions(): FileConvention[] {
-  return [
-    ...entryPointConventions,
-    ...configFileConventions,
-    ...getAllFrameworkConventions(),
-  ];
-}
+// Re-export types from entities
+export type {
+  FileConvention,
+  ConventionCategory,
+  ConventionMatch,
+  FrameworkConventions,
+} from "../../entities/conventions";
 
 /**
  * Type definition file conventions (built-in).
@@ -56,11 +53,8 @@ const typeDefinitionConventions: FileConvention[] = [
       filename.endsWith(".types.ts") || filename === "types.ts",
     keywords: ["types", "definitions", "typescript", "interfaces"],
     dynamicKeywords: (filepath) => {
-      // Extract what the types are for
       const match = filepath.match(/([^/]+)\.types\.ts$/);
-      if (match) {
-        return [match[1].toLowerCase()];
-      }
+      if (match) return [match[1].toLowerCase()];
       return [];
     },
   },
@@ -90,11 +84,8 @@ const testFileConventions: FileConvention[] = [
       filename.includes("_test."),
     keywords: ["test", "spec", "unit test"],
     dynamicKeywords: (filepath) => {
-      // Extract what's being tested
       const match = filepath.match(/([^/]+)\.(test|spec)\./);
-      if (match) {
-        return [match[1].toLowerCase()];
-      }
+      if (match) return [match[1].toLowerCase()];
       return [];
     },
   },
@@ -119,7 +110,9 @@ const testFileConventions: FileConvention[] = [
  */
 export function getConventions(): FileConvention[] {
   return [
-    ...getAllConventions(),
+    ...entryPointConventions,
+    ...configFileConventions,
+    ...getAllFrameworkConventions(),
     ...typeDefinitionConventions,
     ...testFileConventions,
   ];

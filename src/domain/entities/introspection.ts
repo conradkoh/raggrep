@@ -81,4 +81,3 @@ export interface IntrospectionConfig {
   /** Manual project scope overrides */
   projects?: Record<string, { scope?: Scope; framework?: string }>;
 }
-

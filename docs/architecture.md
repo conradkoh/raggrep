@@ -53,14 +53,14 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 │  │   FileSummary  │ │  │   NodeFS       │ │  └── language/          │
 │  │                │ │  ├── embeddings/  │ │      └── typescript/    │
 │  ├── ports/       │ │  │   Transformers │ │         AST parsing     │
-│  │   FileSystem   │ │  └── storage/     │ │         Embeddings      │
-│  │   Embedding    │ │      FileStorage  │ │                         │
-│  │   Storage      │ │      SymbolicIndex│ │                         │
-│  │                │ │                   │ │                         │
-│  └── services/    │ │                   │ │                         │
-│      BM25Index    │ │                   │ │                         │
-│      Keywords     │ │                   │ │                         │
-│      Similarity   │ │                   │ │                         │
+│  │   FileSystem   │ │  ├── storage/     │ │         Embeddings      │
+│  │   Embedding    │ │  │   FileStorage  │ │                         │
+│  │   Storage      │ │  │   SymbolicIndex│ │                         │
+│  │                │ │  └── introspection│ │                         │
+│  └── services/    │ │      ProjectDetect│ │                         │
+│      BM25Index    │ │      IntroIndex   │ │                         │
+│      Introspection│ │                   │ │                         │
+│      Conventions  │ │                   │ │                         │
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
@@ -303,28 +303,48 @@ Pluggable modules implementing the `IndexModule` interface.
 
 Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score.
 
-### Introspection Layer (`src/introspection/`)
+### Introspection
 
-Shared metadata extraction for context-aware search boosting. **Status: Partially implemented.**
+Shared metadata extraction for context-aware search boosting. **Status: Implemented with Clean Architecture.**
 
-| Component             | Description                                                   |
-| --------------------- | ------------------------------------------------------------- |
-| `types.ts`            | Type definitions (FileIntrospection, ProjectStructure, Scope) |
-| `projectDetector.ts`  | Auto-detect monorepo structure and project types              |
-| `fileIntrospector.ts` | Extract metadata from file paths (layer, domain, scope)       |
-| `index.ts`            | IntrospectionIndex class for managing file metadata           |
+Introspection is split across layers following Clean Architecture:
+
+**Domain Layer (`src/domain/`):**
+
+| Component                   | Description                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `entities/introspection.ts` | Types: FileIntrospection, ProjectStructure, Scope            |
+| `entities/conventions.ts`   | Types: FileConvention, FrameworkConventions, ConventionMatch |
+| `services/introspection.ts` | Pure functions: introspectFile, introspectionToKeywords      |
+| `services/conventions/`     | Pure pattern matching for file conventions                   |
+
+**Infrastructure Layer (`src/infrastructure/introspection/`):**
+
+| Component               | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `projectDetector.ts`    | Filesystem scanning for project structure |
+| `IntrospectionIndex.ts` | Save/load introspection data to disk      |
+
+**File Conventions (`src/domain/services/conventions/`):**
+
+The conventions module provides semantic keyword extraction for special file patterns:
+
+| Convention Type    | Examples                                        |
+| ------------------ | ----------------------------------------------- |
+| Entry Points       | `index.ts`, `main.ts`, `App.tsx`, `__init__.py` |
+| Configuration      | `tsconfig.json`, `package.json`, `.prettierrc`  |
+| Framework-specific | Next.js routes, Convex functions                |
+| Type Definitions   | `*.d.ts`, `*.types.ts`, `types/` folder         |
+| Test Files         | `*.test.ts`, `*.spec.ts`, `__tests__/` folder   |
+| Build/Deploy       | `Dockerfile`, `docker-compose.yml`, `.github/`  |
 
 **Currently detected metadata:**
 
 - **Path context**: Segments, layer, domain, depth (used for search boosting)
 - **Project structure**: Monorepo detection, project type inference
 - **Language**: Detected from file extension
-
-**Planned additions** (see [design/introspection.md](./design/introspection.md)):
-
-- Framework detection (nextjs, express, fastify, etc.)
-- Scope classification (frontend, backend, shared, tooling)
-- Enhanced project-level metadata
+- **Convention keywords**: Semantic keywords from file patterns
+- **Framework detection**: Next.js, Convex, and more
 
 ```typescript
 interface IndexModule {

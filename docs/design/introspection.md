@@ -1,22 +1,25 @@
 # Introspection & Multi-Index Architecture
 
-> **Status**: Partially Implemented  
+> **Status**: Implemented (Clean Architecture)  
 > **Created**: 2025-11-28  
 > **Last Updated**: 2025-11-28
 
 ## Implementation Status
 
-| Component             | Status         | Notes                                                       |
-| --------------------- | -------------- | ----------------------------------------------------------- |
-| Core Index            | ✅ Implemented | `src/modules/core/` - regex symbol extraction + BM25        |
-| TypeScript Index      | ✅ Implemented | `src/modules/language/typescript/` - AST + embeddings       |
-| Introspection Types   | ✅ Implemented | `src/introspection/types.ts`                                |
-| Project Detection     | ✅ Implemented | `src/introspection/projectDetector.ts` - monorepo detection |
-| File Introspector     | ✅ Implemented | `src/introspection/fileIntrospector.ts` - path context      |
-| Path Context Boosting | ✅ Implemented | Used in TypeScript module search                            |
-| Contribution Tracking | ⏳ Partial     | Basic context in results, full tracking planned             |
-| Framework Detection   | ❌ Not started | nextjs, express, etc.                                       |
-| Scope Classification  | ❌ Not started | frontend, backend, shared, tooling                          |
+| Component             | Status         | Location                                        |
+| --------------------- | -------------- | ----------------------------------------------- |
+| Core Index            | ✅ Implemented | `src/modules/core/`                             |
+| TypeScript Index      | ✅ Implemented | `src/modules/language/typescript/`              |
+| Introspection Types   | ✅ Implemented | `src/domain/entities/introspection.ts`          |
+| Convention Types      | ✅ Implemented | `src/domain/entities/conventions.ts`            |
+| Introspection Service | ✅ Implemented | `src/domain/services/introspection.ts`          |
+| Convention Service    | ✅ Implemented | `src/domain/services/conventions/`              |
+| Project Detection     | ✅ Implemented | `src/infrastructure/introspection/`             |
+| IntrospectionIndex    | ✅ Implemented | `src/infrastructure/introspection/`             |
+| Path Context Boosting | ✅ Implemented | Used in TypeScript module search                |
+| Framework Detection   | ✅ Implemented | Next.js, Convex conventions                     |
+| Language Conventions  | ✅ Implemented | Go, Python entry points and config files        |
+| Contribution Tracking | ⏳ Partial     | Basic context in results, full tracking planned |
 
 ## Overview
 

@@ -4,7 +4,10 @@
  * Patterns for recognizing Next.js specific files and structures.
  */
 
-import type { FileConvention, FrameworkConventions } from "../types";
+import type {
+  FileConvention,
+  FrameworkConventions,
+} from "../../../entities/conventions";
 
 const nextjsConventions: FileConvention[] = [
   // ============================================================================
@@ -46,7 +49,9 @@ const nextjsConventions: FileConvention[] = [
       // Extract route segment from path
       const match = filepath.match(/app\/(.+?)\/layout\./);
       if (match) {
-        const segments = match[1].split("/").filter((s) => !s.startsWith("(") && !s.startsWith("["));
+        const segments = match[1]
+          .split("/")
+          .filter((s) => !s.startsWith("(") && !s.startsWith("["));
         return segments.map((s) => s.toLowerCase());
       }
       if (filepath === "app/layout.tsx" || filepath === "app/layout.js") {

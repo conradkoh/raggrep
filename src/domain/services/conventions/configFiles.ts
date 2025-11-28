@@ -4,7 +4,7 @@
  * Patterns for recognizing common configuration files.
  */
 
-import type { FileConvention } from "./types";
+import type { FileConvention } from "../../entities/conventions";
 
 /**
  * Configuration file conventions.
@@ -51,7 +51,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Bun Lock",
     description: "Bun dependency lock file",
     category: "configuration",
-    match: (filepath, filename) => filename === "bun.lockb" || filename === "bun.lock",
+    match: (filepath, filename) =>
+      filename === "bun.lockb" || filename === "bun.lock",
     keywords: ["dependencies", "lock", "bun", "versions"],
   },
 
@@ -64,7 +65,14 @@ export const configFileConventions: FileConvention[] = [
     description: "Go module definition file",
     category: "configuration",
     match: (filepath, filename) => filename === "go.mod",
-    keywords: ["go", "golang", "module", "dependencies", "package", "workspace"],
+    keywords: [
+      "go",
+      "golang",
+      "module",
+      "dependencies",
+      "package",
+      "workspace",
+    ],
   },
   {
     id: "go-sum",
@@ -79,7 +87,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Go Workspace",
     description: "Go workspace configuration for multi-module development",
     category: "configuration",
-    match: (filepath, filename) => filename === "go.work" || filename === "go.work.sum",
+    match: (filepath, filename) =>
+      filename === "go.work" || filename === "go.work.sum",
     keywords: ["go", "golang", "workspace", "monorepo", "modules"],
   },
   {
@@ -88,7 +97,9 @@ export const configFileConventions: FileConvention[] = [
     description: "Make build automation file",
     category: "build",
     match: (filepath, filename) =>
-      filename === "Makefile" || filename === "makefile" || filename === "GNUmakefile",
+      filename === "Makefile" ||
+      filename === "makefile" ||
+      filename === "GNUmakefile",
     keywords: ["make", "build", "automation", "tasks", "compile"],
   },
 
@@ -112,7 +123,15 @@ export const configFileConventions: FileConvention[] = [
     description: "Python project configuration (PEP 518/621)",
     category: "configuration",
     match: (filepath, filename) => filename === "pyproject.toml",
-    keywords: ["python", "project", "config", "poetry", "build", "dependencies", "package"],
+    keywords: [
+      "python",
+      "project",
+      "config",
+      "poetry",
+      "build",
+      "dependencies",
+      "package",
+    ],
   },
   {
     id: "setup-py",
@@ -135,7 +154,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Pipfile",
     description: "Pipenv dependency file",
     category: "configuration",
-    match: (filepath, filename) => filename === "Pipfile" || filename === "Pipfile.lock",
+    match: (filepath, filename) =>
+      filename === "Pipfile" || filename === "Pipfile.lock",
     keywords: ["python", "pipenv", "dependencies", "packages", "virtualenv"],
   },
   {
@@ -168,7 +188,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Mypy Config",
     description: "Mypy type checker configuration",
     category: "configuration",
-    match: (filepath, filename) => filename === "mypy.ini" || filename === ".mypy.ini",
+    match: (filepath, filename) =>
+      filename === "mypy.ini" || filename === ".mypy.ini",
     keywords: ["python", "mypy", "types", "type checking", "static analysis"],
   },
   {
@@ -185,7 +206,9 @@ export const configFileConventions: FileConvention[] = [
     description: "Pylint linter configuration",
     category: "configuration",
     match: (filepath, filename) =>
-      filename === ".pylintrc" || filename === "pylintrc" || filename === "pylint.toml",
+      filename === ".pylintrc" ||
+      filename === "pylintrc" ||
+      filename === "pylint.toml",
     keywords: ["python", "pylint", "linting", "lint", "code quality"],
   },
   {
@@ -193,7 +216,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Ruff Config",
     description: "Ruff linter/formatter configuration",
     category: "configuration",
-    match: (filepath, filename) => filename === "ruff.toml" || filename === ".ruff.toml",
+    match: (filepath, filename) =>
+      filename === "ruff.toml" || filename === ".ruff.toml",
     keywords: ["python", "ruff", "linting", "formatting", "fast"],
   },
   {
@@ -214,8 +238,17 @@ export const configFileConventions: FileConvention[] = [
     description: "TypeScript compiler configuration",
     category: "configuration",
     match: (filepath, filename) =>
-      filename === "tsconfig.json" || filename.startsWith("tsconfig.") && filename.endsWith(".json"),
-    keywords: ["typescript", "config", "compiler", "ts", "settings", "paths", "types"],
+      filename === "tsconfig.json" ||
+      (filename.startsWith("tsconfig.") && filename.endsWith(".json")),
+    keywords: [
+      "typescript",
+      "config",
+      "compiler",
+      "ts",
+      "settings",
+      "paths",
+      "types",
+    ],
   },
   {
     id: "jsconfig",
@@ -268,7 +301,8 @@ export const configFileConventions: FileConvention[] = [
     name: "Biome Config",
     description: "Biome linting and formatting configuration",
     category: "configuration",
-    match: (filepath, filename) => filename === "biome.json" || filename === "biome.jsonc",
+    match: (filepath, filename) =>
+      filename === "biome.json" || filename === "biome.jsonc",
     keywords: ["biome", "linting", "formatting", "lint", "format"],
   },
 
@@ -294,7 +328,8 @@ export const configFileConventions: FileConvention[] = [
     match: (filepath, filename) =>
       filename === "webpack.config.js" ||
       filename === "webpack.config.ts" ||
-      filename.startsWith("webpack.") && (filename.endsWith(".js") || filename.endsWith(".ts")),
+      (filename.startsWith("webpack.") &&
+        (filename.endsWith(".js") || filename.endsWith(".ts"))),
     keywords: ["webpack", "bundler", "build", "loaders", "plugins"],
   },
   {
@@ -353,7 +388,8 @@ export const configFileConventions: FileConvention[] = [
     description: "Playwright E2E testing configuration",
     category: "test",
     match: (filepath, filename) =>
-      filename === "playwright.config.ts" || filename === "playwright.config.js",
+      filename === "playwright.config.ts" ||
+      filename === "playwright.config.js",
     keywords: ["playwright", "testing", "e2e", "end-to-end", "browser test"],
   },
   {
@@ -420,7 +456,9 @@ export const configFileConventions: FileConvention[] = [
     description: "Example environment variables file",
     category: "documentation",
     match: (filepath, filename) =>
-      filename === ".env.example" || filename === ".env.sample" || filename === ".env.template",
+      filename === ".env.example" ||
+      filename === ".env.sample" ||
+      filename === ".env.template",
     keywords: ["environment", "env", "example", "template", "setup"],
   },
 
@@ -454,7 +492,8 @@ export const configFileConventions: FileConvention[] = [
     name: "GitHub Actions Workflow",
     description: "GitHub Actions CI/CD workflow",
     category: "deployment",
-    match: (filepath) => filepath.includes(".github/workflows/") && filepath.endsWith(".yml"),
+    match: (filepath) =>
+      filepath.includes(".github/workflows/") && filepath.endsWith(".yml"),
     keywords: ["github", "actions", "ci", "cd", "workflow", "automation"],
   },
   {
@@ -503,8 +542,15 @@ export const configFileConventions: FileConvention[] = [
     description: "Project documentation",
     category: "documentation",
     match: (filepath, filename) =>
-      filename.toLowerCase() === "readme.md" || filename.toLowerCase() === "readme",
-    keywords: ["readme", "documentation", "docs", "overview", "getting started"],
+      filename.toLowerCase() === "readme.md" ||
+      filename.toLowerCase() === "readme",
+    keywords: [
+      "readme",
+      "documentation",
+      "docs",
+      "overview",
+      "getting started",
+    ],
   },
   {
     id: "changelog",
@@ -512,7 +558,8 @@ export const configFileConventions: FileConvention[] = [
     description: "Project changelog",
     category: "documentation",
     match: (filepath, filename) =>
-      filename.toLowerCase() === "changelog.md" || filename.toLowerCase() === "changelog",
+      filename.toLowerCase() === "changelog.md" ||
+      filename.toLowerCase() === "changelog",
     keywords: ["changelog", "changes", "releases", "history", "versions"],
   },
   {
@@ -521,7 +568,8 @@ export const configFileConventions: FileConvention[] = [
     description: "Contribution guidelines",
     category: "documentation",
     match: (filepath, filename) =>
-      filename.toLowerCase() === "contributing.md" || filename.toLowerCase() === "contributing",
+      filename.toLowerCase() === "contributing.md" ||
+      filename.toLowerCase() === "contributing",
     keywords: ["contributing", "contribution", "guidelines", "development"],
   },
   {

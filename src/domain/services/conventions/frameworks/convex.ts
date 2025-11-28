@@ -5,7 +5,10 @@
  * Convex is a backend platform with real-time sync.
  */
 
-import type { FileConvention, FrameworkConventions } from "../types";
+import type {
+  FileConvention,
+  FrameworkConventions,
+} from "../../../entities/conventions";
 
 const convexConventions: FileConvention[] = [
   // ============================================================================
@@ -87,7 +90,14 @@ const convexConventions: FileConvention[] = [
     match: (filepath, filename) =>
       filename === "crons.ts" &&
       (filepath.includes("/convex/") || filepath.startsWith("convex/")),
-    keywords: ["convex", "crons", "scheduled", "jobs", "background", "recurring"],
+    keywords: [
+      "convex",
+      "crons",
+      "scheduled",
+      "jobs",
+      "background",
+      "recurring",
+    ],
   },
 
   // ============================================================================
@@ -99,7 +109,8 @@ const convexConventions: FileConvention[] = [
     description: "Convex auto-generated files",
     category: "framework",
     match: (filepath) =>
-      filepath.includes("/convex/_generated/") || filepath.startsWith("convex/_generated/"),
+      filepath.includes("/convex/_generated/") ||
+      filepath.startsWith("convex/_generated/"),
     keywords: ["convex", "generated", "types", "api"],
   },
 

@@ -5,7 +5,7 @@
  * Add new frameworks here to extend convention support.
  */
 
-import type { FrameworkConventions } from "../types";
+import type { FrameworkConventions } from "../../../entities/conventions";
 import { nextjsFramework } from "./nextjs";
 import { convexFramework } from "./convex";
 

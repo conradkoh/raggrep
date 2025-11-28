@@ -5,7 +5,7 @@
  */
 
 import * as path from "path";
-import type { FileConvention } from "./types";
+import type { FileConvention } from "../../entities/conventions";
 
 /**
  * Get the parent folder name from a filepath.
@@ -22,7 +22,8 @@ export const entryPointConventions: FileConvention[] = [
   {
     id: "index-file",
     name: "Index/Barrel File",
-    description: "Module entry point that typically re-exports from other files",
+    description:
+      "Module entry point that typically re-exports from other files",
     category: "entry-point",
     match: (filepath, filename) => {
       return /^index\.(ts|tsx|js|jsx|mjs|cjs)$/.test(filename);
@@ -156,7 +157,9 @@ export const entryPointConventions: FileConvention[] = [
     description: "Common Python application entry points",
     category: "entry-point",
     match: (filepath, filename) => {
-      return filename === "app.py" || filename === "main.py" || filename === "run.py";
+      return (
+        filename === "app.py" || filename === "main.py" || filename === "run.py"
+      );
     },
     keywords: ["entry", "main", "python", "app", "entrypoint"],
   },

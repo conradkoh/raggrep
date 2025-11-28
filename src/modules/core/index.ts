@@ -33,7 +33,7 @@ import {
   normalizeScore,
 } from "../../domain/services/bm25";
 import { getRaggrepDir } from "../../infrastructure/config";
-import { introspectionToKeywords } from "../../introspection";
+import { introspectionToKeywords } from "../../domain/services/introspection";
 import {
   extractSymbols,
   symbolsToKeywords,
@@ -102,12 +102,14 @@ export class CoreModule implements IndexModule {
 
     // Tokenize content for BM25
     const contentTokens = tokenize(content);
-    
+
     // Get introspection keywords (includes filename, path segments, etc.)
     const intro = ctx.getIntrospection?.(filepath);
     const introKeywords = intro ? introspectionToKeywords(intro) : [];
-    
-    const allTokens = [...new Set([...contentTokens, ...symbolKeywords, ...introKeywords])];
+
+    const allTokens = [
+      ...new Set([...contentTokens, ...symbolKeywords, ...introKeywords]),
+    ];
 
     // Create line-based chunks
     const chunks = this.createChunks(filepath, content, symbols);

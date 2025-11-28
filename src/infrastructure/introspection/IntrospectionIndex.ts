@@ -1,7 +1,8 @@
 /**
- * Introspection Module
+ * Introspection Index Storage
  *
  * Manages file metadata for context-aware search boosting.
+ * Handles saving and loading introspection data to/from disk.
  */
 
 import * as path from "path";
@@ -10,16 +11,12 @@ import type {
   FileIntrospection,
   ProjectStructure,
   IntrospectionConfig,
-} from "./types";
+  Scope,
+  Config,
+} from "../../domain/entities";
 import { detectProjectStructure } from "./projectDetector";
-import { introspectFile, introspectionToKeywords } from "./fileIntrospector";
-import { getRaggrepDir } from "../infrastructure/config";
-import type { Config } from "../domain/entities";
-
-// Re-export types
-export type { FileIntrospection, ProjectStructure, Project, Scope, ProjectType } from "./types";
-export { introspectFile, introspectionToKeywords } from "./fileIntrospector";
-export { detectProjectStructure, detectScopeFromName } from "./projectDetector";
+import { introspectFile } from "../../domain/services/introspection";
+import { getRaggrepDir } from "../config";
 
 /**
  * Introspection index for a workspace.
@@ -39,7 +36,7 @@ export class IntrospectionIndex {
    */
   async initialize(): Promise<void> {
     this.structure = await detectProjectStructure(this.rootDir);
-    
+
     // Try to load config overrides
     try {
       const configPath = path.join(this.rootDir, ".raggrep", "config.json");
@@ -67,10 +64,10 @@ export class IntrospectionIndex {
     }
 
     const intro = introspectFile(filepath, this.structure, content);
-    
+
     // Apply config overrides
     this.applyOverrides(intro);
-    
+
     this.files.set(filepath, intro);
     return intro;
   }
@@ -95,11 +92,15 @@ export class IntrospectionIndex {
   private applyOverrides(intro: FileIntrospection): void {
     if (!this.config.projects) return;
 
-    // Find matching project override
-    for (const [projectPath, overrides] of Object.entries(this.config.projects)) {
-      if (intro.filepath.startsWith(projectPath + "/") || intro.project.root === projectPath) {
+    for (const [projectPath, overrides] of Object.entries(
+      this.config.projects
+    )) {
+      if (
+        intro.filepath.startsWith(projectPath + "/") ||
+        intro.project.root === projectPath
+      ) {
         if (overrides.scope) {
-          intro.scope = overrides.scope;
+          intro.scope = overrides.scope as Scope;
         }
         if (overrides.framework) {
           intro.framework = overrides.framework;
@@ -113,7 +114,10 @@ export class IntrospectionIndex {
    * Save introspection index to disk.
    */
   async save(config: Config): Promise<void> {
-    const introDir = path.join(getRaggrepDir(this.rootDir, config), "introspection");
+    const introDir = path.join(
+      getRaggrepDir(this.rootDir, config),
+      "introspection"
+    );
     await fs.mkdir(introDir, { recursive: true });
 
     // Save project structure
@@ -151,7 +155,10 @@ export class IntrospectionIndex {
    * Load introspection index from disk.
    */
   async load(config: Config): Promise<void> {
-    const introDir = path.join(getRaggrepDir(this.rootDir, config), "introspection");
+    const introDir = path.join(
+      getRaggrepDir(this.rootDir, config),
+      "introspection"
+    );
 
     try {
       // Load project structure
@@ -172,7 +179,10 @@ export class IntrospectionIndex {
   /**
    * Recursively load file introspections.
    */
-  private async loadFilesRecursive(basePath: string, prefix: string): Promise<void> {
+  private async loadFilesRecursive(
+    basePath: string,
+    prefix: string
+  ): Promise<void> {
     try {
       const entries = await fs.readdir(basePath, { withFileTypes: true });
 
@@ -201,64 +211,3 @@ export class IntrospectionIndex {
     this.structure = null;
   }
 }
-
-/**
- * Calculate search boost based on introspection and query.
- *
- * @param intro - File introspection
- * @param query - Search query
- * @returns Boost multiplier (1.0 = no boost, >1.0 = positive boost)
- */
-export function calculateIntrospectionBoost(
-  intro: FileIntrospection,
-  query: string
-): number {
-  let boost = 1.0;
-  const queryTerms = query.toLowerCase().split(/\s+/);
-
-  // Domain match: +10%
-  if (intro.domain && queryTerms.some((t) => intro.domain!.includes(t) || t.includes(intro.domain!))) {
-    boost *= 1.1;
-  }
-
-  // Layer match: +5%
-  if (intro.layer && queryTerms.some((t) => intro.layer!.includes(t) || t.includes(intro.layer!))) {
-    boost *= 1.05;
-  }
-
-  // Scope match for backend queries: +5%
-  const backendTerms = ["api", "server", "backend", "endpoint", "route"];
-  if (
-    queryTerms.some((t) => backendTerms.includes(t)) &&
-    intro.scope === "backend"
-  ) {
-    boost *= 1.05;
-  }
-
-  // Scope match for frontend queries: +5%
-  const frontendTerms = ["ui", "component", "page", "view", "frontend", "client"];
-  if (
-    queryTerms.some((t) => frontendTerms.includes(t)) &&
-    intro.scope === "frontend"
-  ) {
-    boost *= 1.05;
-  }
-
-  // Path segment match: +3% per match
-  for (const segment of intro.pathSegments) {
-    if (queryTerms.some((t) => segment.toLowerCase().includes(t))) {
-      boost *= 1.03;
-    }
-  }
-
-  // Project name match: +5%
-  if (
-    intro.project.name !== "root" &&
-    queryTerms.some((t) => intro.project.name.toLowerCase().includes(t))
-  ) {
-    boost *= 1.05;
-  }
-
-  return boost;
-}
-

@@ -3,10 +3,14 @@
  */
 
 import { test, expect, describe } from "bun:test";
-import { introspectFile, introspectionToKeywords } from "./fileIntrospector";
-import { detectScopeFromName, findProjectForFile } from "./projectDetector";
-import { calculateIntrospectionBoost } from "./index";
-import type { ProjectStructure } from "./types";
+import {
+  introspectFile,
+  introspectionToKeywords,
+  detectScopeFromName,
+  findProjectForFile,
+  calculateIntrospectionBoost,
+} from "./introspection";
+import type { ProjectStructure } from "../entities/introspection";
 
 // Mock project structure for testing
 const mockStructure: ProjectStructure = {
@@ -49,7 +53,10 @@ describe("detectScopeFromName", () => {
 
 describe("findProjectForFile", () => {
   test("finds project for monorepo file", () => {
-    const project = findProjectForFile("apps/webapp/src/index.ts", mockStructure);
+    const project = findProjectForFile(
+      "apps/webapp/src/index.ts",
+      mockStructure
+    );
     expect(project.name).toBe("webapp");
     expect(project.root).toBe("apps/webapp");
   });
@@ -96,10 +103,7 @@ describe("introspectFile", () => {
   });
 
   test("detects domain from path", () => {
-    const intro = introspectFile(
-      "src/users/types.ts",
-      singleProjectStructure
-    );
+    const intro = introspectFile("src/users/types.ts", singleProjectStructure);
     expect(intro.domain).toBe("users");
   });
 
@@ -120,23 +124,27 @@ describe("introspectFile", () => {
   });
 
   test("detects language from extension", () => {
-    expect(
-      introspectFile("index.js", singleProjectStructure).language
-    ).toBe("javascript");
-    expect(
-      introspectFile("main.py", singleProjectStructure).language
-    ).toBe("python");
-    expect(
-      introspectFile("lib.rs", singleProjectStructure).language
-    ).toBe("rust");
-    expect(
-      introspectFile("app.go", singleProjectStructure).language
-    ).toBe("go");
+    expect(introspectFile("index.js", singleProjectStructure).language).toBe(
+      "javascript"
+    );
+    expect(introspectFile("main.py", singleProjectStructure).language).toBe(
+      "python"
+    );
+    expect(introspectFile("lib.rs", singleProjectStructure).language).toBe(
+      "rust"
+    );
+    expect(introspectFile("app.go", singleProjectStructure).language).toBe(
+      "go"
+    );
   });
 
   test("detects framework from content", () => {
     const content = `import express from 'express';`;
-    const intro = introspectFile("src/server.ts", singleProjectStructure, content);
+    const intro = introspectFile(
+      "src/server.ts",
+      singleProjectStructure,
+      content
+    );
     expect(intro.framework).toBe("express");
   });
 
@@ -224,4 +232,3 @@ describe("calculateIntrospectionBoost", () => {
     expect(boost).toBe(1.0);
   });
 });
-

@@ -1,8 +1,22 @@
 /**
- * Types for File Conventions
+ * Convention Types
  *
  * Defines patterns for recognizing special files and their semantic meaning.
+ * Used by the conventions service to add semantic keywords to the search index.
  */
+
+/**
+ * Categories for organizing conventions.
+ */
+export type ConventionCategory =
+  | "entry-point"
+  | "configuration"
+  | "framework"
+  | "types"
+  | "test"
+  | "documentation"
+  | "build"
+  | "deployment";
 
 /**
  * A file convention pattern that matches files and provides keywords.
@@ -40,19 +54,6 @@ export interface FileConvention {
    */
   dynamicKeywords?: (filepath: string) => string[];
 }
-
-/**
- * Categories for organizing conventions.
- */
-export type ConventionCategory =
-  | "entry-point"
-  | "configuration"
-  | "framework"
-  | "types"
-  | "test"
-  | "documentation"
-  | "build"
-  | "deployment";
 
 /**
  * A framework convention provider.

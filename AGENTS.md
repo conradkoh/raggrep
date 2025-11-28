@@ -57,6 +57,7 @@ The domain layer MUST contain only pure business logic with NO external dependen
 - MAY import from other domain entities
 
 **Examples of what belongs here:**
+
 - `Chunk`, `FileIndex`, `SearchResult` - Core data structures
 - `Config`, `ModuleConfig` - Configuration types
 - `FileSummary`, `FileIntrospection` - Index metadata types
@@ -75,9 +76,12 @@ The domain layer MUST contain only pure business logic with NO external dependen
 - SHOULD be stateless functions or classes
 
 **Examples of what belongs here:**
+
 - `BM25Index` - BM25 search algorithm
 - `extractKeywords()` - Keyword extraction logic
 - `cosineSimilarity()` - Vector similarity calculation
+- `introspection.ts` - File metadata extraction and keyword generation
+- `conventions/` - File convention pattern matching (entry points, config files, frameworks)
 
 #### `src/domain/usecases/`
 
@@ -87,6 +91,7 @@ The domain layer MUST contain only pure business logic with NO external dependen
 - MUST NOT perform I/O directly (use injected dependencies)
 
 **Examples of what belongs here:**
+
 - `indexDirectory()` - Orchestrates indexing a directory
 - `searchIndex()` - Orchestrates searching the index
 - `cleanupIndex()` - Removes stale entries
@@ -124,6 +129,12 @@ The infrastructure layer implements domain ports using external technologies.
 - Includes: Reading/writing JSON index files, manifest management
 - Currently: `FileIndexStorage`, `SymbolicIndex`
 
+#### `src/infrastructure/introspection/`
+
+- MUST contain introspection I/O operations
+- Includes: `IntrospectionIndex` (save/load metadata), `projectDetector` (filesystem scanning)
+- Currently: `IntrospectionIndex.ts`, `projectDetector.ts`
+
 ### Application Layer (`src/app/`)
 
 The application layer orchestrates domain use cases and infrastructure.
@@ -157,16 +168,6 @@ Index modules are **cross-cutting concerns** that implement the `IndexModule` in
 - Modules MUST implement the standard module interface
 - New modules SHOULD follow the existing pattern in `language/typescript/`
 
-### `src/introspection/`
-
-⚠️ **NEEDS REFACTORING** - This directory mixes domain and infrastructure.
-
-Planned migration:
-- `types.ts` → `domain/entities/introspection.ts`
-- `fileIntrospector.ts` (pure logic) → `domain/services/`
-- `projectDetector.ts` (file I/O) → `infrastructure/`
-- `IntrospectionIndex` (file I/O) → `infrastructure/storage/`
-
 ## Dependency Rules
 
 ### MUST Follow
@@ -182,24 +183,24 @@ Planned migration:
 ```typescript
 // ✅ CORRECT: Infrastructure implements domain port
 // src/infrastructure/embeddings/transformersEmbedding.ts
-import type { IEmbeddingProvider } from '../../domain/ports';
+import type { IEmbeddingProvider } from "../../domain/ports";
 
 // ✅ CORRECT: App uses domain and infrastructure
 // src/app/indexer/index.ts
-import type { Config } from '../../domain/entities';
-import { loadConfig } from '../../infrastructure/config';
+import type { Config } from "../../domain/entities";
+import { loadConfig } from "../../infrastructure/config";
 
 // ✅ CORRECT: Use case accepts injected dependencies
 // src/domain/usecases/indexDirectory.ts
-import type { FileSystem } from '../ports';
+import type { FileSystem } from "../ports";
 
 // ❌ WRONG: Domain importing from infrastructure
 // src/domain/services/search.ts
-import { readFile } from 'fs/promises'; // NO!
+import { readFile } from "fs/promises"; // NO!
 
 // ❌ WRONG: Domain importing from app
 // src/domain/entities/config.ts
-import { indexDirectory } from '../../app/indexer'; // NO!
+import { indexDirectory } from "../../app/indexer"; // NO!
 ```
 
 ## File Naming Conventions

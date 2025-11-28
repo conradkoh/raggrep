@@ -1,7 +1,7 @@
 // Main indexer - coordinates modules for indexing files
-import { glob } from 'glob';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { glob } from "glob";
+import * as fs from "fs/promises";
+import * as path from "path";
 import {
   Config,
   IndexContext,
@@ -9,7 +9,7 @@ import {
   ModuleManifest,
   GlobalManifest,
   FileIndex,
-} from '../../types';
+} from "../../types";
 import {
   DEFAULT_CONFIG,
   loadConfig,
@@ -18,10 +18,10 @@ import {
   getGlobalManifestPath,
   getModuleConfig,
   getIndexLocation,
-} from '../../infrastructure/config';
-import { registry, registerBuiltInModules } from '../../modules/registry';
-import type { EmbeddingModelName } from '../../domain/ports';
-import { IntrospectionIndex } from '../../introspection';
+} from "../../infrastructure/config";
+import { registry, registerBuiltInModules } from "../../modules/registry";
+import type { EmbeddingModelName } from "../../domain/ports";
+import { IntrospectionIndex } from "../../infrastructure/introspection";
 
 export interface IndexResult {
   moduleId: string;
@@ -67,12 +67,15 @@ export interface IndexStatus {
 /**
  * Index a directory using all enabled modules
  */
-export async function indexDirectory(rootDir: string, options: IndexOptions = {}): Promise<IndexResult[]> {
+export async function indexDirectory(
+  rootDir: string,
+  options: IndexOptions = {}
+): Promise<IndexResult[]> {
   const verbose = options.verbose ?? false;
-  
+
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
-  
+
   // Show index location
   const location = getIndexLocation(rootDir);
   console.log(`Indexing directory: ${rootDir}`);
@@ -87,7 +90,9 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
   if (verbose) {
     const structure = introspection.getStructure();
     if (structure?.isMonorepo) {
-      console.log(`Detected monorepo with ${structure.projects.length} projects`);
+      console.log(
+        `Detected monorepo with ${structure.projects.length} projects`
+      );
     }
   }
 
@@ -98,11 +103,11 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
   const enabledModules = registry.getEnabled(config);
 
   if (enabledModules.length === 0) {
-    console.log('No modules enabled. Check your configuration.');
+    console.log("No modules enabled. Check your configuration.");
     return [];
   }
 
-  console.log(`Enabled modules: ${enabledModules.map((m) => m.id).join(', ')}`);
+  console.log(`Enabled modules: ${enabledModules.map((m) => m.id).join(", ")}`);
 
   // Get all files matching extensions
   const files = await findFiles(rootDir, config);
@@ -119,7 +124,7 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
     if (module.initialize && moduleConfig) {
       // Apply CLI overrides to module config
       const configWithOverrides = { ...moduleConfig };
-      if (options.model && module.id === 'language/typescript') {
+      if (options.model && module.id === "language/typescript") {
         configWithOverrides.options = {
           ...configWithOverrides.options,
           embeddingModel: options.model,
@@ -128,7 +133,14 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
       await module.initialize(configWithOverrides);
     }
 
-    const result = await indexWithModule(rootDir, files, module, config, verbose, introspection);
+    const result = await indexWithModule(
+      rootDir,
+      files,
+      module,
+      config,
+      verbose,
+      introspection
+    );
     results.push(result);
 
     // Call finalize to build secondary indexes (Tier 1, BM25, etc.)
@@ -138,11 +150,15 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
         rootDir,
         config,
         readFile: async (filepath: string) => {
-          const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
-          return fs.readFile(fullPath, 'utf-8');
+          const fullPath = path.isAbsolute(filepath)
+            ? filepath
+            : path.join(rootDir, filepath);
+          return fs.readFile(fullPath, "utf-8");
         },
         getFileStats: async (filepath: string) => {
-          const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
+          const fullPath = path.isAbsolute(filepath)
+            ? filepath
+            : path.join(rootDir, filepath);
           const stats = await fs.stat(fullPath);
           return { lastModified: stats.mtime.toISOString() };
         },
@@ -150,7 +166,9 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
       await module.finalize(ctx);
     }
 
-    console.log(`[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`);
+    console.log(
+      `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`
+    );
   }
 
   // Save introspection data
@@ -188,11 +206,15 @@ async function indexWithModule(
     rootDir,
     config,
     readFile: async (filepath: string) => {
-      const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
-      return fs.readFile(fullPath, 'utf-8');
+      const fullPath = path.isAbsolute(filepath)
+        ? filepath
+        : path.join(rootDir, filepath);
+      return fs.readFile(fullPath, "utf-8");
     },
     getFileStats: async (filepath: string) => {
-      const fullPath = path.isAbsolute(filepath) ? filepath : path.join(rootDir, filepath);
+      const fullPath = path.isAbsolute(filepath)
+        ? filepath
+        : path.join(rootDir, filepath);
       const stats = await fs.stat(fullPath);
       return { lastModified: stats.mtime.toISOString() };
     },
@@ -202,7 +224,7 @@ async function indexWithModule(
   // Process each file
   for (const filepath of files) {
     const relativePath = path.relative(rootDir, filepath);
-    
+
     try {
       const stats = await fs.stat(filepath);
       const lastModified = stats.mtime.toISOString();
@@ -218,11 +240,11 @@ async function indexWithModule(
       }
 
       // Read and index file
-      const content = await fs.readFile(filepath, 'utf-8');
-      
+      const content = await fs.readFile(filepath, "utf-8");
+
       // Add introspection for this file
       introspection.addFile(relativePath, content);
-      
+
       if (verbose) {
         console.log(`  Processing ${relativePath}...`);
       }
@@ -284,12 +306,12 @@ async function loadModuleManifest(
   const manifestPath = getModuleManifestPath(rootDir, moduleId, config);
 
   try {
-    const content = await fs.readFile(manifestPath, 'utf-8');
+    const content = await fs.readFile(manifestPath, "utf-8");
     return JSON.parse(content);
   } catch {
     return {
       moduleId,
-      version: '1.0.0',
+      version: "1.0.0",
       lastUpdated: new Date().toISOString(),
       files: {},
     };
@@ -315,7 +337,10 @@ async function writeFileIndex(
   config: Config
 ): Promise<void> {
   const indexPath = getModuleIndexPath(rootDir, moduleId, config);
-  const indexFilePath = path.join(indexPath, filepath.replace(/\.[^.]+$/, '.json'));
+  const indexFilePath = path.join(
+    indexPath,
+    filepath.replace(/\.[^.]+$/, ".json")
+  );
 
   await fs.mkdir(path.dirname(indexFilePath), { recursive: true });
   await fs.writeFile(indexFilePath, JSON.stringify(fileIndex, null, 2));
@@ -345,14 +370,14 @@ async function updateGlobalManifest(
  * @returns Array of cleanup results per module
  */
 export async function cleanupIndex(
-  rootDir: string, 
+  rootDir: string,
   options: { verbose?: boolean } = {}
 ): Promise<CleanupResult[]> {
   const verbose = options.verbose ?? false;
-  
+
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
-  
+
   console.log(`Cleaning up index in: ${rootDir}`);
 
   // Load config
@@ -365,7 +390,7 @@ export async function cleanupIndex(
   const enabledModules = registry.getEnabled(config);
 
   if (enabledModules.length === 0) {
-    console.log('No modules enabled.');
+    console.log("No modules enabled.");
     return [];
   }
 
@@ -373,11 +398,18 @@ export async function cleanupIndex(
 
   for (const module of enabledModules) {
     console.log(`\n[${module.name}] Checking for stale entries...`);
-    
-    const result = await cleanupModuleIndex(rootDir, module.id, config, verbose);
+
+    const result = await cleanupModuleIndex(
+      rootDir,
+      module.id,
+      config,
+      verbose
+    );
     results.push(result);
-    
-    console.log(`[${module.name}] Removed ${result.removed} stale entries, kept ${result.kept} valid entries`);
+
+    console.log(
+      `[${module.name}] Removed ${result.removed} stale entries, kept ${result.kept} valid entries`
+    );
   }
 
   return results;
@@ -401,14 +433,14 @@ async function cleanupModuleIndex(
   // Load manifest
   const manifest = await loadModuleManifest(rootDir, moduleId, config);
   const indexPath = getModuleIndexPath(rootDir, moduleId, config);
-  
+
   const filesToRemove: string[] = [];
-  const updatedFiles: ModuleManifest['files'] = {};
+  const updatedFiles: ModuleManifest["files"] = {};
 
   // Check each indexed file
   for (const [filepath, entry] of Object.entries(manifest.files)) {
     const fullPath = path.join(rootDir, filepath);
-    
+
     try {
       await fs.access(fullPath);
       // File exists, keep it
@@ -418,7 +450,7 @@ async function cleanupModuleIndex(
       // File doesn't exist, mark for removal
       filesToRemove.push(filepath);
       result.removed++;
-      
+
       if (verbose) {
         console.log(`  Removing stale entry: ${filepath}`);
       }
@@ -427,7 +459,10 @@ async function cleanupModuleIndex(
 
   // Remove stale index files
   for (const filepath of filesToRemove) {
-    const indexFilePath = path.join(indexPath, filepath.replace(/\.[^.]+$/, '.json'));
+    const indexFilePath = path.join(
+      indexPath,
+      filepath.replace(/\.[^.]+$/, ".json")
+    );
     try {
       await fs.unlink(indexFilePath);
     } catch {
@@ -452,7 +487,7 @@ async function cleanupModuleIndex(
 async function cleanupEmptyDirectories(dir: string): Promise<boolean> {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
-    
+
     // Process subdirectories first
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -460,16 +495,16 @@ async function cleanupEmptyDirectories(dir: string): Promise<boolean> {
         await cleanupEmptyDirectories(subDir);
       }
     }
-    
+
     // Check if directory is now empty (re-read after potential subdirectory removal)
     const remainingEntries = await fs.readdir(dir);
-    
+
     // Don't remove the root index directory or manifest files
     if (remainingEntries.length === 0) {
       await fs.rmdir(dir);
       return true;
     }
-    
+
     return false;
   } catch {
     return false;
@@ -484,14 +519,14 @@ async function cleanupEmptyDirectories(dir: string): Promise<boolean> {
 export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
-  
+
   // Load config
   const config = await loadConfig(rootDir);
-  
+
   // Get index location (now in temp directory)
   const location = getIndexLocation(rootDir);
   const indexDir = location.indexDir;
-  
+
   const status: IndexStatus = {
     exists: false,
     rootDir,
@@ -499,35 +534,35 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
     modules: [],
     totalFiles: 0,
   };
-  
+
   // Check if index directory exists
   try {
     await fs.access(indexDir);
   } catch {
     return status;
   }
-  
+
   // Try to load global manifest
   try {
     const globalManifestPath = getGlobalManifestPath(rootDir, config);
-    const content = await fs.readFile(globalManifestPath, 'utf-8');
+    const content = await fs.readFile(globalManifestPath, "utf-8");
     const globalManifest: GlobalManifest = JSON.parse(content);
-    
+
     status.exists = true;
     status.lastUpdated = globalManifest.lastUpdated;
-    
+
     // Load each module's manifest
     for (const moduleId of globalManifest.modules) {
       try {
         const manifest = await loadModuleManifest(rootDir, moduleId, config);
         const fileCount = Object.keys(manifest.files).length;
-        
+
         status.modules.push({
           id: moduleId,
           fileCount,
           lastUpdated: manifest.lastUpdated,
         });
-        
+
         status.totalFiles += fileCount;
       } catch {
         // Module manifest doesn't exist or is corrupt
@@ -536,7 +571,7 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   } catch {
     // Global manifest doesn't exist - check if there's any index data
     try {
-      const entries = await fs.readdir(path.join(indexDir, 'index'));
+      const entries = await fs.readdir(path.join(indexDir, "index"));
       if (entries.length > 0) {
         status.exists = true;
         // Try to load manifests for known modules
@@ -544,13 +579,13 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
           try {
             const manifest = await loadModuleManifest(rootDir, entry, config);
             const fileCount = Object.keys(manifest.files).length;
-            
+
             status.modules.push({
               id: entry,
               fileCount,
               lastUpdated: manifest.lastUpdated,
             });
-            
+
             status.totalFiles += fileCount;
           } catch {
             // Skip
@@ -561,9 +596,9 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
       // No index directory
     }
   }
-  
+
   return status;
 }
 
 // Re-export watcher
-export { watchDirectory, type WatchOptions, type FileWatcher } from './watcher';
+export { watchDirectory, type WatchOptions, type FileWatcher } from "./watcher";

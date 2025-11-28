@@ -42,3 +42,21 @@ export {
   DEFAULT_EXTENSIONS,
   createDefaultConfig,
 } from "./config";
+
+// Introspection - File metadata for context-aware search
+export type {
+  FileIntrospection,
+  ProjectStructure,
+  Project,
+  ProjectType,
+  Scope,
+  IntrospectionConfig,
+} from "./introspection";
+
+// Conventions - File pattern recognition
+export type {
+  FileConvention,
+  ConventionCategory,
+  FrameworkConventions,
+  ConventionMatch,
+} from "./conventions";

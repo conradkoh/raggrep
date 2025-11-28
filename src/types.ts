@@ -1,6 +1,6 @@
 /**
  * Type definitions for the RAG system
- * 
+ *
  * This file re-exports domain entities and defines module interfaces.
  * For new code, prefer importing directly from 'domain/entities'.
  */
@@ -23,7 +23,7 @@ export type {
   IntrospectionContribution,
   Config,
   ModuleConfig,
-} from './domain/entities';
+} from "./domain/entities";
 
 export {
   createChunkId,
@@ -31,18 +31,24 @@ export {
   DEFAULT_IGNORE_PATHS,
   DEFAULT_EXTENSIONS,
   createDefaultConfig,
-} from './domain/entities';
+} from "./domain/entities";
 
 // ============================================================================
 // Module System Interfaces
 // ============================================================================
 
-import type { Config, FileIndex, SearchResult, SearchOptions, ModuleConfig } from './domain/entities';
+import type {
+  Config,
+  FileIndex,
+  SearchResult,
+  SearchOptions,
+  ModuleConfig,
+} from "./domain/entities";
 
 /**
  * Context provided to modules during indexing
  */
-import type { FileIntrospection } from './introspection';
+import type { FileIntrospection } from "./domain/entities/introspection";
 
 export interface IndexContext {
   rootDir: string;
@@ -69,7 +75,7 @@ export interface SearchContext {
 
 /**
  * Base interface for index modules
- * 
+ *
  * Modules provide different strategies for indexing and retrieving code.
  * Examples:
  * - SemanticModule: Uses text embeddings for natural language search
@@ -79,39 +85,47 @@ export interface SearchContext {
 export interface IndexModule {
   /** Unique identifier for this module */
   readonly id: string;
-  
+
   /** Human-readable name */
   readonly name: string;
-  
+
   /** Description of what this module indexes */
   readonly description: string;
-  
+
   /** Version of the module (for index compatibility) */
   readonly version: string;
-  
+
   /**
    * Index a single file
    * @returns FileIndex with module-specific data, or null if file should be skipped
    */
-  indexFile(filepath: string, content: string, ctx: IndexContext): Promise<FileIndex | null>;
-  
+  indexFile(
+    filepath: string,
+    content: string,
+    ctx: IndexContext
+  ): Promise<FileIndex | null>;
+
   /**
    * Search the index with a query
    * @returns Ranked search results
    */
-  search(query: string, ctx: SearchContext, options?: SearchOptions): Promise<SearchResult[]>;
-  
+  search(
+    query: string,
+    ctx: SearchContext,
+    options?: SearchOptions
+  ): Promise<SearchResult[]>;
+
   /**
    * Optional: Initialize the module (e.g., load models, connect to services)
    */
   initialize?(config: ModuleConfig): Promise<void>;
-  
+
   /**
    * Optional: Called after all files have been indexed.
    * Use for building secondary indexes (e.g., Tier 1 summaries, BM25 index).
    */
   finalize?(ctx: IndexContext): Promise<void>;
-  
+
   /**
    * Optional: Cleanup resources
    */
