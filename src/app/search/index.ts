@@ -159,6 +159,25 @@ async function loadGlobalManifest(rootDir: string, config: Config): Promise<Glob
 }
 
 /**
+ * Get a human-friendly name for a module ID
+ */
+function formatModuleName(moduleId: string): string {
+  switch (moduleId) {
+    case 'core':
+      return 'Core';
+    case 'language/typescript':
+      return 'TypeScript';
+    default:
+      // Handle future modules: "language/python" -> "Python"
+      if (moduleId.startsWith('language/')) {
+        const lang = moduleId.replace('language/', '');
+        return lang.charAt(0).toUpperCase() + lang.slice(1);
+      }
+      return moduleId;
+  }
+}
+
+/**
  * Format search results for display
  * @param results - Array of search results to format
  * @returns Formatted string for console output
@@ -180,6 +199,9 @@ export function formatSearchResults(results: SearchResult[]): string {
     
     output += `${i + 1}. ${location}${nameInfo}\n`;
     output += `   Score: ${(result.score * 100).toFixed(1)}% | Type: ${chunk.type}`;
+    
+    // Show which module contributed this result
+    output += ` | via ${formatModuleName(result.moduleId)}`;
     
     // Add export indicator
     if (chunk.isExported) {

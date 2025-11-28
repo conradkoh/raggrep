@@ -6,20 +6,20 @@
 
 ## Implementation Status
 
-| Component             | Status         | Location                                        |
-| --------------------- | -------------- | ----------------------------------------------- |
-| Core Index            | ✅ Implemented | `src/modules/core/`                             |
-| TypeScript Index      | ✅ Implemented | `src/modules/language/typescript/`              |
-| Introspection Types   | ✅ Implemented | `src/domain/entities/introspection.ts`          |
-| Convention Types      | ✅ Implemented | `src/domain/entities/conventions.ts`            |
-| Introspection Service | ✅ Implemented | `src/domain/services/introspection.ts`          |
-| Convention Service    | ✅ Implemented | `src/domain/services/conventions/`              |
-| Project Detection     | ✅ Implemented | `src/infrastructure/introspection/`             |
-| IntrospectionIndex    | ✅ Implemented | `src/infrastructure/introspection/`             |
-| Path Context Boosting | ✅ Implemented | Used in TypeScript module search                |
-| Framework Detection   | ✅ Implemented | Next.js, Convex conventions                     |
-| Language Conventions  | ✅ Implemented | Go, Python entry points and config files        |
-| Contribution Tracking | ⏳ Partial     | Basic context in results, full tracking planned |
+| Component             | Status         | Location                                   |
+| --------------------- | -------------- | ------------------------------------------ |
+| Core Index            | ✅ Implemented | `src/modules/core/`                        |
+| TypeScript Index      | ✅ Implemented | `src/modules/language/typescript/`         |
+| Introspection Types   | ✅ Implemented | `src/domain/entities/introspection.ts`     |
+| Convention Types      | ✅ Implemented | `src/domain/entities/conventions.ts`       |
+| Introspection Service | ✅ Implemented | `src/domain/services/introspection.ts`     |
+| Convention Service    | ✅ Implemented | `src/domain/services/conventions/`         |
+| Project Detection     | ✅ Implemented | `src/infrastructure/introspection/`        |
+| IntrospectionIndex    | ✅ Implemented | `src/infrastructure/introspection/`        |
+| Path Context Boosting | ✅ Implemented | Used in TypeScript module search           |
+| Framework Detection   | ✅ Implemented | Next.js, Convex conventions                |
+| Language Conventions  | ✅ Implemented | Go, Python entry points and config files   |
+| Contribution Tracking | ✅ Implemented | Module attribution shown in search results |
 
 ## Overview
 
@@ -260,7 +260,7 @@ interface LanguageModule {
 
 ### Contribution Tracking
 
-Every search result tracks which indexes contributed:
+Each search result identifies which module produced it:
 
 ```typescript
 interface SearchResult {
@@ -268,27 +268,24 @@ interface SearchResult {
   chunk: Chunk;
   score: number;
 
-  // Track index contributions for learning
-  contributions: {
-    core?: {
-      symbolMatch: number; // Function/class name matched
-      keywordMatch: number; // BM25 score
-    };
-    typescript?: {
-      semanticMatch: number; // Embedding similarity
-      typeMatch: number; // Type/interface relevance
-    };
-    introspection: {
-      projectBoost: number;
-      scopeBoost: number;
-      layerBoost: number;
-      domainBoost: number;
-    };
-  };
+  // Which module produced this result
+  moduleId: string; // "core" | "language/typescript" | etc.
 
-  // Raw scores before normalization (for learning)
-  rawScores: Record<string, number>;
+  // Optional: detailed score breakdown for debugging
+  context?: {
+    semanticScore?: number; // Embedding similarity (TypeScript module)
+    bm25Score?: number; // BM25 keyword match
+    pathBoost?: number; // Path context boost
+    symbolScore?: number; // Symbol name match (Core module)
+  };
 }
+```
+
+When displaying results, the CLI shows the contributing module:
+
+```
+1. src/auth/login.ts:10-25 (handleLogin)
+   Score: 85.2% | Type: function | via TypeScript | exported
 ```
 
 ### Score Aggregation
@@ -387,12 +384,11 @@ function calculateContextBoost(
 5. ❌ Framework detection (nextjs, express, etc.)
 6. ❌ Scope classification (frontend, backend, shared)
 
-### Phase 4: Contribution Tracking ⏳ In Progress
+### Phase 4: Contribution Tracking ✅ Complete
 
-1. ✅ Basic context tracking in `SearchResult` (semanticScore, bm25Score, pathBoost)
-2. ❌ Full contribution breakdown by module
-3. ❌ CLI option to show contributions
-4. ❌ Contribution logging for analysis
+1. ✅ Each `SearchResult` includes `moduleId` identifying the contributing module
+2. ✅ Search results display which module contributed each result (e.g., "via TypeScript", "via Core")
+3. ✅ Internal score tracking in `context` field for debugging (semanticScore, bm25Score, pathBoost)
 
 ### Phase 5: Learning & Tuning ❌ Not Started
 
