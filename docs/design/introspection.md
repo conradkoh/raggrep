@@ -1,0 +1,393 @@
+# Introspection & Multi-Index Architecture
+
+> **Status**: Design Document (Not Yet Implemented)  
+> **Created**: 2025-11-28  
+> **Last Updated**: 2025-11-28
+
+## Overview
+
+This document outlines the planned architecture for RAGgrep's multi-index system with shared introspection. The goal is to separate concerns:
+
+1. **Introspection** - Shared metadata extraction (path, project, scope)
+2. **Core Index** - Language-agnostic text processing
+3. **Language Indexes** - Language-specific deep analysis (TypeScript, Python, etc.)
+
+## Motivation
+
+### Problem: Context Matters
+
+The same file name means different things based on where it lives:
+
+| Path | Interpretation |
+|------|----------------|
+| `backend/services/server.ts` | Core API server, high importance |
+| `apps/webapp/server.ts` | Next.js server entry, frontend-ish |
+| `packages/shared/server.ts` | Shared server utilities |
+| `scripts/dev-server.ts` | Dev tooling, low production relevance |
+
+### Current Limitations
+
+- Single `semantic` module does everything
+- Path context is extracted but not systematically shared
+- No separation between fast/simple and slow/deep indexing
+- Hard to add new language support
+
+## Proposed Architecture
+
+### 3-Layer Design
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              INTROSPECTION (Shared Metadata)                 │
+│  • File path → project, scope, layer, domain                │
+│  • Monorepo detection (apps/, packages/, services/)         │
+│  • Language/framework detection                              │
+└─────────────────────────────┬───────────────────────────────┘
+                              │ provides context to
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────┐
+│      CORE INDEX         │     │    LANGUAGE INDEXES         │
+│                         │     │                             │
+│  • Symbol extraction    │     │  typescript/                │
+│    (regex-based)        │     │  ├── AST parsing            │
+│  • BM25 text search     │     │  ├── Type extraction        │
+│  • Fast, deterministic  │     │  ├── Semantic embeddings    │
+│                         │     │  └── Export/import tracking │
+│  Works on ANY file      │     │                             │
+│                         │     │  python/ (future)           │
+│                         │     │  rust/ (future)             │
+└─────────────────────────┘     └─────────────────────────────┘
+              │                               │
+              └───────────────┬───────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  SEARCH AGGREGATOR                           │
+│  • Merges results from all indexes                          │
+│  • Applies introspection-based boosting                      │
+│  • Tracks contributions for learning                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Folder Structure
+
+```
+.raggrep/
+├── config.json
+├── manifest.json
+│
+├── introspection/              # SHARED - computed once, used by all
+│   ├── _project.json           # Detected project structure
+│   └── files/
+│       └── backend/
+│           └── services/
+│               └── server.json # Per-file metadata
+│
+└── index/
+    ├── core/                   # Language-agnostic text index
+    │   ├── manifest.json
+    │   └── files/...
+    │
+    └── language/               # Language-specific indexes
+        └── typescript/
+            ├── manifest.json
+            ├── symbolic/       # BM25 file filtering
+            └── files/...       # Embeddings
+```
+
+## Introspection Layer
+
+### Purpose
+
+Extract and store metadata about each file that can be used by any index for context-aware scoring.
+
+### Schema
+
+```typescript
+interface FileIntrospection {
+  filepath: string;
+  
+  // Project context (from folder structure or package.json)
+  project: {
+    name: string;              // "webapp" | "api-server"
+    root: string;              // "apps/webapp"
+    type: "app" | "library" | "service" | "script" | "unknown";
+  };
+  
+  // Scope detection
+  scope: "frontend" | "backend" | "shared" | "tooling" | "unknown";
+  
+  // Architecture (existing path context)
+  layer?: string;              // "controller" | "service" | "repository"
+  domain?: string;             // "auth" | "users" | "payments"
+  
+  // Language info
+  language: string;            // "typescript" | "javascript" | "python"
+  framework?: string;          // "nextjs" | "express" | "fastify"
+}
+```
+
+### Project Detection
+
+Auto-detect monorepo patterns:
+
+| Pattern | Project Type | Scope |
+|---------|-------------|-------|
+| `apps/*` | app | varies |
+| `packages/*` | library | shared |
+| `services/*` | service | backend |
+| `scripts/*` | script | tooling |
+| `libs/*` | library | shared |
+
+### Configuration Override
+
+Users can override auto-detection in `.raggrep/config.json`:
+
+```json
+{
+  "introspection": {
+    "projects": {
+      "apps/webapp": { "scope": "frontend", "framework": "nextjs" },
+      "apps/api": { "scope": "backend", "framework": "express" }
+    }
+  }
+}
+```
+
+## Core Index
+
+### Purpose
+
+Fast, language-agnostic text search. Works on any file type.
+
+### Features
+
+- **Symbol extraction** via regex (function names, class names)
+- **BM25 tokenization** for keyword search
+- **No embeddings** - deterministic, fast
+- **Sub-millisecond** per file processing
+
+### Implementation
+
+```typescript
+interface CoreIndexEntry {
+  filepath: string;
+  
+  // Extracted symbols (regex-based)
+  symbols: {
+    name: string;
+    type: "function" | "class" | "variable" | "other";
+    line: number;
+  }[];
+  
+  // BM25 tokens
+  tokens: string[];
+  tokenFrequencies: Record<string, number>;
+  
+  // Basic chunking
+  chunks: {
+    id: string;
+    content: string;
+    startLine: number;
+    endLine: number;
+  }[];
+}
+```
+
+### Symbol Extraction Patterns
+
+```typescript
+const SYMBOL_PATTERNS = {
+  function: /\b(?:function|async\s+function)\s+(\w+)/g,
+  class: /\bclass\s+(\w+)/g,
+  const: /\b(?:const|let|var)\s+(\w+)\s*=/g,
+  export: /\bexport\s+(?:default\s+)?(?:function|class|const|let|var)\s+(\w+)/g,
+};
+```
+
+## Language Indexes
+
+### Purpose
+
+Deep, language-specific analysis with semantic understanding.
+
+### TypeScript Index (`language/typescript/`)
+
+- **AST parsing** via TypeScript Compiler API
+- **Type extraction** - interfaces, types, generics
+- **Semantic embeddings** - natural language understanding
+- **Export/import tracking** - module relationships
+- **JSDoc extraction** - documentation context
+
+### Future Language Support
+
+The architecture supports adding:
+
+- `language/python/` - AST via Python parser
+- `language/rust/` - AST via rust-analyzer
+- `language/go/` - AST via go/parser
+
+Each language module implements the same interface:
+
+```typescript
+interface LanguageModule {
+  id: string;              // "typescript"
+  extensions: string[];    // [".ts", ".tsx"]
+  
+  indexFile(filepath: string, content: string): Promise<LanguageIndexEntry>;
+  search(query: string, options: SearchOptions): Promise<SearchResult[]>;
+}
+```
+
+## Search & Result Aggregation
+
+### Contribution Tracking
+
+Every search result tracks which indexes contributed:
+
+```typescript
+interface SearchResult {
+  filepath: string;
+  chunk: Chunk;
+  score: number;
+  
+  // Track index contributions for learning
+  contributions: {
+    core?: {
+      symbolMatch: number;     // Function/class name matched
+      keywordMatch: number;    // BM25 score
+    };
+    typescript?: {
+      semanticMatch: number;   // Embedding similarity
+      typeMatch: number;       // Type/interface relevance
+    };
+    introspection: {
+      projectBoost: number;
+      scopeBoost: number;
+      layerBoost: number;
+      domainBoost: number;
+    };
+  };
+  
+  // Raw scores before normalization (for learning)
+  rawScores: Record<string, number>;
+}
+```
+
+### Score Aggregation
+
+```typescript
+function aggregateScores(
+  coreResult: CoreResult | null,
+  languageResult: LanguageResult | null,
+  introspection: FileIntrospection,
+  query: string
+): number {
+  let score = 0;
+  
+  // Core contribution (weight: 0.3)
+  if (coreResult) {
+    score += 0.2 * coreResult.symbolMatch;
+    score += 0.1 * coreResult.keywordMatch;
+  }
+  
+  // Language contribution (weight: 0.5)
+  if (languageResult) {
+    score += 0.4 * languageResult.semanticMatch;
+    score += 0.1 * languageResult.typeMatch;
+  }
+  
+  // Introspection boost (weight: 0.2)
+  score += calculateContextBoost(introspection, query);
+  
+  return score;
+}
+```
+
+### Context-Aware Boosting
+
+```typescript
+function calculateContextBoost(
+  introspection: FileIntrospection,
+  query: string
+): number {
+  let boost = 0;
+  const queryTerms = query.toLowerCase().split(/\s+/);
+  
+  // Domain match: +10%
+  if (introspection.domain && 
+      queryTerms.some(t => introspection.domain!.includes(t))) {
+    boost += 0.10;
+  }
+  
+  // Layer match: +5%
+  if (introspection.layer &&
+      queryTerms.some(t => introspection.layer!.includes(t))) {
+    boost += 0.05;
+  }
+  
+  // Scope match (backend queries boost backend files): +5%
+  if (queryTerms.some(t => ['api', 'server', 'backend', 'endpoint'].includes(t)) &&
+      introspection.scope === 'backend') {
+    boost += 0.05;
+  }
+  
+  return boost;
+}
+```
+
+## Implementation Plan
+
+### Phase 1: Restructure (Current)
+
+1. Reorganize folder structure:
+   - `.raggrep/index/core/`
+   - `.raggrep/index/language/typescript/`
+2. Update module paths and references
+3. Maintain backward compatibility
+4. Test existing functionality
+
+### Phase 2: Core Index
+
+1. Create `CoreModule` with regex-based symbol extraction
+2. Implement simple BM25 tokenization
+3. Add basic chunking (line-based)
+4. Enable parallel indexing with language modules
+
+### Phase 3: Introspection Layer
+
+1. Create `introspection/` folder structure
+2. Implement project detection
+3. Store per-file metadata
+4. Connect to search boosting
+
+### Phase 4: Contribution Tracking
+
+1. Update `SearchResult` type with contributions
+2. Track raw scores from each index
+3. Add CLI option to show contributions
+4. Log contributions for future analysis
+
+### Phase 5: Learning & Tuning
+
+1. Collect contribution data over time
+2. Analyze which indexes/boosts are most effective
+3. Allow weight customization
+4. Consider ML-based weight optimization
+
+## Open Questions
+
+1. **Introspection caching** - Should we cache introspection in memory during search, or load per-file?
+
+2. **Partial indexing** - Should `core` and `typescript` indexes be built independently, allowing partial rebuilds?
+
+3. **Result deduplication** - When both indexes find the same chunk, how do we merge vs deduplicate?
+
+4. **Contribution logging** - Should we log to a file, or only show in verbose mode?
+
+## References
+
+- Current architecture: [docs/architecture.md](../architecture.md)
+- Path-aware indexing: Already implemented in `parsePathContext()`
+- BM25 implementation: `src/domain/services/bm25.ts`
+
