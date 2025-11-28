@@ -8,12 +8,14 @@ RAGgrep is a **local filesystem-based RAG system** for codebases. It indexes you
 - [CLI Reference](./cli-reference.md) — All commands and options
 - [Configuration](./configuration.md) — Customize indexing behavior
 - [Architecture](./architecture.md) — How RAGgrep works internally
+- [Design: Introspection](./design/introspection.md) — Multi-index architecture design
 
 ## Quick Start
 
 ```bash
-# Install globally
+# Install globally with npm or Bun
 npm install -g raggrep
+# or: bun install -g raggrep
 
 # Or use without installing
 npx raggrep index
@@ -28,15 +30,15 @@ raggrep query "user authentication"
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Local-first** | All processing happens locally. No external API calls. |
-| **Filesystem-based** | Index stored as readable JSON files alongside your code. |
-| **Tiered search** | Fast BM25 keyword filtering + semantic embeddings for efficiency. |
-| **Hybrid scoring** | Combines semantic similarity (70%) with keyword matching (30%). |
-| **Incremental** | Only re-indexes files that have changed. |
+| Feature                  | Description                                                       |
+| ------------------------ | ----------------------------------------------------------------- |
+| **Local-first**          | All processing happens locally. No external API calls.            |
+| **Filesystem-based**     | Index stored as readable JSON files alongside your code.          |
+| **Dual-module search**   | Core (BM25/symbols) + TypeScript (AST/embeddings) modules.        |
+| **Hybrid scoring**       | Combines semantic similarity (70%) with keyword matching (30%).   |
+| **Incremental**          | Only re-indexes files that have changed.                          |
 | **TypeScript-optimized** | AST-based parsing extracts functions, classes, interfaces, types. |
-| **Zero config** | Works out of the box with sensible defaults. |
+| **Zero config**          | Works out of the box with sensible defaults.                      |
 
 ## Design Philosophy
 
@@ -47,6 +49,7 @@ RAGgrep is built around three core principles:
 3. **Persistent** — Index lives alongside your code. No rebuilding on every search.
 
 This makes it ideal for:
+
 - Developer tools (IDE extensions, CLI utilities)
 - Small-to-medium codebases (1k–100k files)
 - Offline development environments
@@ -55,6 +58,7 @@ This makes it ideal for:
 ## What It's Not
 
 RAGgrep is optimized for code search, not:
+
 - Large-scale production vector databases
 - Multi-million document search
 - Real-time streaming updates

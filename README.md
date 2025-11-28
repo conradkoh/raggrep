@@ -17,8 +17,11 @@ RAGgrep indexes your code and allows semantic search using natural language quer
 ## Installation
 
 ```bash
-# Install globally
+# Install globally with npm
 npm install -g raggrep
+
+# Or with Bun (recommended)
+bun install -g raggrep
 
 # Or use without installing
 npx raggrep --help
@@ -92,15 +95,26 @@ raggrep status                             # Show index status
 
 ## How It Works
 
-RAGgrep uses a two-tier index system:
+RAGgrep uses a **dual-module architecture** with two complementary index types:
 
-1. **Symbolic Index** — Lightweight file summaries with extracted keywords. Used for fast BM25 filtering.
-2. **Embedding Index** — Full chunk embeddings for semantic search. Only loaded for relevant files.
+### Core Module
 
-This design keeps memory usage low and enables fast search on large codebases.
+- **Language-agnostic** regex-based symbol extraction
+- **BM25 keyword matching** for fast, deterministic search
+- Works on any text file
+
+### TypeScript Module
+
+- **AST-based parsing** via TypeScript Compiler API
+- **Semantic embeddings** for natural language understanding
+- **Symbolic index** for fast BM25 candidate filtering
+
+Search combines results from both modules:
 
 ```
-Query → BM25 filter (symbolic) → Load candidates → Semantic search → Results
+Query → Core (symbol/BM25) ─┐
+                           ├→ Merge & rank → Results
+Query → TypeScript (BM25 filter → semantic) ─┘
 ```
 
 ## What Gets Indexed
@@ -139,8 +153,8 @@ Query → BM25 filter (symbolic) → Load candidates → Semantic search → Res
 
 ## Requirements
 
-- Node.js 18+
-- ~50MB disk space for models (cached globally)
+- Node.js 18+ or Bun 1.0+
+- ~50MB disk space for models (cached globally at `~/.cache/raggrep/models/`)
 
 ## License
 

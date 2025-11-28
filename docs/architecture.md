@@ -29,12 +29,13 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           CLI (src/cli/)                            │
+│                         CLI (src/app/cli/)                          │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────────────┐
-│                    Application Layer (src/application/)              │
+│                    Application Layer (src/app/)                      │
 │  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  Orchestration: indexer/, search/                            │   │
 │  │  Use Cases: indexDirectory, searchIndex, cleanupIndex        │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └───────────────────────────────┬─────────────────────────────────────┘
@@ -43,21 +44,23 @@ RAGgrep follows Clean Architecture principles with clear separation between:
         ▼                       ▼                       ▼
 ┌───────────────────┐ ┌───────────────────┐ ┌─────────────────────────┐
 │  Domain Layer     │ │  Infrastructure   │ │   Index Modules         │
-│  (src/domain/)    │ │ (src/infra/)      │ │   (src/modules/)        │
-│                   │ │                   │ │                         │
-│  ├── entities/    │ │  ├── filesystem/  │ │  ├── language/          │
-│  │   Chunk        │ │  │   NodeFS       │ │  │   └── typescript/    │
-│  │   FileIndex    │ │  ├── embeddings/  │ │  └── core/ (planned)    │
-│  │   Config       │ │  │   Transformers │ │                         │
-│  │                │ │  └── storage/     │ │                         │
-│  ├── ports/       │ │      FileStorage  │ │                         │
-│  │   FileSystem   │ │                   │ │                         │
-│  │   Embedding    │ │                   │ │                         │
-│  │   Storage      │ │                   │ │                         │
+│  (src/domain/)    │ │  (src/infra-     ││ │   (src/modules/)        │
+│                   │ │   structure/)     │ │                         │
+│  ├── entities/    │ │                   │ │  ├── core/              │
+│  │   Chunk        │ │  ├── config/      │ │  │   Symbol extraction  │
+│  │   FileIndex    │ │  │   ConfigLoader │ │  │   BM25 keyword index │
+│  │   Config       │ │  ├── filesystem/  │ │  │                      │
+│  │   FileSummary  │ │  │   NodeFS       │ │  └── language/          │
+│  │                │ │  ├── embeddings/  │ │      └── typescript/    │
+│  ├── ports/       │ │  │   Transformers │ │         AST parsing     │
+│  │   FileSystem   │ │  └── storage/     │ │         Embeddings      │
+│  │   Embedding    │ │      FileStorage  │ │                         │
+│  │   Storage      │ │      SymbolicIndex│ │                         │
 │  │                │ │                   │ │                         │
 │  └── services/    │ │                   │ │                         │
 │      BM25Index    │ │                   │ │                         │
 │      Keywords     │ │                   │ │                         │
+│      Similarity   │ │                   │ │                         │
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
@@ -144,10 +147,10 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 │
 └── index/
     ├── core/                # Language-agnostic text index
-    │   ├── manifest.json
+    │   ├── manifest.json    # Module manifest
     │   ├── symbols.json     # Symbol index + BM25 data
     │   └── src/auth/
-    │       └── authService.json
+    │       └── authService.json  # Per-file chunk index
     │
     └── language/            # Language-specific indexes
         └── typescript/      # TypeScript/JavaScript index
@@ -159,6 +162,8 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
             └── src/auth/
                 └── authService.json  # Full index (chunks + embeddings)
 ```
+
+Both modules create per-file JSON indexes that mirror your source directory structure.
 
 ### Symbolic Index Format
 
@@ -270,15 +275,15 @@ Adapters implementing domain ports.
 | `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js         |
 | `FileIndexStorage`              | `IndexStorage`      | JSON file storage       |
 
-### Application Layer (`src/application/`)
+### Application Layer (`src/app/`)
 
-Use cases orchestrating domain and infrastructure.
+Orchestration layer coordinating domain and infrastructure.
 
-| Use Case         | Description          |
-| ---------------- | -------------------- |
-| `indexDirectory` | Index a codebase     |
-| `searchIndex`    | Search the index     |
-| `cleanupIndex`   | Remove stale entries |
+| Directory  | Description                              |
+| ---------- | ---------------------------------------- |
+| `indexer/` | Index orchestration, file watcher        |
+| `search/`  | Search orchestration, result aggregation |
+| `cli/`     | Command-line interface                   |
 
 ### Index Modules (`src/modules/`)
 
@@ -291,11 +296,11 @@ Pluggable modules implementing the `IndexModule` interface.
 | `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25     |
 | `language/typescript` | `src/modules/language/typescript/` | TypeScript/JavaScript AST parsing + embeddings |
 
-Both modules run in parallel during indexing and search. Results are merged by score.
+Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score.
 
 ### Introspection Layer (`src/introspection/`)
 
-Shared metadata extraction for context-aware search boosting.
+Shared metadata extraction for context-aware search boosting. **Status: Partially implemented.**
 
 | Component             | Description                                                   |
 | --------------------- | ------------------------------------------------------------- |
@@ -304,16 +309,17 @@ Shared metadata extraction for context-aware search boosting.
 | `fileIntrospector.ts` | Extract metadata from file paths (layer, domain, scope)       |
 | `index.ts`            | IntrospectionIndex class for managing file metadata           |
 
-**Detected metadata:**
+**Currently detected metadata:**
 
-- **Project**: Name, root path, type (app, library, service, script)
-- **Scope**: frontend, backend, shared, tooling
-- **Layer**: controller, service, repository, model, util, etc.
-- **Domain**: auth, users, payments, etc.
-- **Language**: typescript, javascript, python, etc.
-- **Framework**: nextjs, express, fastify, etc.
+- **Path context**: Segments, layer, domain, depth (used for search boosting)
+- **Project structure**: Monorepo detection, project type inference
+- **Language**: Detected from file extension
 
-See [design/introspection.md](./design/introspection.md) for the full design document.
+**Planned additions** (see [design/introspection.md](./design/introspection.md)):
+
+- Framework detection (nextjs, express, fastify, etc.)
+- Scope classification (frontend, backend, shared, tooling)
+- Enhanced project-level metadata
 
 ```typescript
 interface IndexModule {
@@ -412,16 +418,22 @@ Trade-off: Local models are smaller than cloud models (384 vs 1536+ dimensions),
 
 ## Future Enhancements
 
-### Planned
+### Completed
 
 - [x] **Watch mode**: Real-time index updates on file changes (`raggrep index --watch`)
+- [x] **Core module**: Language-agnostic symbol extraction with BM25
+- [x] **Introspection**: Basic path context and project detection
+
+### Planned
+
 - [ ] **Cross-reference boosting**: Boost files imported by matched results
 - [ ] **Code-aware embeddings**: Use `codebert` or similar for better code understanding
 - [ ] **Pre-commit hook**: Auto-index changed files before commit
+- [ ] **Enhanced introspection**: Framework detection, scope classification
 
 ### Possible Extensions
 
-- **TypeScript LSP Module**: Index symbols, references, type information
+- **Python Module**: AST-based indexing for Python files
 - **Dependency Graph Module**: Track import/export relationships
 - **Comment Module**: Index documentation separately
 - **Binary storage**: Float32 arrays for faster embedding loading

@@ -10,9 +10,24 @@ Create `.raggrep/config.json` in your project root to customize behavior:
 {
   "version": "0.1.0",
   "indexDir": ".raggrep",
-  "extensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".md"],
+  "extensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".py",
+    ".go",
+    ".rs",
+    ".java",
+    ".md"
+  ],
   "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep"],
   "modules": [
+    {
+      "id": "core",
+      "enabled": true,
+      "options": {}
+    },
     {
       "id": "language/typescript",
       "enabled": true,
@@ -43,11 +58,13 @@ Directory name for storing index data (relative to project root).
 Array of file extensions to index.
 
 **Default:**
+
 ```json
 [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".md"]
 ```
 
 **Example - TypeScript only:**
+
 ```json
 {
   "extensions": [".ts", ".tsx"]
@@ -59,32 +76,61 @@ Array of file extensions to index.
 Array of directory/file names to ignore during indexing.
 
 **Default:**
+
 ```json
 [
-  "node_modules", ".pnpm-store", ".yarn", "vendor",
+  "node_modules",
+  ".pnpm-store",
+  ".yarn",
+  "vendor",
   ".git",
-  "dist", "build", "out", ".output", "target",
-  ".next", ".nuxt", ".svelte-kit", ".vercel", ".netlify",
-  ".cache", ".turbo", ".parcel-cache", ".eslintcache",
-  "coverage", ".nyc_output",
-  "__pycache__", ".venv", "venv", ".pytest_cache",
+  "dist",
+  "build",
+  "out",
+  ".output",
+  "target",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".vercel",
+  ".netlify",
+  ".cache",
+  ".turbo",
+  ".parcel-cache",
+  ".eslintcache",
+  "coverage",
+  ".nyc_output",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".pytest_cache",
   ".idea",
   ".raggrep"
 ]
 ```
 
 **Example - Add additional ignores:**
+
 ```json
 {
-  "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep", "__tests__", "*.test.ts"]
+  "ignorePaths": [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".raggrep",
+    "__tests__",
+    "*.test.ts"
+  ]
 }
 ```
 
 ### `modules`
 
-Array of module configurations.
+Array of module configurations. Both modules are enabled by default.
 
 **Structure:**
+
 ```json
 {
   "modules": [
@@ -108,35 +154,43 @@ Array of module configurations.
 
 ### Core Module (`core`)
 
-Fast, language-agnostic text search using regex-based symbol extraction and BM25 keyword matching.
+Fast, language-agnostic text search using regex-based symbol extraction and BM25 keyword matching. Works on any file type.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| (none) | - | - | No configuration needed |
+| Option | Type | Default | Description              |
+| ------ | ---- | ------- | ------------------------ |
+| (none) | -    | -       | No configuration options |
+
+**Features:**
+
+- Extracts symbols (functions, classes, variables) via regex patterns
+- BM25 keyword indexing for fast deterministic search
+- Line-based chunking with overlap
+- No embedding model required
 
 ### TypeScript Module (`language/typescript`)
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| Option           | Type   | Default              | Description            |
+| ---------------- | ------ | -------------------- | ---------------------- |
 | `embeddingModel` | string | `"all-MiniLM-L6-v2"` | Embedding model to use |
 
 ### Search Defaults
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `topK` | `10` | Number of results to return |
-| `minScore` | `0.15` | Minimum similarity threshold (0-1). Lower values return more results but may include less relevant matches. |
+| Setting    | Default | Description                                                                                                 |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `topK`     | `10`    | Number of results to return                                                                                 |
+| `minScore` | `0.15`  | Minimum similarity threshold (0-1). Lower values return more results but may include less relevant matches. |
 
 **Available Models:**
 
-| Model | Size | Dimensions | Notes |
-|-------|------|------------|-------|
-| `all-MiniLM-L6-v2` | ~23MB | 384 | Default, good balance |
-| `all-MiniLM-L12-v2` | ~33MB | 384 | Higher quality |
-| `bge-small-en-v1.5` | ~33MB | 384 | Good for code |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | 384 | Fastest |
+| Model                     | Size  | Dimensions | Notes                 |
+| ------------------------- | ----- | ---------- | --------------------- |
+| `all-MiniLM-L6-v2`        | ~23MB | 384        | Default, good balance |
+| `all-MiniLM-L12-v2`       | ~33MB | 384        | Higher quality        |
+| `bge-small-en-v1.5`       | ~33MB | 384        | Good for code         |
+| `paraphrase-MiniLM-L3-v2` | ~17MB | 384        | Fastest               |
 
 **Example - Use BGE model:**
+
 ```json
 {
   "modules": [
@@ -155,8 +209,8 @@ Fast, language-agnostic text search using regex-based symbol extraction and BM25
 
 Some configuration options can be overridden via CLI flags:
 
-| Config Option | CLI Flag | Example |
-|---------------|----------|---------|
+| Config Option                                         | CLI Flag        | Example                                   |
+| ----------------------------------------------------- | --------------- | ----------------------------------------- |
 | `modules[language/typescript].options.embeddingModel` | `--model`, `-m` | `raggrep index --model bge-small-en-v1.5` |
 
 CLI flags take precedence over configuration file settings.
@@ -166,6 +220,7 @@ CLI flags take precedence over configuration file settings.
 ### Model Cache
 
 Embedding models are cached globally at:
+
 ```
 ~/.cache/raggrep/models/
 ```
@@ -175,11 +230,13 @@ This directory is shared across all projects to avoid re-downloading models.
 ### Index Storage
 
 Each project's index is stored at:
+
 ```
 <project-root>/.raggrep/
 ```
 
 This directory should be added to `.gitignore`:
+
 ```gitignore
 .raggrep/
 ```

@@ -5,7 +5,11 @@
 ### Option 1: Global Install (Recommended)
 
 ```bash
+# With npm
 npm install -g raggrep
+
+# Or with Bun (recommended)
+bun install -g raggrep
 ```
 
 After installation, the `raggrep` command is available globally.
@@ -30,14 +34,18 @@ npm link
 ### Option 4: Programmatic Use
 
 ```bash
+# With npm
 npm install raggrep
+
+# Or with Bun
+bun add raggrep
 ```
 
 ```typescript
-import raggrep from 'raggrep';
+import raggrep from "raggrep";
 
-await raggrep.index('./my-project');
-const results = await raggrep.search('./my-project', 'user authentication');
+await raggrep.index("./my-project");
+const results = await raggrep.search("./my-project", "user authentication");
 ```
 
 ## Requirements
@@ -48,15 +56,17 @@ const results = await raggrep.search('./my-project', 'user authentication');
 ## First Run
 
 1. **Navigate to your project:**
+
    ```bash
    cd your-project
    ```
 
 2. **Index your codebase:**
+
    ```bash
    raggrep index
    ```
-   
+
    On first run, the embedding model (~23MB) will be downloaded and cached.
 
 3. **Search your code:**
@@ -87,6 +97,7 @@ Found 4 results:
 ```
 
 Results include:
+
 - **File path and line numbers** — Where the code is located
 - **Name** — The function/class/interface name
 - **Score** — Relevance percentage (higher is better)
@@ -98,28 +109,28 @@ Results include:
 
 ### File Types (default)
 
-| Extension | Language |
-|-----------|----------|
+| Extension     | Language   |
+| ------------- | ---------- |
 | `.ts`, `.tsx` | TypeScript |
 | `.js`, `.jsx` | JavaScript |
-| `.py` | Python |
-| `.go` | Go |
-| `.rs` | Rust |
-| `.java` | Java |
-| `.md` | Markdown |
+| `.py`         | Python     |
+| `.go`         | Go         |
+| `.rs`         | Rust       |
+| `.java`       | Java       |
+| `.md`         | Markdown   |
 
 ### Code Structures
 
 For TypeScript/JavaScript files, RAGgrep uses AST-based parsing to extract:
 
-| Structure | Examples |
-|-----------|----------|
-| Functions | `function foo()`, `async function bar()`, `const fn = () => {}` |
-| Classes | `class User`, `abstract class Base` |
-| Interfaces | `interface UserProps` |
-| Type aliases | `type ID = string` |
-| Enums | `enum Status`, `const enum Direction` |
-| Variables | `export const CONFIG = {}` |
+| Structure    | Examples                                                        |
+| ------------ | --------------------------------------------------------------- |
+| Functions    | `function foo()`, `async function bar()`, `const fn = () => {}` |
+| Classes      | `class User`, `abstract class Base`                             |
+| Interfaces   | `interface UserProps`                                           |
+| Type aliases | `type ID = string`                                              |
+| Enums        | `enum Status`, `const enum Direction`                           |
+| Variables    | `export const CONFIG = {}`                                      |
 
 For other languages, content is chunked by blocks or as whole files.
 
@@ -127,13 +138,13 @@ For other languages, content is chunked by blocks or as whole files.
 
 These directories are automatically skipped:
 
-| Category | Directories |
-|----------|-------------|
-| Dependencies | `node_modules`, `.pnpm-store`, `.yarn`, `vendor` |
+| Category      | Directories                                        |
+| ------------- | -------------------------------------------------- |
+| Dependencies  | `node_modules`, `.pnpm-store`, `.yarn`, `vendor`   |
 | Build outputs | `dist`, `build`, `out`, `target`, `.next`, `.nuxt` |
-| Caches | `.cache`, `.turbo`, `.parcel-cache`, `coverage` |
-| Python | `__pycache__`, `.venv`, `venv` |
-| Other | `.git`, `.idea`, `.raggrep` |
+| Caches        | `.cache`, `.turbo`, `.parcel-cache`, `coverage`    |
+| Python        | `__pycache__`, `.venv`, `venv`                     |
+| Other         | `.git`, `.idea`, `.raggrep`                        |
 
 See [Configuration](./configuration.md) to customize.
 
@@ -153,7 +164,7 @@ RAGgrep uses a tiered index system designed for large codebases:
 - Only loaded for files that pass keyword filtering
 - Keeps memory usage low
 
-**Result:** Search performance depends on the number of *relevant* files, not total codebase size.
+**Result:** Search performance depends on the number of _relevant_ files, not total codebase size.
 
 ## Index Storage
 
@@ -163,15 +174,20 @@ The index is stored in `.raggrep/` in your project root:
 your-project/
 ├── .raggrep/
 │   ├── config.json              # Optional configuration
-│   ├── manifest.json            # File list and timestamps
+│   ├── manifest.json            # Global manifest
 │   └── index/
+│       ├── core/                # Core module index
+│       │   ├── manifest.json
+│       │   ├── symbols.json     # Symbol + BM25 index
+│       │   └── src/...          # Per-file chunks
 │       └── language/
 │           └── typescript/
-│               ├── symbolic/    # Keyword index
-│           │   ├── _meta.json
-│           │   └── src/...
-│           └── src/             # Embedding index
-│               └── ...
+│               ├── manifest.json
+│               ├── symbolic/    # Keyword index (BM25)
+│               │   ├── _meta.json
+│               │   └── src/...
+│               └── src/         # Embedding index
+│                   └── ...
 ├── src/
 └── ...
 ```

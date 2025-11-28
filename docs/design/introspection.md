@@ -1,12 +1,26 @@
 # Introspection & Multi-Index Architecture
 
-> **Status**: Design Document (Not Yet Implemented)  
+> **Status**: Partially Implemented  
 > **Created**: 2025-11-28  
 > **Last Updated**: 2025-11-28
 
+## Implementation Status
+
+| Component             | Status         | Notes                                                       |
+| --------------------- | -------------- | ----------------------------------------------------------- |
+| Core Index            | ✅ Implemented | `src/modules/core/` - regex symbol extraction + BM25        |
+| TypeScript Index      | ✅ Implemented | `src/modules/language/typescript/` - AST + embeddings       |
+| Introspection Types   | ✅ Implemented | `src/introspection/types.ts`                                |
+| Project Detection     | ✅ Implemented | `src/introspection/projectDetector.ts` - monorepo detection |
+| File Introspector     | ✅ Implemented | `src/introspection/fileIntrospector.ts` - path context      |
+| Path Context Boosting | ✅ Implemented | Used in TypeScript module search                            |
+| Contribution Tracking | ⏳ Partial     | Basic context in results, full tracking planned             |
+| Framework Detection   | ❌ Not started | nextjs, express, etc.                                       |
+| Scope Classification  | ❌ Not started | frontend, backend, shared, tooling                          |
+
 ## Overview
 
-This document outlines the planned architecture for RAGgrep's multi-index system with shared introspection. The goal is to separate concerns:
+This document outlines RAGgrep's multi-index system with shared introspection. The architecture separates concerns:
 
 1. **Introspection** - Shared metadata extraction (path, project, scope)
 2. **Core Index** - Language-agnostic text processing
@@ -346,37 +360,38 @@ function calculateContextBoost(
 
 ## Implementation Plan
 
-### Phase 1: Restructure (Current)
+### Phase 1: Restructure ✅ Complete
 
-1. Reorganize folder structure:
+1. ✅ Reorganized folder structure:
    - `.raggrep/index/core/`
    - `.raggrep/index/language/typescript/`
-2. Update module paths and references
-3. Maintain backward compatibility
-4. Test existing functionality
+2. ✅ Updated module paths and references
+3. ✅ Maintained backward compatibility
 
-### Phase 2: Core Index
+### Phase 2: Core Index ✅ Complete
 
-1. Create `CoreModule` with regex-based symbol extraction
-2. Implement simple BM25 tokenization
-3. Add basic chunking (line-based)
-4. Enable parallel indexing with language modules
+1. ✅ Created `CoreModule` with regex-based symbol extraction
+2. ✅ Implemented BM25 tokenization
+3. ✅ Added line-based chunking with overlap
+4. ✅ Both modules run during indexing, results merged at search
 
-### Phase 3: Introspection Layer
+### Phase 3: Introspection Layer ✅ Partial
 
-1. Create `introspection/` folder structure
-2. Implement project detection
-3. Store per-file metadata
-4. Connect to search boosting
+1. ✅ Created `introspection/` folder structure
+2. ✅ Implemented project/monorepo detection
+3. ✅ Implemented path context extraction (layer, domain, segments)
+4. ✅ Connected to search boosting in TypeScript module
+5. ❌ Framework detection (nextjs, express, etc.)
+6. ❌ Scope classification (frontend, backend, shared)
 
-### Phase 4: Contribution Tracking
+### Phase 4: Contribution Tracking ⏳ In Progress
 
-1. Update `SearchResult` type with contributions
-2. Track raw scores from each index
-3. Add CLI option to show contributions
-4. Log contributions for future analysis
+1. ✅ Basic context tracking in `SearchResult` (semanticScore, bm25Score, pathBoost)
+2. ❌ Full contribution breakdown by module
+3. ❌ CLI option to show contributions
+4. ❌ Contribution logging for analysis
 
-### Phase 5: Learning & Tuning
+### Phase 5: Learning & Tuning ❌ Not Started
 
 1. Collect contribution data over time
 2. Analyze which indexes/boosts are most effective
