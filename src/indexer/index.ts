@@ -104,7 +104,7 @@ export async function indexDirectory(rootDir: string, options: IndexOptions = {}
     if (module.initialize && moduleConfig) {
       // Apply CLI overrides to module config
       const configWithOverrides = { ...moduleConfig };
-      if (options.model && module.id === 'semantic') {
+      if (options.model && module.id === 'language/typescript') {
         configWithOverrides.options = {
           ...configWithOverrides.options,
           embeddingModel: options.model,

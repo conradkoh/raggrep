@@ -1,13 +1,12 @@
 /**
- * Semantic Index Module
+ * TypeScript Language Index Module
  * 
- * Uses local text embeddings for natural language code search.
- * Implements a tiered index system:
- * - Tier 1: Lightweight file summaries with keywords for fast filtering
- * - Tier 2: Full chunk embeddings for semantic similarity
+ * Provides TypeScript/JavaScript-aware code search using:
+ * - AST parsing via TypeScript Compiler API
+ * - Local text embeddings for semantic similarity
+ * - BM25 keyword matching for fast filtering
  * 
- * This approach keeps the filesystem-based design while enabling
- * efficient search by only loading relevant files.
+ * Index location: .raggrep/index/language/typescript/
  */
 
 import * as path from 'path';
@@ -21,7 +20,7 @@ import {
   Chunk,
   ModuleConfig,
   ChunkType,
-} from '../../types';
+} from '../../../types';
 import {
   getEmbeddings,
   getEmbedding,
@@ -29,13 +28,13 @@ import {
   configureEmbeddings,
   EmbeddingConfig,
   getEmbeddingConfig,
-} from '../../utils/embeddings';
-import { BM25Index, normalizeScore } from '../../utils/bm25';
-import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../utils/config';
+} from '../../../utils/embeddings';
+import { BM25Index, normalizeScore } from '../../../utils/bm25';
+import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../../utils/config';
 import { parseCode, generateChunkId } from './parseCode';
-import { SymbolicIndex, extractKeywords } from '../../utils/tieredIndex';
-import type { FileSummary } from '../../domain/entities';
-import { parsePathContext, formatPathContextForEmbedding } from '../../domain/services/keywords';
+import { SymbolicIndex, extractKeywords } from '../../../utils/tieredIndex';
+import type { FileSummary } from '../../../domain/entities';
+import { parsePathContext, formatPathContextForEmbedding } from '../../../domain/services/keywords';
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -62,10 +61,10 @@ export interface SemanticModuleData {
 /** Number of candidate files to retrieve from Tier 1 before loading Tier 2 */
 const TIER1_CANDIDATE_MULTIPLIER = 3;
 
-export class SemanticModule implements IndexModule {
-  readonly id = 'semantic';
-  readonly name = 'Semantic Search';
-  readonly description = 'Natural language code search using local text embeddings';
+export class TypeScriptModule implements IndexModule {
+  readonly id = 'language/typescript';
+  readonly name = 'TypeScript Search';
+  readonly description = 'TypeScript-aware code search with AST parsing and semantic embeddings';
   readonly version = '1.0.0';
 
   private embeddingConfig: EmbeddingConfig | null = null;

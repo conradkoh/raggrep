@@ -14,7 +14,7 @@ Create `.raggrep/config.json` in your project root to customize behavior:
   "ignorePaths": ["node_modules", ".git", "dist", "build", ".raggrep"],
   "modules": [
     {
-      "id": "semantic",
+      "id": "language/typescript",
       "enabled": true,
       "options": {
         "embeddingModel": "all-MiniLM-L6-v2"
@@ -89,7 +89,7 @@ Array of module configurations.
 {
   "modules": [
     {
-      "id": "semantic",
+      "id": "language/typescript",
       "enabled": true,
       "options": {
         // Module-specific options
@@ -101,7 +101,7 @@ Array of module configurations.
 
 ## Module Options
 
-### Semantic Module
+### TypeScript Module (`language/typescript`)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -128,7 +128,7 @@ Array of module configurations.
 {
   "modules": [
     {
-      "id": "semantic",
+      "id": "language/typescript",
       "enabled": true,
       "options": {
         "embeddingModel": "bge-small-en-v1.5"
@@ -144,7 +144,7 @@ Some configuration options can be overridden via CLI flags:
 
 | Config Option | CLI Flag | Example |
 |---------------|----------|---------|
-| `modules[semantic].options.embeddingModel` | `--model`, `-m` | `raggrep index --model bge-small-en-v1.5` |
+| `modules[language/typescript].options.embeddingModel` | `--model`, `-m` | `raggrep index --model bge-small-en-v1.5` |
 
 CLI flags take precedence over configuration file settings.
 
@@ -214,7 +214,7 @@ This directory should be added to `.gitignore`:
 {
   "modules": [
     {
-      "id": "semantic",
+      "id": "language/typescript",
       "enabled": true,
       "options": {
         "embeddingModel": "all-MiniLM-L12-v2"

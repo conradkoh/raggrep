@@ -1,6 +1,6 @@
 /**
  * Config Entity
- * 
+ *
  * Configuration for RAGgrep indexing and search operations.
  */
 
@@ -10,10 +10,10 @@
 export interface ModuleConfig {
   /** Unique module identifier */
   id: string;
-  
+
   /** Whether the module is enabled */
   enabled: boolean;
-  
+
   /** Module-specific options */
   options?: Record<string, unknown>;
 }
@@ -24,16 +24,16 @@ export interface ModuleConfig {
 export interface Config {
   /** RAGgrep version */
   version: string;
-  
+
   /** Directory name for index storage (default: '.raggrep') */
   indexDir: string;
-  
+
   /** File extensions to index (e.g., ['.ts', '.tsx', '.js']) */
   extensions: string[];
-  
+
   /** Paths to ignore during indexing */
   ignorePaths: string[];
-  
+
   /** Enabled modules and their configurations */
   modules: ModuleConfig[];
 }
@@ -43,58 +43,65 @@ export interface Config {
  */
 export const DEFAULT_IGNORE_PATHS = [
   // Package managers & dependencies
-  'node_modules',
-  '.pnpm-store',
-  '.yarn',
-  'vendor',
-  
+  "node_modules",
+  ".pnpm-store",
+  ".yarn",
+  "vendor",
+
   // Version control
-  '.git',
-  
+  ".git",
+
   // Build outputs
-  'dist',
-  'build',
-  'out',
-  '.output',
-  'target',
-  
+  "dist",
+  "build",
+  "out",
+  ".output",
+  "target",
+
   // Framework-specific build outputs
-  '.next',
-  '.nuxt',
-  '.svelte-kit',
-  '.vercel',
-  '.netlify',
-  
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".vercel",
+  ".netlify",
+
   // Caches
-  '.cache',
-  '.turbo',
-  '.parcel-cache',
-  '.eslintcache',
-  
+  ".cache",
+  ".turbo",
+  ".parcel-cache",
+  ".eslintcache",
+
   // Test & coverage
-  'coverage',
-  '.nyc_output',
-  
+  "coverage",
+  ".nyc_output",
+
   // Python
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.pytest_cache',
-  '*.egg-info',
-  
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".pytest_cache",
+  "*.egg-info",
+
   // IDE & editor
-  '.idea',
-  
+  ".idea",
+
   // RAGgrep index
-  '.raggrep',
+  ".raggrep",
 ];
 
 /**
  * Default file extensions to index.
  */
 export const DEFAULT_EXTENSIONS = [
-  '.ts', '.tsx', '.js', '.jsx',
-  '.py', '.go', '.rs', '.java', '.md',
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+  ".md",
 ];
 
 /**
@@ -102,19 +109,18 @@ export const DEFAULT_EXTENSIONS = [
  */
 export function createDefaultConfig(): Config {
   return {
-    version: '0.1.0',
-    indexDir: '.raggrep',
+    version: "0.1.0",
+    indexDir: ".raggrep",
     extensions: DEFAULT_EXTENSIONS,
     ignorePaths: DEFAULT_IGNORE_PATHS,
     modules: [
       {
-        id: 'semantic',
+        id: "language/typescript",
         enabled: true,
         options: {
-          embeddingModel: 'all-MiniLM-L6-v2',
+          embeddingModel: "all-MiniLM-L6-v2",
         },
       },
     ],
   };
 }
-

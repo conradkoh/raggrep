@@ -36,6 +36,6 @@ export const registry: ModuleRegistry = new ModuleRegistryImpl();
 // Auto-register built-in modules
 export async function registerBuiltInModules(): Promise<void> {
   // Dynamic import to avoid circular dependencies
-  const { SemanticModule } = await import('./semantic');
-  registry.register(new SemanticModule());
+  const { TypeScriptModule } = await import('./language/typescript');
+  registry.register(new TypeScriptModule());
 }

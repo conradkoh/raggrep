@@ -165,8 +165,9 @@ your-project/
 │   ├── config.json              # Optional configuration
 │   ├── manifest.json            # File list and timestamps
 │   └── index/
-│       └── semantic/
-│           ├── symbolic/        # Keyword index
+│       └── language/
+│           └── typescript/
+│               ├── symbolic/    # Keyword index
 │           │   ├── _meta.json
 │           │   └── src/...
 │           └── src/             # Embedding index

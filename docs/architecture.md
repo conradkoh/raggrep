@@ -45,9 +45,9 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 │  Domain Layer     │ │  Infrastructure   │ │   Index Modules         │
 │  (src/domain/)    │ │ (src/infra/)      │ │   (src/modules/)        │
 │                   │ │                   │ │                         │
-│  ├── entities/    │ │  ├── filesystem/  │ │  ├── semantic/          │
-│  │   Chunk        │ │  │   NodeFS       │ │  │   Embeddings+Search  │
-│  │   FileIndex    │ │  ├── embeddings/  │ │  └── (future modules)   │
+│  ├── entities/    │ │  ├── filesystem/  │ │  ├── language/          │
+│  │   Chunk        │ │  │   NodeFS       │ │  │   └── typescript/    │
+│  │   FileIndex    │ │  ├── embeddings/  │ │  └── core/ (planned)    │
 │  │   Config       │ │  │   Transformers │ │                         │
 │  │                │ │  └── storage/     │ │                         │
 │  ├── ports/       │ │      FileStorage  │ │                         │
@@ -137,16 +137,20 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 ├── config.json              # Project configuration (optional)
 ├── manifest.json            # Global manifest (lists active modules)
 └── index/
-    └── semantic/            # Per-module index directory
-        ├── manifest.json    # Module manifest (file list, timestamps)
-        ├── symbolic/        # Symbolic index (keywords + BM25)
-        │   ├── _meta.json   # BM25 statistics
-        │   └── src/
-        │       └── auth/
-        │           └── authService.json  # File summary
-        └── src/
-            └── auth/
-                └── authService.json  # Full index (chunks + embeddings)
+    ├── core/                # (Future) Language-agnostic text index
+    │   └── ...
+    │
+    └── language/            # Language-specific indexes
+        └── typescript/      # TypeScript/JavaScript index
+            ├── manifest.json    # Module manifest (file list, timestamps)
+            ├── symbolic/        # Symbolic index (keywords + BM25)
+            │   ├── _meta.json   # BM25 statistics
+            │   └── src/
+            │       └── auth/
+            │           └── authService.json  # File summary
+            └── src/
+                └── auth/
+                    └── authService.json  # Full index (chunks + embeddings)
 ```
 
 ### Symbolic Index Format
@@ -273,7 +277,14 @@ Use cases orchestrating domain and infrastructure.
 
 Pluggable modules implementing the `IndexModule` interface.
 
-**Current:** `semantic` — Text embeddings using Transformers.js
+**Current Modules:**
+
+| Module ID             | Location                           | Description                                    |
+| --------------------- | ---------------------------------- | ---------------------------------------------- |
+| `language/typescript` | `src/modules/language/typescript/` | TypeScript/JavaScript AST parsing + embeddings |
+| `core`                | (planned)                          | Language-agnostic text search                  |
+
+See [design/introspection.md](./design/introspection.md) for the planned multi-index architecture.
 
 ```typescript
 interface IndexModule {
@@ -318,7 +329,7 @@ RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for 
 
 ## Chunk Types
 
-The semantic module uses the TypeScript Compiler API for AST-based parsing.
+The TypeScript module uses the TypeScript Compiler API for AST-based parsing.
 
 | Type        | Description                                             |
 | ----------- | ------------------------------------------------------- |

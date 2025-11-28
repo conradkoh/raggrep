@@ -18,12 +18,12 @@ This document outlines the planned architecture for RAGgrep's multi-index system
 
 The same file name means different things based on where it lives:
 
-| Path | Interpretation |
-|------|----------------|
-| `backend/services/server.ts` | Core API server, high importance |
-| `apps/webapp/server.ts` | Next.js server entry, frontend-ish |
-| `packages/shared/server.ts` | Shared server utilities |
-| `scripts/dev-server.ts` | Dev tooling, low production relevance |
+| Path                         | Interpretation                        |
+| ---------------------------- | ------------------------------------- |
+| `backend/services/server.ts` | Core API server, high importance      |
+| `apps/webapp/server.ts`      | Next.js server entry, frontend-ish    |
+| `packages/shared/server.ts`  | Shared server utilities               |
+| `scripts/dev-server.ts`      | Dev tooling, low production relevance |
 
 ### Current Limitations
 
@@ -106,24 +106,24 @@ Extract and store metadata about each file that can be used by any index for con
 ```typescript
 interface FileIntrospection {
   filepath: string;
-  
+
   // Project context (from folder structure or package.json)
   project: {
-    name: string;              // "webapp" | "api-server"
-    root: string;              // "apps/webapp"
+    name: string; // "webapp" | "api-server"
+    root: string; // "apps/webapp"
     type: "app" | "library" | "service" | "script" | "unknown";
   };
-  
+
   // Scope detection
   scope: "frontend" | "backend" | "shared" | "tooling" | "unknown";
-  
+
   // Architecture (existing path context)
-  layer?: string;              // "controller" | "service" | "repository"
-  domain?: string;             // "auth" | "users" | "payments"
-  
+  layer?: string; // "controller" | "service" | "repository"
+  domain?: string; // "auth" | "users" | "payments"
+
   // Language info
-  language: string;            // "typescript" | "javascript" | "python"
-  framework?: string;          // "nextjs" | "express" | "fastify"
+  language: string; // "typescript" | "javascript" | "python"
+  framework?: string; // "nextjs" | "express" | "fastify"
 }
 ```
 
@@ -131,13 +131,13 @@ interface FileIntrospection {
 
 Auto-detect monorepo patterns:
 
-| Pattern | Project Type | Scope |
-|---------|-------------|-------|
-| `apps/*` | app | varies |
-| `packages/*` | library | shared |
-| `services/*` | service | backend |
-| `scripts/*` | script | tooling |
-| `libs/*` | library | shared |
+| Pattern      | Project Type | Scope   |
+| ------------ | ------------ | ------- |
+| `apps/*`     | app          | varies  |
+| `packages/*` | library      | shared  |
+| `services/*` | service      | backend |
+| `scripts/*`  | script       | tooling |
+| `libs/*`     | library      | shared  |
 
 ### Configuration Override
 
@@ -172,18 +172,18 @@ Fast, language-agnostic text search. Works on any file type.
 ```typescript
 interface CoreIndexEntry {
   filepath: string;
-  
+
   // Extracted symbols (regex-based)
   symbols: {
     name: string;
     type: "function" | "class" | "variable" | "other";
     line: number;
   }[];
-  
+
   // BM25 tokens
   tokens: string[];
   tokenFrequencies: Record<string, number>;
-  
+
   // Basic chunking
   chunks: {
     id: string;
@@ -231,9 +231,9 @@ Each language module implements the same interface:
 
 ```typescript
 interface LanguageModule {
-  id: string;              // "typescript"
-  extensions: string[];    // [".ts", ".tsx"]
-  
+  id: string; // "typescript"
+  extensions: string[]; // [".ts", ".tsx"]
+
   indexFile(filepath: string, content: string): Promise<LanguageIndexEntry>;
   search(query: string, options: SearchOptions): Promise<SearchResult[]>;
 }
@@ -250,16 +250,16 @@ interface SearchResult {
   filepath: string;
   chunk: Chunk;
   score: number;
-  
+
   // Track index contributions for learning
   contributions: {
     core?: {
-      symbolMatch: number;     // Function/class name matched
-      keywordMatch: number;    // BM25 score
+      symbolMatch: number; // Function/class name matched
+      keywordMatch: number; // BM25 score
     };
     typescript?: {
-      semanticMatch: number;   // Embedding similarity
-      typeMatch: number;       // Type/interface relevance
+      semanticMatch: number; // Embedding similarity
+      typeMatch: number; // Type/interface relevance
     };
     introspection: {
       projectBoost: number;
@@ -268,7 +268,7 @@ interface SearchResult {
       domainBoost: number;
     };
   };
-  
+
   // Raw scores before normalization (for learning)
   rawScores: Record<string, number>;
 }
@@ -284,22 +284,22 @@ function aggregateScores(
   query: string
 ): number {
   let score = 0;
-  
+
   // Core contribution (weight: 0.3)
   if (coreResult) {
     score += 0.2 * coreResult.symbolMatch;
     score += 0.1 * coreResult.keywordMatch;
   }
-  
+
   // Language contribution (weight: 0.5)
   if (languageResult) {
     score += 0.4 * languageResult.semanticMatch;
     score += 0.1 * languageResult.typeMatch;
   }
-  
+
   // Introspection boost (weight: 0.2)
   score += calculateContextBoost(introspection, query);
-  
+
   return score;
 }
 ```
@@ -313,25 +313,33 @@ function calculateContextBoost(
 ): number {
   let boost = 0;
   const queryTerms = query.toLowerCase().split(/\s+/);
-  
+
   // Domain match: +10%
-  if (introspection.domain && 
-      queryTerms.some(t => introspection.domain!.includes(t))) {
-    boost += 0.10;
+  if (
+    introspection.domain &&
+    queryTerms.some((t) => introspection.domain!.includes(t))
+  ) {
+    boost += 0.1;
   }
-  
+
   // Layer match: +5%
-  if (introspection.layer &&
-      queryTerms.some(t => introspection.layer!.includes(t))) {
+  if (
+    introspection.layer &&
+    queryTerms.some((t) => introspection.layer!.includes(t))
+  ) {
     boost += 0.05;
   }
-  
+
   // Scope match (backend queries boost backend files): +5%
-  if (queryTerms.some(t => ['api', 'server', 'backend', 'endpoint'].includes(t)) &&
-      introspection.scope === 'backend') {
+  if (
+    queryTerms.some((t) =>
+      ["api", "server", "backend", "endpoint"].includes(t)
+    ) &&
+    introspection.scope === "backend"
+  ) {
     boost += 0.05;
   }
-  
+
   return boost;
 }
 ```
@@ -390,4 +398,3 @@ function calculateContextBoost(
 - Current architecture: [docs/architecture.md](../architecture.md)
 - Path-aware indexing: Already implemented in `parsePathContext()`
 - BM25 implementation: `src/domain/services/bm25.ts`
-

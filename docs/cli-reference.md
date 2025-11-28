@@ -65,7 +65,7 @@ Example output:
 │  Watching for changes... (Ctrl+C to stop) │
 └─────────────────────────────────────────┘
 
-[Watch] semantic: 2 indexed, 0 errors
+[Watch] language/typescript: 2 indexed, 0 errors
 ```
 
 ---
@@ -181,7 +181,7 @@ Last updated: 11/27/2025, 10:53:27 PM
 Total files: 49
 
 Modules:
-  semantic: 49 files (updated 11/27/2025, 10:53:27 PM)
+  language/typescript: 49 files (updated 11/27/2025, 10:53:27 PM)
 ```
 
 **Example Output (not indexed):**
