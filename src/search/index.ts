@@ -15,7 +15,7 @@ import {
   getModuleIndexPath,
   getGlobalManifestPath,
   getModuleConfig,
-} from '../utils/config';
+} from '../infrastructure/config';
 import { registry, registerBuiltInModules } from '../modules/registry';
 
 /**

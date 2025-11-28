@@ -17,9 +17,9 @@ import {
   getModuleManifestPath,
   getGlobalManifestPath,
   getModuleConfig,
-} from '../utils/config';
+} from '../infrastructure/config';
 import { registry, registerBuiltInModules } from '../modules/registry';
-import { EmbeddingModelName } from '../utils/embeddings';
+import type { EmbeddingModelName } from '../domain/ports';
 import { IntrospectionIndex } from '../introspection';
 
 export interface IndexResult {

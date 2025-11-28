@@ -24,15 +24,16 @@ import {
 import {
   getEmbeddings,
   getEmbedding,
-  cosineSimilarity,
   configureEmbeddings,
-  EmbeddingConfig,
   getEmbeddingConfig,
-} from '../../../utils/embeddings';
-import { BM25Index, normalizeScore } from '../../../utils/bm25';
-import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../../utils/config';
+} from '../../../infrastructure/embeddings';
+import { cosineSimilarity } from '../../../domain/services/similarity';
+import { BM25Index, normalizeScore } from '../../../domain/services/bm25';
+import { getEmbeddingConfigFromModule, getRaggrepDir } from '../../../infrastructure/config';
 import { parseCode, generateChunkId } from './parseCode';
-import { SymbolicIndex, extractKeywords } from '../../../utils/tieredIndex';
+import { SymbolicIndex } from '../../../infrastructure/storage';
+import { extractKeywords } from '../../../domain/services/keywords';
+import type { EmbeddingConfig } from '../../../domain/ports';
 import type { FileSummary } from '../../../domain/entities';
 import { parsePathContext, formatPathContextForEmbedding } from '../../../domain/services/keywords';
 

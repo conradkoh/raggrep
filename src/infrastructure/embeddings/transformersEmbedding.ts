@@ -198,3 +198,62 @@ export async function isModelCached(model: EmbeddingModelName): Promise<boolean>
   }
 }
 
+// ============================================================================
+// Global Embedding API (convenience functions)
+// ============================================================================
+
+/** Global provider instance for convenience functions */
+let globalProvider: TransformersEmbeddingProvider | null = null;
+let globalConfig: EmbeddingConfig = {
+  model: 'all-MiniLM-L6-v2',
+  showProgress: true,
+};
+
+/**
+ * Configure the global embedding provider.
+ */
+export function configureEmbeddings(config: Partial<EmbeddingConfig>): void {
+  const newConfig = { ...globalConfig, ...config };
+  
+  // If model changed, reset provider
+  if (newConfig.model !== globalConfig.model) {
+    globalProvider = null;
+  }
+  
+  globalConfig = newConfig as EmbeddingConfig;
+}
+
+/**
+ * Get current embedding configuration.
+ */
+export function getEmbeddingConfig(): EmbeddingConfig {
+  return { ...globalConfig };
+}
+
+/**
+ * Ensure the global provider is initialized.
+ */
+async function ensureGlobalProvider(): Promise<TransformersEmbeddingProvider> {
+  if (!globalProvider) {
+    globalProvider = new TransformersEmbeddingProvider(globalConfig);
+    await globalProvider.initialize();
+  }
+  return globalProvider;
+}
+
+/**
+ * Get embedding for a single text using the global provider.
+ */
+export async function getEmbedding(text: string): Promise<number[]> {
+  const provider = await ensureGlobalProvider();
+  return provider.getEmbedding(text);
+}
+
+/**
+ * Get embeddings for multiple texts using the global provider.
+ */
+export async function getEmbeddings(texts: string[]): Promise<number[][]> {
+  const provider = await ensureGlobalProvider();
+  return provider.getEmbeddings(texts);
+}
+

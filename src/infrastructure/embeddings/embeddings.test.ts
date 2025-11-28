@@ -3,7 +3,8 @@
  */
 
 import { test, expect, describe } from 'bun:test';
-import { cosineSimilarity, EMBEDDING_MODELS, getCacheDir } from './embeddings';
+import { cosineSimilarity } from '../../domain/services/similarity';
+import { EMBEDDING_MODELS, getCacheDir } from './transformersEmbedding';
 
 describe('cosineSimilarity', () => {
   test('returns 1 for identical vectors', () => {
@@ -108,4 +109,3 @@ describe('getCacheDir', () => {
     expect(cacheDir).toContain('models');
   });
 });
-

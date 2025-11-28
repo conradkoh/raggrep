@@ -1,6 +1,7 @@
 // Main CLI entry point for raggrep
 
-import { EMBEDDING_MODELS, getCacheDir, type EmbeddingModelName } from '../utils/embeddings';
+import { EMBEDDING_MODELS, getCacheDir } from '../infrastructure/embeddings';
+import type { EmbeddingModelName } from '../domain/ports';
 import { createRequire } from 'module';
 
 // Read version from package.json

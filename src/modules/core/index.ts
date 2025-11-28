@@ -27,8 +27,8 @@ import type {
   ModuleConfig,
   ChunkType,
 } from "../../domain/entities";
-import { BM25Index, tokenize, normalizeScore } from "../../utils/bm25";
-import { getRaggrepDir } from "../../utils/config";
+import { BM25Index, tokenize, normalizeScore } from "../../domain/services/bm25";
+import { getRaggrepDir } from "../../infrastructure/config";
 import { extractSymbols, symbolsToKeywords, type ExtractedSymbol } from "./symbols";
 
 /** Default minimum score for core search results */

@@ -13,7 +13,7 @@ import type {
 } from "./types";
 import { detectProjectStructure } from "./projectDetector";
 import { introspectFile, introspectionToKeywords } from "./fileIntrospector";
-import { getRaggrepDir } from "../utils/config";
+import { getRaggrepDir } from "../infrastructure/config";
 import type { Config } from "../domain/entities";
 
 // Re-export types

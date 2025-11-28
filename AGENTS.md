@@ -29,14 +29,17 @@ with strict dependency rules.
 │      Domain Layer       │     │    Infrastructure Layer     │
 │    (src/domain/)        │     │    (src/infrastructure/)    │
 │                         │     │                             │
-│  ├── entities/          │     │  ├── embeddings/            │
-│  │   Pure data types    │     │  │   Transformers.js        │
+│  ├── entities/          │     │  ├── config/                │
+│  │   Pure data types    │     │  │   Config loading/saving  │
 │  │                      │     │  │                          │
-│  ├── ports/             │◄────│  ├── filesystem/            │
-│  │   Interfaces         │     │  │   Node.js fs             │
+│  ├── ports/             │◄────│  ├── embeddings/            │
+│  │   Interfaces         │     │  │   Transformers.js        │
 │  │                      │     │  │                          │
-│  └── services/          │     │  └── storage/               │
-│      Pure algorithms    │     │      Index file I/O         │
+│  └── services/          │     │  ├── filesystem/            │
+│      Pure algorithms    │     │  │   Node.js fs             │
+│                         │     │  │                          │
+│                         │     │  └── storage/               │
+│                         │     │      Index file I/O         │
 └─────────────────────────┘     └─────────────────────────────┘
 ```
 
@@ -87,10 +90,16 @@ The infrastructure layer implements domain ports using external technologies.
 - MAY import from `domain/entities/` for type definitions
 - MUST NOT contain business logic
 
+#### `src/infrastructure/config/`
+
+- MUST contain configuration loading and saving
+- Currently: `configLoader.ts` with path utilities and config I/O
+
 #### `src/infrastructure/embeddings/`
 
 - MUST contain embedding provider implementations
 - Currently: `TransformersEmbeddingProvider` using Transformers.js
+- Provides global API functions: `getEmbedding()`, `getEmbeddings()`, `configureEmbeddings()`
 
 #### `src/infrastructure/filesystem/`
 
@@ -101,6 +110,7 @@ The infrastructure layer implements domain ports using external technologies.
 
 - MUST contain index persistence logic
 - Includes: Reading/writing JSON index files, manifest management
+- Currently: `FileIndexStorage`, `SymbolicIndex`
 
 ### Application Layer (`src/application/`)
 
@@ -130,15 +140,6 @@ Index modules are **cross-cutting concerns** that implement the `IndexModule` in
 - Modules MAY combine domain logic and infrastructure concerns
 - Modules MUST implement the standard module interface
 - New modules SHOULD follow the existing pattern in `language/typescript/`
-
-### `src/utils/`
-
-⚠️ **DEPRECATED** - This directory contains legacy code that SHOULD be migrated.
-
-When encountering code in `src/utils/`:
-- Code doing I/O SHOULD be moved to `infrastructure/`
-- Pure algorithms SHOULD be moved to `domain/services/`
-- Re-exports SHOULD be removed (import from source directly)
 
 ### `src/introspection/`
 
