@@ -9,6 +9,7 @@ import {
   FileIndex,
   IndexModule,
   GlobalManifest,
+  DEFAULT_SEARCH_OPTIONS,
 } from '../../types';
 import {
   loadConfig,
@@ -17,6 +18,7 @@ import {
   getModuleConfig,
 } from '../../infrastructure/config';
 import { registry, registerBuiltInModules } from '../../modules/registry';
+import { ensureIndexFresh } from '../indexer';
 
 /**
  * Search across all enabled modules
@@ -28,6 +30,12 @@ export async function search(
 ): Promise<SearchResult[]> {
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
+
+  // Ensure index is fresh before searching (unless explicitly disabled)
+  const ensureFresh = options.ensureFresh ?? DEFAULT_SEARCH_OPTIONS.ensureFresh;
+  if (ensureFresh) {
+    await ensureIndexFresh(rootDir, { quiet: true });
+  }
 
   console.log(`Searching for: "${query}"`);
 
@@ -41,7 +49,7 @@ export async function search(
   const globalManifest = await loadGlobalManifest(rootDir, config);
   
   if (!globalManifest || globalManifest.modules.length === 0) {
-    console.log('No index found. Run "bun run index" first.');
+    console.log('No index found. Run "raggrep index" first.');
     return [];
   }
 

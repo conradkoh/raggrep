@@ -88,6 +88,18 @@ export interface SearchOptions {
 
   /** Filter to specific file patterns (e.g., ['*.ts', '*.tsx']) */
   filePatterns?: string[];
+
+  /**
+   * Ensure the index is fresh before searching (default: true).
+   *
+   * When true, the search will automatically:
+   * - Create the index if it doesn't exist
+   * - Re-index any modified files
+   * - Remove entries for deleted files
+   *
+   * Set to false if you've already ensured freshness or want explicit control.
+   */
+  ensureFresh?: boolean;
 }
 
 /**
@@ -97,4 +109,5 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   topK: 10,
   minScore: 0.15,
   filePatterns: [],
+  ensureFresh: true,
 };

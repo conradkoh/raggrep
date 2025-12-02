@@ -291,6 +291,8 @@ Examples:
           topK: flags.topK ?? 10,
           minScore: flags.minScore,
           filePatterns,
+          // Skip automatic freshness check since we already called ensureIndexFresh above
+          ensureFresh: false,
         });
         console.log(formatSearchResults(results));
       } catch (error) {
