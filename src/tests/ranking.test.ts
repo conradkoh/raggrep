@@ -259,4 +259,116 @@ describe("Ranking Quality Tests", () => {
       expect(databaseResults.length).toBeGreaterThan(0);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Test: Documentation queries should find documentation files
+  // --------------------------------------------------------------------------
+  describe("Documentation queries", () => {
+    test("authentication guide query should find docs/authentication.md in top 3", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "authentication guide",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      expect(isInTopN(results, "docs/authentication.md", 3)).toBe(true);
+    });
+
+    test("database documentation query should find docs/database.md in top 3", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "database documentation",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      expect(isInTopN(results, "docs/database.md", 3)).toBe(true);
+    });
+
+    test("how to authenticate query should find docs in top 3", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "how to authenticate users",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find documentation for "how to" questions
+      const docResults = results
+        .slice(0, 3)
+        .filter((r) => r.filepath.includes("docs/"));
+      expect(docResults.length).toBeGreaterThan(0);
+    });
+
+    test("README query should find README files", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "project overview", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      expect(isInTopN(results, "README.md", 5)).toBe(true);
+    });
+
+    test("password requirements query should find both code and docs", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "password requirements",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // "password requirements" is ambiguous - could mean:
+      // - What are the requirements? (docs)
+      // - How are they validated? (code)
+      // Both should appear in results
+      expect(isInTopN(results, "docs/authentication.md", 5)).toBe(true);
+      expect(isInTopN(results, "src/utils/validation.ts", 5)).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test: Ambiguous queries should return balanced results
+  // --------------------------------------------------------------------------
+  describe("Balanced results for ambiguous queries", () => {
+    test("authentication query should find both code and docs", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "authentication", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      // Should find both code and documentation
+      const codeResults = results.filter(
+        (r) => r.filepath.endsWith(".ts") || r.filepath.endsWith(".js")
+      );
+      const docResults = results.filter((r) => r.filepath.endsWith(".md"));
+
+      expect(codeResults.length).toBeGreaterThan(0);
+      expect(docResults.length).toBeGreaterThan(0);
+    });
+
+    test("database query should find both code and docs", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "database", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      // Should find both code and documentation
+      const codeResults = results.filter(
+        (r) => r.filepath.endsWith(".ts") || r.filepath.endsWith(".js")
+      );
+      const docResults = results.filter((r) => r.filepath.endsWith(".md"));
+
+      expect(codeResults.length).toBeGreaterThan(0);
+      expect(docResults.length).toBeGreaterThan(0);
+    });
+  });
 });

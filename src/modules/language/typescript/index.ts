@@ -67,10 +67,29 @@ const IMPLEMENTATION_TERMS = [
   "route",
   "handler",
   "controller",
-  "service",
   "module",
-  "api",
   "code",
+];
+
+/** Documentation-related query terms that boost documentation files */
+const DOCUMENTATION_TERMS = [
+  "documentation",
+  "docs",
+  "guide",
+  "tutorial",
+  "readme",
+  "how",
+  "what",
+  "why",
+  "explain",
+  "overview",
+  "getting",
+  "started",
+  "requirements",
+  "setup",
+  "install",
+  "configure",
+  "configuration",
 ];
 
 /** Source code file extensions */
@@ -91,8 +110,36 @@ const SOURCE_CODE_EXTENSIONS = [
 const DOC_EXTENSIONS = [".md", ".txt", ".rst"];
 
 /**
+ * Detect query intent based on terms.
+ * Returns: 'implementation' | 'documentation' | 'neutral'
+ */
+function detectQueryIntent(
+  queryTerms: string[]
+): "implementation" | "documentation" | "neutral" {
+  const hasImplementationTerm = queryTerms.some((term) =>
+    IMPLEMENTATION_TERMS.includes(term)
+  );
+  const hasDocumentationTerm = queryTerms.some((term) =>
+    DOCUMENTATION_TERMS.includes(term)
+  );
+
+  // Documentation terms take precedence if both are present
+  // (e.g., "api documentation" should favor docs)
+  if (hasDocumentationTerm) {
+    return "documentation";
+  }
+
+  if (hasImplementationTerm) {
+    return "implementation";
+  }
+
+  return "neutral";
+}
+
+/**
  * Calculate boost based on file type and query context.
- * Source code files get a boost for implementation-related queries.
+ * Bidirectional: boosts code for implementation queries, docs for documentation queries.
+ * Only applies when query intent is clear.
  */
 function calculateFileTypeBoost(
   filepath: string,
@@ -102,19 +149,27 @@ function calculateFileTypeBoost(
   const isSourceCode = SOURCE_CODE_EXTENSIONS.includes(ext);
   const isDoc = DOC_EXTENSIONS.includes(ext);
 
-  // Check if query is implementation-related
-  const isImplementationQuery = queryTerms.some((term) =>
-    IMPLEMENTATION_TERMS.includes(term)
-  );
+  const intent = detectQueryIntent(queryTerms);
 
-  if (isImplementationQuery && isSourceCode) {
-    return 0.08; // Boost source code for implementation queries
+  // For implementation-focused queries, boost source code
+  if (intent === "implementation") {
+    if (isSourceCode) {
+      return 0.06; // Moderate boost for source code
+    }
+    // No penalty for docs - they might still be relevant
+    return 0;
   }
 
-  if (isImplementationQuery && isDoc) {
-    return -0.03; // Slight penalty for docs on implementation queries
+  // For documentation-focused queries, boost documentation files
+  if (intent === "documentation") {
+    if (isDoc) {
+      return 0.08; // Boost documentation files
+    }
+    // No penalty for code - they might still be relevant
+    return 0;
   }
 
+  // Neutral queries: no boost either way
   return 0;
 }
 
@@ -125,7 +180,6 @@ function calculateFileTypeBoost(
 function calculateChunkTypeBoost(chunk: Chunk): number {
   switch (chunk.type) {
     case "function":
-    case "method":
       return 0.05;
     case "class":
     case "interface":
