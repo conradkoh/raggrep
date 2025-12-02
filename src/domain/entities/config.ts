@@ -93,14 +93,26 @@ export const DEFAULT_IGNORE_PATHS = [
  * Default file extensions to index.
  */
 export const DEFAULT_EXTENSIONS = [
+  // Web/JS ecosystem
   ".ts",
   ".tsx",
   ".js",
   ".jsx",
+  ".mjs",
+  ".cjs",
+  // Other languages
   ".py",
   ".go",
   ".rs",
   ".java",
+  // Config & data
+  ".json",
+  ".yaml",
+  ".yml",
+  ".toml",
+  // Database
+  ".sql",
+  // Documentation
   ".md",
   ".txt",
 ];

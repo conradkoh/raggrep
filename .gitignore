@@ -36,5 +36,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # raggrep index data
 .raggrep/
 
-# test data
-.simulation
+# test scenarios (indexed data, not source files)
+scenarios/*/.raggrep/

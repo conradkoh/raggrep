@@ -22,7 +22,7 @@ import raggrep from "../index";
 import { getIndexLocation } from "../infrastructure/config";
 
 // Test configuration
-const SIMULATION_DIR = path.resolve(__dirname, "../../.simulation");
+const SIMULATION_DIR = path.resolve(__dirname, "../../scenarios/basic");
 const TEST_FILES_DIR = path.join(SIMULATION_DIR, "test-files");
 
 // Store original console methods
@@ -204,6 +204,114 @@ describe("RAGgrep Integration Tests", () => {
       );
       expect(secretsFileIndex).toBeGreaterThanOrEqual(0);
       expect(secretsFileIndex).toBeLessThan(5);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 3: Source code should rank higher than documentation
+  // --------------------------------------------------------------------------
+  describe("Source code vs documentation ranking", () => {
+    const authSourceFile = "test-files/src/auth/login.ts";
+    const authDocsFile = "test-files/docs/authentication.md";
+
+    afterAll(async () => {
+      await removeTestFile(authSourceFile);
+      await removeTestFile(authDocsFile);
+      // Clean up directories
+      try {
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/src/auth"));
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/src"));
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/docs"));
+      } catch {
+        // Directories may not exist
+      }
+    });
+
+    test("should rank source code higher than docs for implementation queries", async () => {
+      // Create a source file with authentication implementation
+      await createTestFile(
+        authSourceFile,
+        `/**
+ * Authentication Module
+ */
+export async function authenticateUser(email: string, password: string) {
+  // Verify credentials
+  const user = await findUser(email);
+  if (!user) return null;
+  
+  const valid = await verifyPassword(password, user.passwordHash);
+  return valid ? generateToken(user) : null;
+}
+
+export function verifyPassword(password: string, hash: string): boolean {
+  return bcrypt.compare(password, hash);
+}
+`
+      );
+
+      // Create a docs file that mentions authentication
+      await createTestFile(
+        authDocsFile,
+        `# Authentication Guide
+
+This document describes the authentication system.
+
+## How to Authenticate
+
+Users can authenticate using email and password.
+The system uses JWT tokens for session management.
+`
+      );
+
+      // Index the simulation directory
+      const indexResults = await raggrep.index(SIMULATION_DIR);
+      expect(indexResults.length).toBeGreaterThan(0);
+
+      // Search for "authenticateUser" - specific function name
+      const searchResults = await raggrep.search(
+        SIMULATION_DIR,
+        "authenticateUser",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Find positions of source and docs files
+      const sourceIndex = searchResults.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+      const docsIndex = searchResults.findIndex((r) =>
+        r.filepath.includes("docs/authentication.md")
+      );
+
+      // Source file should be found
+      expect(sourceIndex).toBeGreaterThanOrEqual(0);
+
+      // Source file should rank higher than docs when searching for function name
+      if (docsIndex >= 0) {
+        expect(sourceIndex).toBeLessThan(docsIndex);
+      }
+    });
+
+    test("should find source code for semantic queries", async () => {
+      // Search for "verify user password" - semantic query
+      const searchResults = await raggrep.search(
+        SIMULATION_DIR,
+        "verify user password",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Source file should be in top 5 results
+      const sourceIndex = searchResults.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(sourceIndex).toBeGreaterThanOrEqual(0);
+      expect(sourceIndex).toBeLessThan(5);
     });
   });
 });
