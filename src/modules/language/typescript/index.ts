@@ -55,6 +55,101 @@ const SEMANTIC_WEIGHT = 0.7;
 /** Weight for BM25 keyword matching in hybrid scoring (0-1) */
 const BM25_WEIGHT = 0.3;
 
+/** Implementation-related query terms that boost source code files */
+const IMPLEMENTATION_TERMS = [
+  "function",
+  "method",
+  "class",
+  "interface",
+  "implement",
+  "implementation",
+  "endpoint",
+  "route",
+  "handler",
+  "controller",
+  "service",
+  "module",
+  "api",
+  "code",
+];
+
+/** Source code file extensions */
+const SOURCE_CODE_EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+];
+
+/** Documentation file extensions */
+const DOC_EXTENSIONS = [".md", ".txt", ".rst"];
+
+/**
+ * Calculate boost based on file type and query context.
+ * Source code files get a boost for implementation-related queries.
+ */
+function calculateFileTypeBoost(
+  filepath: string,
+  queryTerms: string[]
+): number {
+  const ext = path.extname(filepath).toLowerCase();
+  const isSourceCode = SOURCE_CODE_EXTENSIONS.includes(ext);
+  const isDoc = DOC_EXTENSIONS.includes(ext);
+
+  // Check if query is implementation-related
+  const isImplementationQuery = queryTerms.some((term) =>
+    IMPLEMENTATION_TERMS.includes(term)
+  );
+
+  if (isImplementationQuery && isSourceCode) {
+    return 0.08; // Boost source code for implementation queries
+  }
+
+  if (isImplementationQuery && isDoc) {
+    return -0.03; // Slight penalty for docs on implementation queries
+  }
+
+  return 0;
+}
+
+/**
+ * Calculate boost based on chunk type.
+ * Function/class/interface chunks rank higher than generic blocks.
+ */
+function calculateChunkTypeBoost(chunk: Chunk): number {
+  switch (chunk.type) {
+    case "function":
+    case "method":
+      return 0.05;
+    case "class":
+    case "interface":
+      return 0.04;
+    case "type":
+    case "enum":
+      return 0.03;
+    case "variable":
+      return 0.02;
+    case "file":
+    case "block":
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Calculate boost for exported symbols.
+ * Public APIs are more likely to be what users are searching for.
+ */
+function calculateExportBoost(chunk: Chunk): number {
+  return chunk.isExported ? 0.03 : 0;
+}
+
 /**
  * Module-specific data stored alongside file index
  */
@@ -363,9 +458,16 @@ export class TypeScriptModule implements IndexModule {
       const bm25Score = bm25Scores.get(chunk.id) || 0;
       const pathBoost = pathBoosts.get(filepath) || 0;
 
-      // Hybrid score: weighted combination of semantic, BM25, and path boost
+      // Additional boosts for ranking improvement
+      const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
+      const chunkTypeBoost = calculateChunkTypeBoost(chunk);
+      const exportBoost = calculateExportBoost(chunk);
+      const totalBoost =
+        pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
+
+      // Hybrid score: weighted combination of semantic, BM25, and boosts
       const hybridScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score + pathBoost;
+        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score + totalBoost;
 
       if (hybridScore >= minScore || bm25Score > 0.3) {
         results.push({
@@ -377,6 +479,9 @@ export class TypeScriptModule implements IndexModule {
             semanticScore,
             bm25Score,
             pathBoost,
+            fileTypeBoost,
+            chunkTypeBoost,
+            exportBoost,
           },
         });
       }
