@@ -145,7 +145,6 @@ export class IntrospectionIndex {
       await fs.mkdir(path.dirname(introFilePath), { recursive: true });
       await fs.writeFile(introFilePath, JSON.stringify(intro, null, 2));
     }
-
   }
 
   /**
@@ -208,4 +207,3 @@ export class IntrospectionIndex {
     this.structure = null;
   }
 }
-

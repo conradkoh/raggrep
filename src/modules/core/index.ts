@@ -250,7 +250,6 @@ export class CoreModule implements IndexModule {
       path.join(coreDir, "symbols.json"),
       JSON.stringify(symbolIndexData, null, 2)
     );
-
   }
 
   /**

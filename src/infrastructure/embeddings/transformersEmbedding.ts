@@ -1,21 +1,29 @@
 /**
  * Transformers.js Embedding Adapter
- * 
+ *
  * Implements the EmbeddingProvider port using Transformers.js for local embeddings.
  * Models are automatically downloaded and cached on first use.
  */
 
-import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
-import * as path from 'path';
-import * as os from 'os';
-import type { EmbeddingProvider, EmbeddingConfig, EmbeddingModelName } from '../../domain/ports';
+import {
+  pipeline,
+  env,
+  type FeatureExtractionPipeline,
+} from "@xenova/transformers";
+import * as path from "path";
+import * as os from "os";
+import type {
+  EmbeddingProvider,
+  EmbeddingConfig,
+  EmbeddingModelName,
+} from "../../domain/ports";
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
 /** Cache directory for models */
-const CACHE_DIR = path.join(os.homedir(), '.cache', 'raggrep', 'models');
+const CACHE_DIR = path.join(os.homedir(), ".cache", "raggrep", "models");
 
 // Set the cache directory for transformers.js
 env.cacheDir = CACHE_DIR;
@@ -23,10 +31,10 @@ env.allowLocalModels = true;
 
 /** Available embedding models and their Hugging Face IDs */
 export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
-  'all-MiniLM-L6-v2': 'Xenova/all-MiniLM-L6-v2',
-  'all-MiniLM-L12-v2': 'Xenova/all-MiniLM-L12-v2',
-  'bge-small-en-v1.5': 'Xenova/bge-small-en-v1.5',
-  'paraphrase-MiniLM-L3-v2': 'Xenova/paraphrase-MiniLM-L3-v2',
+  "all-MiniLM-L6-v2": "Xenova/all-MiniLM-L6-v2",
+  "all-MiniLM-L12-v2": "Xenova/all-MiniLM-L12-v2",
+  "bge-small-en-v1.5": "Xenova/bge-small-en-v1.5",
+  "paraphrase-MiniLM-L3-v2": "Xenova/paraphrase-MiniLM-L3-v2",
 };
 
 /** Embedding dimension for all MiniLM models */
@@ -50,7 +58,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 
   constructor(config?: Partial<EmbeddingConfig>) {
     this.config = {
-      model: config?.model ?? 'all-MiniLM-L6-v2',
+      model: config?.model ?? "all-MiniLM-L6-v2",
       showProgress: config?.showProgress ?? false, // Silent by default
     };
   }
@@ -63,7 +71,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
       }
       this.config = { ...this.config, ...config };
     }
-    
+
     await this.ensurePipeline();
   }
 
@@ -71,36 +79,46 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
     if (this.pipeline) {
       return;
     }
-    
+
     // Prevent multiple simultaneous initializations
     if (this.isInitializing && this.initPromise) {
       return this.initPromise;
     }
-    
+
     this.isInitializing = true;
-    
+
     this.initPromise = (async () => {
       const modelId = EMBEDDING_MODELS[this.config.model];
-      
+
       if (this.config.showProgress) {
         console.log(`\n  Loading embedding model: ${this.config.model}`);
         console.log(`  Cache: ${CACHE_DIR}`);
       }
-      
+
       try {
-        this.pipeline = await pipeline('feature-extraction', modelId, {
-          progress_callback: this.config.showProgress 
-            ? (progress: { status: string; file?: string; progress?: number }) => {
-                if (progress.status === 'progress' && progress.file) {
-                  const pct = progress.progress ? Math.round(progress.progress) : 0;
-                  process.stdout.write(`\r  Downloading ${progress.file}: ${pct}%   `);
-                } else if (progress.status === 'done' && progress.file) {
-                  process.stdout.write(`\r  Downloaded ${progress.file}              \n`);
+        this.pipeline = await pipeline("feature-extraction", modelId, {
+          progress_callback: this.config.showProgress
+            ? (progress: {
+                status: string;
+                file?: string;
+                progress?: number;
+              }) => {
+                if (progress.status === "progress" && progress.file) {
+                  const pct = progress.progress
+                    ? Math.round(progress.progress)
+                    : 0;
+                  process.stdout.write(
+                    `\r  Downloading ${progress.file}: ${pct}%   `
+                  );
+                } else if (progress.status === "done" && progress.file) {
+                  process.stdout.write(
+                    `\r  Downloaded ${progress.file}              \n`
+                  );
                 }
               }
             : undefined,
         });
-        
+
         if (this.config.showProgress) {
           console.log(`  Model ready.\n`);
         }
@@ -112,53 +130,53 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
         this.initPromise = null;
       }
     })();
-    
+
     return this.initPromise;
   }
 
   async getEmbedding(text: string): Promise<number[]> {
     await this.ensurePipeline();
-    
+
     if (!this.pipeline) {
-      throw new Error('Embedding pipeline not initialized');
+      throw new Error("Embedding pipeline not initialized");
     }
-    
+
     const output = await this.pipeline(text, {
-      pooling: 'mean',
+      pooling: "mean",
       normalize: true,
     });
-    
+
     return Array.from(output.data as Float32Array);
   }
 
   async getEmbeddings(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
-    
+
     await this.ensurePipeline();
-    
+
     if (!this.pipeline) {
-      throw new Error('Embedding pipeline not initialized');
+      throw new Error("Embedding pipeline not initialized");
     }
-    
+
     const results: number[][] = [];
-    
+
     // Process in batches
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
       const batch = texts.slice(i, i + BATCH_SIZE);
-      
+
       const outputs = await Promise.all(
         batch.map(async (text) => {
           const output = await this.pipeline!(text, {
-            pooling: 'mean',
+            pooling: "mean",
             normalize: true,
           });
           return Array.from(output.data as Float32Array);
         })
       );
-      
+
       results.push(...outputs);
     }
-    
+
     return results;
   }
 
@@ -185,12 +203,14 @@ export function getCacheDir(): string {
 /**
  * Check if a model is already cached
  */
-export async function isModelCached(model: EmbeddingModelName): Promise<boolean> {
+export async function isModelCached(
+  model: EmbeddingModelName
+): Promise<boolean> {
   const modelId = EMBEDDING_MODELS[model];
-  const modelPath = path.join(CACHE_DIR, modelId.replace('/', '--'));
-  
+  const modelPath = path.join(CACHE_DIR, modelId.replace("/", "--"));
+
   try {
-    const fs = await import('fs/promises');
+    const fs = await import("fs/promises");
     await fs.access(modelPath);
     return true;
   } catch {
@@ -205,7 +225,7 @@ export async function isModelCached(model: EmbeddingModelName): Promise<boolean>
 /** Global provider instance for convenience functions */
 let globalProvider: TransformersEmbeddingProvider | null = null;
 let globalConfig: EmbeddingConfig = {
-  model: 'all-MiniLM-L6-v2',
+  model: "all-MiniLM-L6-v2",
   showProgress: false, // Silent by default for CLI usage
 };
 
@@ -214,12 +234,12 @@ let globalConfig: EmbeddingConfig = {
  */
 export function configureEmbeddings(config: Partial<EmbeddingConfig>): void {
   const newConfig = { ...globalConfig, ...config };
-  
+
   // If model changed, reset provider
   if (newConfig.model !== globalConfig.model) {
     globalProvider = null;
   }
-  
+
   globalConfig = newConfig as EmbeddingConfig;
 }
 
@@ -256,4 +276,3 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   const provider = await ensureGlobalProvider();
   return provider.getEmbeddings(texts);
 }
-

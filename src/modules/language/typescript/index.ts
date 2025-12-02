@@ -205,7 +205,6 @@ export class TypeScriptModule implements IndexModule {
     // Save to disk (creates symbolic/ folder with per-file summaries)
     await this.symbolicIndex.save();
 
-
     // Clear pending summaries
     this.pendingSummaries.clear();
   }
