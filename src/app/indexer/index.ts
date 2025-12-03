@@ -220,9 +220,16 @@ export async function indexDirectory(
       await module.initialize(configWithOverrides);
     }
 
+    // Pre-filter files that this module supports
+    const moduleFiles = module.supportsFile
+      ? files.filter((f) => module.supportsFile!(f))
+      : files;
+
+    logger.info(`  Processing ${moduleFiles.length} files...`);
+
     const result = await indexWithModule(
       rootDir,
-      files,
+      moduleFiles,
       module,
       config,
       verbose,

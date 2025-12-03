@@ -80,6 +80,9 @@ export function isTypeScriptFile(filepath: string): boolean {
   return TYPESCRIPT_EXTENSIONS.includes(ext);
 }
 
+// Re-export for module interface
+export const supportsFile = isTypeScriptFile;
+
 /**
  * Calculate boost based on chunk type.
  * Function/class/interface chunks rank higher than generic blocks.
@@ -127,6 +130,10 @@ export class TypeScriptModule implements IndexModule {
   readonly description =
     "TypeScript-aware code search with AST parsing and semantic embeddings";
   readonly version = "1.0.0";
+
+  supportsFile(filepath: string): boolean {
+    return isTypeScriptFile(filepath);
+  }
 
   private embeddingConfig: EmbeddingConfig | null = null;
   private symbolicIndex: SymbolicIndex | null = null;

@@ -127,6 +127,13 @@ export interface IndexModule {
   finalize?(ctx: IndexContext): Promise<void>;
 
   /**
+   * Optional: Check if this module supports a given file.
+   * Used to pre-filter files before indexing to show accurate progress.
+   * If not implemented, all files are passed to indexFile.
+   */
+  supportsFile?(filepath: string): boolean;
+
+  /**
    * Optional: Cleanup resources
    */
   dispose?(): Promise<void>;

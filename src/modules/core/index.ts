@@ -78,6 +78,13 @@ export class CoreModule implements IndexModule {
   readonly description = "Language-agnostic text search with symbol extraction";
   readonly version = "1.0.0";
 
+  /**
+   * Core module accepts all files (it's the fallback).
+   */
+  supportsFile(_filepath: string): boolean {
+    return true;
+  }
+
   private symbolIndex: Map<string, SymbolIndexEntry> = new Map();
   private bm25Index: BM25Index | null = null;
   private rootDir: string = "";

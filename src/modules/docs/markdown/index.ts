@@ -66,6 +66,9 @@ export function isMarkdownFile(filepath: string): boolean {
   return MARKDOWN_EXTENSIONS.includes(ext);
 }
 
+// Re-export for module interface
+export const supportsFile = isMarkdownFile;
+
 /**
  * Represents a parsed section from a Markdown document.
  */
@@ -209,6 +212,10 @@ export class MarkdownModule implements IndexModule {
   readonly description =
     "Markdown documentation search with section-aware indexing";
   readonly version = "1.0.0";
+
+  supportsFile(filepath: string): boolean {
+    return isMarkdownFile(filepath);
+  }
 
   private embeddingConfig: EmbeddingConfig | null = null;
   private symbolicIndex: SymbolicIndex | null = null;

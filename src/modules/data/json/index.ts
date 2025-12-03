@@ -67,6 +67,9 @@ export function isJsonFile(filepath: string): boolean {
   return JSON_EXTENSIONS.includes(ext);
 }
 
+// Re-export for module interface
+export const supportsFile = isJsonFile;
+
 /**
  * Extract all keys from a JSON object recursively.
  */
@@ -141,6 +144,10 @@ export class JsonModule implements IndexModule {
   readonly name = "JSON Search";
   readonly description = "JSON file search with structure-aware indexing";
   readonly version = "1.0.0";
+
+  supportsFile(filepath: string): boolean {
+    return isJsonFile(filepath);
+  }
 
   private embeddingConfig: EmbeddingConfig | null = null;
   private symbolicIndex: SymbolicIndex | null = null;
