@@ -29,6 +29,7 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
   "all-MiniLM-L12-v2": "Xenova/all-MiniLM-L12-v2",
   "bge-small-en-v1.5": "Xenova/bge-small-en-v1.5",
   "paraphrase-MiniLM-L3-v2": "Xenova/paraphrase-MiniLM-L3-v2",
+  "nomic-embed-text-v1.5": "nomic-ai/nomic-embed-text-v1.5",
 };
 
 // ============================================================================
@@ -191,14 +192,14 @@ export function getEmbeddingConfigFromModule(
   moduleConfig: ModuleConfig
 ): EmbeddingConfig {
   const options = moduleConfig.options || {};
-  const modelName = (options.embeddingModel as string) || "all-MiniLM-L6-v2";
+  const modelName = (options.embeddingModel as string) || "bge-small-en-v1.5";
 
   // Validate model name
   if (!(modelName in EMBEDDING_MODELS)) {
     console.warn(
-      `Unknown embedding model: ${modelName}, falling back to all-MiniLM-L6-v2`
+      `Unknown embedding model: ${modelName}, falling back to bge-small-en-v1.5`
     );
-    return { model: "all-MiniLM-L6-v2" };
+    return { model: "bge-small-en-v1.5" };
   }
 
   return {
