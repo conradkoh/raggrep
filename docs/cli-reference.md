@@ -25,12 +25,13 @@ The index is managed automatically:
 
 **Options:**
 
-| Flag              | Short | Description                                  |
-| ----------------- | ----- | -------------------------------------------- |
-| `--top <n>`       | `-k`  | Number of results to return (default: 10)    |
-| `--min-score <n>` | `-s`  | Minimum similarity 0-1 (default: 0.15)       |
-| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js) |
-| `--help`          | `-h`  | Show help message                            |
+| Flag              | Short | Description                                        |
+| ----------------- | ----- | -------------------------------------------------- |
+| `--top <n>`       | `-k`  | Number of results to return (default: 10)          |
+| `--min-score <n>` | `-s`  | Minimum similarity 0-1 (default: 0.15)             |
+| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)       |
+| `--filter <path>` | `-f`  | Filter by path prefix (can be used multiple times) |
+| `--help`          | `-h`  | Show help message                                  |
 
 **Examples:**
 
@@ -47,8 +48,14 @@ raggrep query "database" --min-score 0.1
 # Filter by file type
 raggrep query "interface" --type ts
 
+# Filter by path
+raggrep query "login" --filter src/auth
+
+# Multiple path filters
+raggrep query "api" --filter src/api --filter src/routes
+
 # Combine options
-raggrep query "component" --type tsx --top 5
+raggrep query "component" --type tsx --top 5 --filter src/components
 ```
 
 **Output Format:**
@@ -87,12 +94,13 @@ raggrep index --watch [options]
 
 **Options:**
 
-| Flag             | Short | Description                                          |
-| ---------------- | ----- | ---------------------------------------------------- |
-| `--watch`        | `-w`  | Watch for file changes (required for watch mode)     |
-| `--model <name>` | `-m`  | Embedding model to use (default: `all-MiniLM-L6-v2`) |
-| `--verbose`      | `-v`  | Show detailed progress for each file                 |
-| `--help`         | `-h`  | Show help message                                    |
+| Flag                | Short | Description                                             |
+| ------------------- | ----- | ------------------------------------------------------- |
+| `--watch`           | `-w`  | Watch for file changes (required for watch mode)        |
+| `--model <name>`    | `-m`  | Embedding model to use (default: `bge-small-en-v1.5`)   |
+| `--concurrency <n>` | `-c`  | Number of parallel workers (default: auto based on CPU) |
+| `--verbose`         | `-v`  | Show detailed progress for each file                    |
+| `--help`            | `-h`  | Show help message                                       |
 
 **Examples:**
 
@@ -104,7 +112,10 @@ raggrep index --watch
 raggrep index --watch --verbose
 
 # Watch with different model
-raggrep index --watch --model bge-small-en-v1.5
+raggrep index --watch --model nomic-embed-text-v1.5
+
+# Watch with custom concurrency
+raggrep index --watch --concurrency 8
 ```
 
 **Watch Mode Output:**
@@ -186,21 +197,23 @@ raggrep index [options]
 
 **Options:**
 
-| Flag             | Short | Description                                          |
-| ---------------- | ----- | ---------------------------------------------------- |
-| `--watch`        | `-w`  | Watch for file changes and re-index automatically    |
-| `--model <name>` | `-m`  | Embedding model to use (default: `all-MiniLM-L6-v2`) |
-| `--verbose`      | `-v`  | Show detailed progress for each file                 |
-| `--help`         | `-h`  | Show help message                                    |
+| Flag                | Short | Description                                             |
+| ------------------- | ----- | ------------------------------------------------------- |
+| `--watch`           | `-w`  | Watch for file changes and re-index automatically       |
+| `--model <name>`    | `-m`  | Embedding model to use (default: `bge-small-en-v1.5`)   |
+| `--concurrency <n>` | `-c`  | Number of parallel workers (default: auto based on CPU) |
+| `--verbose`         | `-v`  | Show detailed progress for each file                    |
+| `--help`            | `-h`  | Show help message                                       |
 
 **Available Models:**
 
-| Model                     | Size  | Notes                 |
-| ------------------------- | ----- | --------------------- |
-| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
-| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
-| `bge-small-en-v1.5`       | ~33MB | Good for code         |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
+| Model                     | Dimensions | Size   | Notes                              |
+| ------------------------- | ---------- | ------ | ---------------------------------- |
+| `bge-small-en-v1.5`       | 384        | ~33MB  | **Default**, best balance for code |
+| `nomic-embed-text-v1.5`   | 768        | ~270MB | Higher quality, larger             |
+| `all-MiniLM-L6-v2`        | 384        | ~23MB  | Fast, good general purpose         |
+| `all-MiniLM-L12-v2`       | 384        | ~33MB  | Higher quality than L6             |
+| `paraphrase-MiniLM-L3-v2` | 384        | ~17MB  | Fastest, lower quality             |
 
 **Examples:**
 
@@ -209,7 +222,10 @@ raggrep index [options]
 raggrep index
 
 # Use a different model
-raggrep index --model bge-small-en-v1.5
+raggrep index --model nomic-embed-text-v1.5
+
+# Set concurrency
+raggrep index --concurrency 8
 
 # Verbose output
 raggrep index --verbose
@@ -217,27 +233,27 @@ raggrep index --verbose
 
 ---
 
-### `raggrep cleanup`
+### `raggrep reset`
 
-Remove stale index entries for deleted files. Usually not needed since `raggrep query` handles this automatically.
+Clear the index for the current directory.
 
 ```bash
-raggrep cleanup [options]
+raggrep reset [options]
 ```
 
 **Options:**
 
-| Flag        | Short | Description            |
-| ----------- | ----- | ---------------------- |
-| `--verbose` | `-v`  | Show detailed progress |
-| `--help`    | `-h`  | Show help message      |
+| Flag     | Short | Description       |
+| -------- | ----- | ----------------- |
+| `--help` | `-h`  | Show help message |
 
 **Examples:**
 
 ```bash
-raggrep cleanup
-raggrep cleanup --verbose
+raggrep reset
 ```
+
+This completely removes the index. The next `raggrep index` or `raggrep query` will rebuild from scratch.
 
 ---
 

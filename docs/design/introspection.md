@@ -2,7 +2,7 @@
 
 > **Status**: Implemented (Clean Architecture)  
 > **Created**: 2025-11-28  
-> **Last Updated**: 2025-11-28
+> **Last Updated**: 2025-12-03
 
 ## Implementation Status
 
@@ -20,6 +20,7 @@
 | Framework Detection   | ✅ Implemented | Next.js, Convex conventions                |
 | Language Conventions  | ✅ Implemented | Go, Python entry points and config files   |
 | Contribution Tracking | ✅ Implemented | Module attribution shown in search results |
+| Embedding Models      | ✅ Implemented | bge-small (default), nomic-embed-text      |
 
 ## Overview
 
@@ -49,7 +50,7 @@ The same file name means different things based on where it lives:
 - No separation between fast/simple and slow/deep indexing
 - Hard to add new language support
 
-## Proposed Architecture
+## Architecture
 
 ### 3-Layer Design
 
@@ -89,7 +90,7 @@ The same file name means different things based on where it lives:
 ### Folder Structure
 
 ```
-.raggrep/
+/tmp/raggrep-indexes/<hash>/
 ├── config.json
 ├── manifest.json
 │
@@ -158,7 +159,7 @@ Auto-detect monorepo patterns:
 
 ### Configuration Override
 
-Users can override auto-detection in `.raggrep/config.json`:
+Users can override auto-detection in config.json:
 
 ```json
 {
@@ -236,6 +237,18 @@ Deep, language-specific analysis with semantic understanding.
 - **Export/import tracking** - module relationships
 - **JSDoc extraction** - documentation context
 
+### Embedding Models
+
+The TypeScript module supports multiple embedding models:
+
+| Model                     | Dimensions | Size   | Notes                              |
+| ------------------------- | ---------- | ------ | ---------------------------------- |
+| `bge-small-en-v1.5`       | 384        | ~33MB  | **Default**, best balance for code |
+| `nomic-embed-text-v1.5`   | 768        | ~270MB | Higher quality, larger             |
+| `all-MiniLM-L6-v2`        | 384        | ~23MB  | Fast, good general purpose         |
+| `all-MiniLM-L12-v2`       | 384        | ~33MB  | Higher quality than L6             |
+| `paraphrase-MiniLM-L3-v2` | 384        | ~17MB  | Fastest, lower quality             |
+
 ### Future Language Support
 
 The architecture supports adding:
@@ -250,6 +263,7 @@ Each language module implements the same interface:
 interface LanguageModule {
   id: string; // "typescript"
   extensions: string[]; // [".ts", ".tsx"]
+  version: string; // "1.0.0"
 
   indexFile(filepath: string, content: string): Promise<LanguageIndexEntry>;
   search(query: string, options: SearchOptions): Promise<SearchResult[]>;
@@ -363,8 +377,8 @@ function calculateContextBoost(
 ### Phase 1: Restructure ✅ Complete
 
 1. ✅ Reorganized folder structure:
-   - `.raggrep/index/core/`
-   - `.raggrep/index/language/typescript/`
+   - `index/core/`
+   - `index/language/typescript/`
 2. ✅ Updated module paths and references
 3. ✅ Maintained backward compatibility
 
@@ -375,14 +389,14 @@ function calculateContextBoost(
 3. ✅ Added line-based chunking with overlap
 4. ✅ Both modules run during indexing, results merged at search
 
-### Phase 3: Introspection Layer ✅ Partial
+### Phase 3: Introspection Layer ✅ Complete
 
 1. ✅ Created `introspection/` folder structure
 2. ✅ Implemented project/monorepo detection
 3. ✅ Implemented path context extraction (layer, domain, segments)
 4. ✅ Connected to search boosting in TypeScript module
-5. ❌ Framework detection (nextjs, express, etc.)
-6. ❌ Scope classification (frontend, backend, shared)
+5. ✅ Framework detection (Next.js, Convex, etc.)
+6. ✅ Language conventions (Go, Python entry points)
 
 ### Phase 4: Contribution Tracking ✅ Complete
 
@@ -390,7 +404,14 @@ function calculateContextBoost(
 2. ✅ Search results display which module contributed each result (e.g., "via TypeScript", "via Core")
 3. ✅ Internal score tracking in `context` field for debugging (semanticScore, bm25Score, pathBoost)
 
-### Phase 5: Learning & Tuning ❌ Not Started
+### Phase 5: Embedding Model Improvements ✅ Complete
+
+1. ✅ Changed default model from `all-MiniLM-L6-v2` to `bge-small-en-v1.5` (~10% better on MTEB)
+2. ✅ Added `nomic-embed-text-v1.5` (768 dimensions) for higher quality
+3. ✅ Dynamic dimension support per model
+4. ✅ Index schema version bump (1.0.0 → 1.1.0) to invalidate old indexes
+
+### Phase 6: Learning & Tuning ❌ Not Started
 
 1. Collect contribution data over time
 2. Analyze which indexes/boosts are most effective

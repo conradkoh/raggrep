@@ -33,7 +33,7 @@ npm link
 ## Requirements
 
 - **Node.js 18+** or **Bun 1.0+**
-- ~50MB disk space for embedding models (cached globally at `~/.cache/raggrep/models/`)
+- ~50-130MB disk space for embedding models (cached globally at `~/.cache/raggrep/models/`)
 
 ## Your First Search
 
@@ -49,15 +49,12 @@ npm link
    raggrep query "handle user login"
    ```
 
-That's it! The index is created automatically on first query. On first run, the embedding model (~23MB) will be downloaded and cached.
+That's it! The index is created automatically on first query. On first run, the embedding model (~33MB for the default `bge-small-en-v1.5`) will be downloaded and cached.
 
 ## Example Output
 
 ```
-Index updated: 42 indexed
-
-RAGgrep Search
-==============
+Using cached index (no changes detected).
 
 Searching for: "handle user login"
 
@@ -161,7 +158,7 @@ These directories are automatically skipped:
 | Python        | `__pycache__`, `.venv`, `venv`                     |
 | Other         | `.git`, `.idea`                                    |
 
-See [Advanced](./advanced.md) to customize.
+See [Configuration](./configuration.md) to customize.
 
 ## Index Storage
 
@@ -181,5 +178,6 @@ Use `raggrep status` to see the exact location for your project.
 
 - [CLI Reference](./cli-reference.md) — All commands and options
 - [SDK Reference](./sdk.md) — Use RAGgrep programmatically
-- [Advanced](./advanced.md) — Configuration and maintenance
+- [Configuration](./configuration.md) — Configuration options
+- [Advanced](./advanced.md) — Maintenance and advanced features
 - [Architecture](./architecture.md) — How RAGgrep works internally

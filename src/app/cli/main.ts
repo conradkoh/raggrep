@@ -167,7 +167,7 @@ Usage:
 
 Options:
   -w, --watch              Watch for file changes and re-index automatically
-  -m, --model <name>       Embedding model to use (default: all-MiniLM-L6-v2)
+  -m, --model <name>       Embedding model to use (default: bge-small-en-v1.5)
   -c, --concurrency <n>    Number of files to process in parallel (default: auto)
   -v, --verbose            Show detailed progress
   -h, --help               Show this help message

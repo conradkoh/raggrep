@@ -2,7 +2,7 @@
 
 RAGgrep works out of the box with sensible defaults. Configuration is optional.
 
-> **Note:** For detailed configuration options, see [Advanced](./advanced.md).
+> **Note:** For detailed maintenance commands and advanced options, see [Advanced](./advanced.md).
 
 ## Default Behavior
 
@@ -10,24 +10,25 @@ Without any configuration, RAGgrep:
 
 - **Indexes:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`, `.txt`
 - **Ignores:** `node_modules`, `dist`, `build`, `.git`, `.next`, `.nuxt`, `__pycache__`, `venv`, etc.
-- **Uses model:** `all-MiniLM-L6-v2` (~23MB)
+- **Uses model:** `bge-small-en-v1.5` (~33MB, 384 dimensions)
 
 ## Quick Configuration
 
 ### Change Embedding Model
 
 ```bash
-raggrep index --model bge-small-en-v1.5
+raggrep index --model nomic-embed-text-v1.5
 ```
 
 Available models:
 
-| Model                     | Size  | Notes                 |
-| ------------------------- | ----- | --------------------- |
-| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
-| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
-| `bge-small-en-v1.5`       | ~33MB | Good for code         |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
+| Model                     | Dimensions | Size   | Notes                              |
+| ------------------------- | ---------- | ------ | ---------------------------------- |
+| `bge-small-en-v1.5`       | 384        | ~33MB  | **Default**, best balance for code |
+| `nomic-embed-text-v1.5`   | 768        | ~270MB | Higher quality, larger             |
+| `all-MiniLM-L6-v2`        | 384        | ~23MB  | Fast, good general purpose         |
+| `all-MiniLM-L12-v2`       | 384        | ~33MB  | Higher quality than L6             |
+| `paraphrase-MiniLM-L3-v2` | 384        | ~17MB  | Fastest, lower quality             |
 
 ### Configuration File
 
@@ -86,7 +87,7 @@ Enable/disable modules or change settings.
     {
       "id": "language/typescript",
       "enabled": true,
-      "options": { "embeddingModel": "all-MiniLM-L6-v2" }
+      "options": { "embeddingModel": "bge-small-en-v1.5" }
     }
   ]
 }

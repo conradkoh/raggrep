@@ -35,6 +35,7 @@ Index a directory for semantic search.
 const results = await raggrep.index("./my-project", {
   model: "bge-small-en-v1.5", // Optional: embedding model
   verbose: true, // Optional: show progress
+  concurrency: 8, // Optional: parallel workers
 });
 
 // Results per module
@@ -45,11 +46,12 @@ for (const result of results) {
 
 **Parameters:**
 
-| Parameter         | Type      | Default              | Description                |
-| ----------------- | --------- | -------------------- | -------------------------- |
-| `directory`       | `string`  | required             | Path to directory to index |
-| `options.model`   | `string`  | `"all-MiniLM-L6-v2"` | Embedding model to use     |
-| `options.verbose` | `boolean` | `false`              | Show detailed progress     |
+| Parameter             | Type      | Default               | Description                |
+| --------------------- | --------- | --------------------- | -------------------------- |
+| `directory`           | `string`  | required              | Path to directory to index |
+| `options.model`       | `string`  | `"bge-small-en-v1.5"` | Embedding model to use     |
+| `options.verbose`     | `boolean` | `false`               | Show detailed progress     |
+| `options.concurrency` | `number`  | auto (CPU cores)      | Number of parallel workers |
 
 **Returns:** `Promise<IndexResult[]>`
 
@@ -71,6 +73,7 @@ const results = await raggrep.search("./my-project", "user login", {
   topK: 5, // Number of results
   minScore: 0.2, // Minimum similarity (0-1)
   filePatterns: ["*.ts", "*.tsx"], // Filter by file type
+  pathFilter: ["src/auth"], // Filter by path prefix
 });
 
 for (const result of results) {
@@ -82,13 +85,15 @@ for (const result of results) {
 
 **Parameters:**
 
-| Parameter              | Type       | Default  | Description                   |
-| ---------------------- | ---------- | -------- | ----------------------------- |
-| `directory`            | `string`   | required | Path to indexed directory     |
-| `query`                | `string`   | required | Natural language search query |
-| `options.topK`         | `number`   | `10`     | Number of results to return   |
-| `options.minScore`     | `number`   | `0.15`   | Minimum similarity threshold  |
-| `options.filePatterns` | `string[]` | all      | File patterns to filter       |
+| Parameter              | Type       | Default  | Description                     |
+| ---------------------- | ---------- | -------- | ------------------------------- |
+| `directory`            | `string`   | required | Path to indexed directory       |
+| `query`                | `string`   | required | Natural language search query   |
+| `options.topK`         | `number`   | `10`     | Number of results to return     |
+| `options.minScore`     | `number`   | `0.15`   | Minimum similarity threshold    |
+| `options.filePatterns` | `string[]` | all      | File patterns to filter         |
+| `options.pathFilter`   | `string[]` | all      | Path prefixes to filter         |
+| `options.ensureFresh`  | `boolean`  | `true`   | Auto-update index before search |
 
 **Returns:** `Promise<SearchResult[]>`
 
@@ -191,7 +196,13 @@ await raggrep.index(PROJECT_DIR);
 
 app.get("/search", async (req, res) => {
   const query = req.query.q as string;
-  const results = await raggrep.search(PROJECT_DIR, query, { topK: 20 });
+  const path = req.query.path as string | undefined;
+
+  const results = await raggrep.search(PROJECT_DIR, query, {
+    topK: 20,
+    pathFilter: path ? [path] : undefined,
+  });
+
   res.json(results);
 });
 
@@ -217,10 +228,11 @@ if (totalIndexed > 0) {
 ```typescript
 import raggrep from "raggrep";
 
-async function searchCode(query: string) {
+async function searchCode(query: string, pathFilter?: string) {
   const results = await raggrep.search(".", query, {
     topK: 10,
     minScore: 0.15,
+    pathFilter: pathFilter ? [pathFilter] : undefined,
   });
 
   return results.map((r) => ({
@@ -234,10 +246,26 @@ async function searchCode(query: string) {
 }
 ```
 
+### Use Higher-Quality Model
+
+```typescript
+import raggrep from "raggrep";
+
+// Index with nomic-embed-text-v1.5 (768 dimensions)
+await raggrep.index("./my-project", {
+  model: "nomic-embed-text-v1.5",
+  verbose: true,
+});
+
+// Search works the same
+const results = await raggrep.search("./my-project", "authentication");
+```
+
 ## Notes
 
 - The SDK uses the same indexing logic as the CLI
 - Index is stored in a system temp directory (not in your project)
 - First search may take longer as the index is created
 - Subsequent searches are fast if files haven't changed
-
+- Default model is `bge-small-en-v1.5` (384 dimensions, ~33MB)
+- For higher quality, use `nomic-embed-text-v1.5` (768 dimensions, ~270MB)

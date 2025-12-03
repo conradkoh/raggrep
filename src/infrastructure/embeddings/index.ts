@@ -19,4 +19,3 @@ export {
   getEmbedding,
   getEmbeddings,
 } from "./transformersEmbedding";
-

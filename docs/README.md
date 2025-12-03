@@ -7,7 +7,8 @@ RAGgrep is a **local semantic search tool** for codebases. It indexes your code 
 - [Getting Started](./getting-started.md) — Installation and first steps
 - [CLI Reference](./cli-reference.md) — All commands and options
 - [SDK Reference](./sdk.md) — Programmatic API for Node.js/Bun
-- [Advanced](./advanced.md) — Configuration and maintenance
+- [Configuration](./configuration.md) — Configuration options
+- [Advanced](./advanced.md) — Maintenance and advanced features
 - [Architecture](./architecture.md) — How RAGgrep works internally
 
 ## Quick Start
@@ -31,8 +32,9 @@ That's it. No separate index command needed — the index is created and maintai
 | **Local-first**        | All processing happens locally. No external API calls.      |
 | **Incremental**        | Only re-indexes files that have changed.                    |
 | **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`. |
-| **Hybrid scoring**     | Combines semantic similarity with keyword matching.         |
+| **Hybrid scoring**     | Combines semantic similarity with keyword matching (BM25).  |
 | **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.  |
+| **Path filtering**     | Filter results by path with `--filter src/auth`.            |
 
 ## How Auto-Indexing Works
 

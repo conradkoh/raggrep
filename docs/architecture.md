@@ -88,7 +88,7 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 │              Only loaded for candidate files                    │
 │                                                                 │
 │  src/auth/authService.json  ← loaded on demand                  │
-│  (chunks + 384-dim embeddings)                                  │
+│  (chunks + 384/768-dim embeddings)                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -107,13 +107,13 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 
 ```
 1. CLI parses arguments
-2. Load config from .raggrep/config.json (or use defaults)
+2. Load config from index directory (or use defaults)
 3. Find all matching files (respecting ignore patterns)
-4. For each file:
+4. For each file (in parallel):
    a. Parse into chunks (functions, classes, etc.)
    b. Generate embeddings for each chunk
    c. Extract keywords for symbolic index
-   d. Write per-file index to .raggrep/index/<module>/
+   d. Write per-file index to index/<module>/
 5. Build and persist BM25 index
 6. Update manifests
 ```
@@ -252,7 +252,7 @@ RAGgrep extracts structural information from file paths to improve search releva
   ],
   "moduleData": {
     "embeddings": [[0.123, -0.456, ...]],
-    "embeddingModel": "all-MiniLM-L6-v2"
+    "embeddingModel": "bge-small-en-v1.5"
   },
   "references": ["./session", "../users/types"]
 }
@@ -350,6 +350,7 @@ The conventions module provides semantic keyword extraction for special file pat
 interface IndexModule {
   id: string;
   name: string;
+  version: string;
 
   initialize?(config: ModuleConfig): Promise<void>;
   indexFile(
@@ -370,22 +371,23 @@ interface IndexModule {
 
 RAGgrep uses [Transformers.js](https://huggingface.co/docs/transformers.js) for local embeddings.
 
-**Default Model:** `all-MiniLM-L6-v2`
+**Default Model:** `bge-small-en-v1.5`
 
 | Property       | Value                      |
 | -------------- | -------------------------- |
 | Dimensions     | 384                        |
-| Download size  | ~23MB                      |
+| Download size  | ~33MB                      |
 | Cache location | `~/.cache/raggrep/models/` |
 
 **Available Models:**
 
-| Model                     | Size  | Notes                 |
-| ------------------------- | ----- | --------------------- |
-| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
-| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
-| `bge-small-en-v1.5`       | ~33MB | Good for code         |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
+| Model                     | Dimensions | Size   | Notes                              |
+| ------------------------- | ---------- | ------ | ---------------------------------- |
+| `bge-small-en-v1.5`       | 384        | ~33MB  | **Default**, best balance for code |
+| `nomic-embed-text-v1.5`   | 768        | ~270MB | Higher quality, larger             |
+| `all-MiniLM-L6-v2`        | 384        | ~23MB  | Fast, good general purpose         |
+| `all-MiniLM-L12-v2`       | 384        | ~33MB  | Higher quality than L6             |
+| `paraphrase-MiniLM-L3-v2` | 384        | ~17MB  | Fastest, lower quality             |
 
 ## Chunk Types
 
@@ -439,7 +441,7 @@ The TypeScript module uses the TypeScript Compiler API for AST-based parsing.
 - **Speed**: No network latency for embedding calls
 - **Cost**: No API fees
 
-Trade-off: Local models are smaller than cloud models (384 vs 1536+ dimensions), but sufficient for code search.
+Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensions), but sufficient for code search.
 
 ## Future Enhancements
 
@@ -448,13 +450,16 @@ Trade-off: Local models are smaller than cloud models (384 vs 1536+ dimensions),
 - [x] **Watch mode**: Real-time index updates on file changes (`raggrep index --watch`)
 - [x] **Core module**: Language-agnostic symbol extraction with BM25
 - [x] **Introspection**: Basic path context and project detection
+- [x] **Framework detection**: Next.js, Convex conventions
+- [x] **Path filtering**: Filter search results by path prefix
+- [x] **Improved embedding model**: Changed default to `bge-small-en-v1.5`
+- [x] **Higher-quality model option**: Added `nomic-embed-text-v1.5` (768 dimensions)
 
 ### Planned
 
 - [ ] **Cross-reference boosting**: Boost files imported by matched results
-- [ ] **Code-aware embeddings**: Use `codebert` or similar for better code understanding
+- [ ] **Code-aware embeddings**: Use code-specific models like `CodeRankEmbed`
 - [ ] **Pre-commit hook**: Auto-index changed files before commit
-- [ ] **Enhanced introspection**: Framework detection, scope classification
 
 ### Possible Extensions
 

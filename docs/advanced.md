@@ -43,14 +43,15 @@ raggrep status
   Run "raggrep query" to create an index.
 ```
 
-### `raggrep cleanup`
+### `raggrep reset`
 
-Manually remove stale index entries. Usually not needed since `raggrep query` handles this automatically.
+Clear the index for the current directory.
 
 ```bash
-raggrep cleanup           # Clean up stale entries
-raggrep cleanup --verbose # Show what's being removed
+raggrep reset
 ```
+
+This completely removes the index. The next `raggrep index` or `raggrep query` will rebuild from scratch.
 
 ### `raggrep index`
 
@@ -59,7 +60,8 @@ Explicitly index the directory. Usually not needed since `raggrep query` auto-in
 ```bash
 raggrep index             # Index current directory
 raggrep index --verbose   # Show detailed progress
-raggrep index --model bge-small-en-v1.5  # Use different model
+raggrep index --model nomic-embed-text-v1.5  # Use different model
+raggrep index --concurrency 8  # Set parallel workers
 ```
 
 ## Configuration
@@ -111,7 +113,7 @@ raggrep status
     {
       "id": "language/typescript",
       "enabled": true,
-      "options": { "embeddingModel": "all-MiniLM-L6-v2" }
+      "options": { "embeddingModel": "bge-small-en-v1.5" }
     }
   ]
 }
@@ -158,7 +160,7 @@ Enable/disable index modules or change their settings.
       "id": "language/typescript",
       "enabled": true,
       "options": {
-        "embeddingModel": "bge-small-en-v1.5" // Different model
+        "embeddingModel": "nomic-embed-text-v1.5" // Different model
       }
     }
   ]
@@ -167,17 +169,18 @@ Enable/disable index modules or change their settings.
 
 ### Available Embedding Models
 
-| Model                     | Size  | Notes                 |
-| ------------------------- | ----- | --------------------- |
-| `all-MiniLM-L6-v2`        | ~23MB | Default, good balance |
-| `all-MiniLM-L12-v2`       | ~33MB | Higher quality        |
-| `bge-small-en-v1.5`       | ~33MB | Good for code         |
-| `paraphrase-MiniLM-L3-v2` | ~17MB | Fastest               |
+| Model                     | Dimensions | Size   | Notes                              |
+| ------------------------- | ---------- | ------ | ---------------------------------- |
+| `bge-small-en-v1.5`       | 384        | ~33MB  | **Default**, best balance for code |
+| `nomic-embed-text-v1.5`   | 768        | ~270MB | Higher quality, larger             |
+| `all-MiniLM-L6-v2`        | 384        | ~23MB  | Fast, good general purpose         |
+| `all-MiniLM-L12-v2`       | 384        | ~33MB  | Higher quality than L6             |
+| `paraphrase-MiniLM-L3-v2` | 384        | ~17MB  | Fastest, lower quality             |
 
 Override via CLI:
 
 ```bash
-raggrep index --model bge-small-en-v1.5
+raggrep index --model nomic-embed-text-v1.5
 ```
 
 ## Index Storage
@@ -219,6 +222,8 @@ RAGgrep automatically detects incompatible indexes from older versions and rebui
 Index version incompatible. Rebuilding...
 ```
 
+The current index schema version is `1.1.0`.
+
 ## Search Options
 
 ### Limit Results
@@ -241,6 +246,13 @@ Default is `0.15`. Lower values return more (potentially less relevant) results.
 ```bash
 raggrep query "interface" --type ts    # Only .ts files
 raggrep query "component" --type tsx   # Only .tsx files
+```
+
+### Filter by Path
+
+```bash
+raggrep query "login" --filter src/auth           # Only src/auth/
+raggrep query "api" --filter src/api --filter src/routes  # Multiple paths
 ```
 
 ## How Auto-Indexing Works
@@ -288,8 +300,15 @@ rm -rf ~/.cache/raggrep/models
    ```
 
 3. **Ignore test/generated files**:
+
    ```json
    { "ignorePaths": ["__tests__", "generated", "*.test.ts"] }
+   ```
+
+4. **Increase concurrency** on machines with many cores:
+
+   ```bash
+   raggrep index --concurrency 16
    ```
 
 ### Expected Performance
@@ -300,4 +319,3 @@ rm -rf ~/.cache/raggrep/models
 | Incremental update       | <2s        | Only changed files       |
 | Search (cached)          | ~100-500ms | Depends on codebase size |
 | Search (with updates)    | +1-2s      | Per changed file         |
-
