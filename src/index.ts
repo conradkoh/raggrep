@@ -7,30 +7,76 @@
  * ```ts
  * import raggrep from 'raggrep';
  *
- * // Index a directory
+ * // Index a directory (automatically cleans up deleted files)
  * await raggrep.index('/path/to/project');
  *
  * // Search the index
  * const results = await raggrep.search('/path/to/project', 'user authentication');
  *
- * // Clean up stale entries
- * await raggrep.cleanup('/path/to/project');
+ * // Reset (clear) the index completely
+ * await raggrep.reset('/path/to/project');
+ * ```
+ *
+ * @example With custom logger
+ * ```ts
+ * import raggrep, { createLogger, createInlineLogger } from 'raggrep';
+ *
+ * // Create a logger (defaults to console)
+ * const logger = createLogger({ verbose: true });
+ *
+ * // Or use inline logger for CLI-style progress
+ * const inlineLogger = createInlineLogger({ verbose: false });
+ *
+ * await raggrep.index('/path/to/project', { logger: inlineLogger });
  * ```
  */
 
-import { indexDirectory, cleanupIndex } from "./app/indexer";
-import type { IndexResult, IndexOptions, CleanupResult } from "./app/indexer";
+import { indexDirectory, cleanupIndex, resetIndex } from "./app/indexer";
+import type {
+  IndexResult,
+  IndexOptions,
+  CleanupResult,
+  CleanupOptions,
+  ResetResult,
+} from "./app/indexer";
 import { search as searchIndex, formatSearchResults } from "./app/search";
 import type { SearchOptions, SearchResult } from "./types";
+import type { Logger, LoggerFactory } from "./domain/ports";
+import {
+  ConsoleLogger,
+  InlineProgressLogger,
+  SilentLogger,
+  createLogger,
+  createInlineLogger,
+  createSilentLogger,
+} from "./infrastructure/logger";
 
 // Re-export types
-export type { IndexResult, IndexOptions, CleanupResult } from "./app/indexer";
+export type {
+  IndexResult,
+  IndexOptions,
+  CleanupResult,
+  CleanupOptions,
+  ResetResult,
+} from "./app/indexer";
 export type { SearchOptions, SearchResult, Chunk, FileIndex } from "./types";
+export type { Logger, LoggerFactory } from "./domain/ports";
+
+// Re-export logger implementations and factories
+export {
+  ConsoleLogger,
+  InlineProgressLogger,
+  SilentLogger,
+  createLogger,
+  createInlineLogger,
+  createSilentLogger,
+};
 
 /**
  * Index a directory for semantic search.
  *
  * Creates a `.raggrep/` folder with the index data.
+ * Automatically cleans up stale entries for deleted files.
  *
  * @param directory - Path to the directory to index
  * @param options - Index options
@@ -87,6 +133,9 @@ export async function search(
 /**
  * Clean up stale index entries for files that no longer exist.
  *
+ * Note: Cleanup is now automatic during indexing. This function is provided
+ * for explicit cleanup without re-indexing.
+ *
  * @param directory - Path to the indexed directory
  * @param options - Cleanup options
  * @returns Array of cleanup results per module
@@ -99,9 +148,30 @@ export async function search(
  */
 export async function cleanup(
   directory: string,
-  options: { verbose?: boolean } = {}
+  options: CleanupOptions = {}
 ): Promise<CleanupResult[]> {
   return cleanupIndex(directory, options);
+}
+
+/**
+ * Reset (completely clear) the index for a directory.
+ *
+ * @param directory - Path to the indexed directory
+ * @returns Result with success status and removed index path
+ * @throws Error if no index exists for the directory
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await raggrep.reset('./my-project');
+ *   console.log(`Cleared index at: ${result.indexDir}`);
+ * } catch (error) {
+ *   console.error('No index found');
+ * }
+ * ```
+ */
+export async function reset(directory: string): Promise<ResetResult> {
+  return resetIndex(directory);
 }
 
 /**
@@ -117,6 +187,7 @@ const raggrep = {
   index,
   search,
   cleanup,
+  reset,
   formatSearchResults,
 };
 

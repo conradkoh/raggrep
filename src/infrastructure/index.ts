@@ -33,3 +33,12 @@ export {
   getEmbeddingConfigFromModule,
 } from "./config";
 
+// Logger
+export {
+  ConsoleLogger,
+  InlineProgressLogger,
+  SilentLogger,
+  createLogger,
+  createInlineLogger,
+  createSilentLogger,
+} from "./logger";

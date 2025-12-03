@@ -1,6 +1,10 @@
 // Main CLI entry point for raggrep
 
 import { EMBEDDING_MODELS, getCacheDir } from "../../infrastructure/embeddings";
+import {
+  createInlineLogger,
+  createSilentLogger,
+} from "../../infrastructure/logger";
 import type { EmbeddingModelName } from "../../domain/ports";
 // @ts-ignore - JSON import inlined by Bun at build time
 import pkg from "../../../package.json";
@@ -158,6 +162,9 @@ Examples:
 
       const { indexDirectory, watchDirectory } = await import("../indexer");
 
+      // Create inline logger for CLI (progress replaces current line)
+      const logger = createInlineLogger({ verbose: flags.verbose });
+
       // Initial indexing
       console.log("RAGgrep Indexer");
       console.log("================\n");
@@ -165,6 +172,7 @@ Examples:
         const results = await indexDirectory(process.cwd(), {
           model: flags.model,
           verbose: flags.verbose,
+          logger,
         });
         console.log("\n================");
         console.log("Summary:");
@@ -259,10 +267,14 @@ Examples:
       }
 
       try {
+        // Create silent logger for background indexing during query
+        const silentLogger = createSilentLogger();
+
         // Ensure index is fresh (creates if needed, updates if changed)
         const freshStats = await ensureIndexFresh(process.cwd(), {
           model: flags.model,
           quiet: true, // Suppress detailed indexing output
+          logger: silentLogger,
         });
 
         console.log("RAGgrep Search");
@@ -302,45 +314,42 @@ Examples:
       break;
     }
 
-    case "cleanup": {
+    case "reset": {
       if (flags.help) {
         console.log(`
-raggrep cleanup - Remove stale index entries for deleted files
+raggrep reset - Clear the index for the current directory
 
 Usage:
-  raggrep cleanup [options]
+  raggrep reset [options]
 
 Options:
-  -v, --verbose        Show detailed progress
   -h, --help           Show this help message
 
 Description:
-  Scans the index and removes entries for files that no longer exist.
-  Run this command after deleting files to clean up the index.
+  Completely removes the index for the current directory.
+  The next 'raggrep index' or 'raggrep query' will rebuild from scratch.
 
 Examples:
-  raggrep cleanup
-  raggrep cleanup --verbose
+  raggrep reset
 `);
         process.exit(0);
       }
 
-      const { cleanupIndex } = await import("../indexer");
-      console.log("RAGgrep Cleanup");
-      console.log("===============\n");
+      const { resetIndex } = await import("../indexer");
+
       try {
-        const results = await cleanupIndex(process.cwd(), {
-          verbose: flags.verbose,
-        });
-        console.log("\n===============");
-        console.log("Summary:");
-        for (const result of results) {
-          console.log(
-            `  ${result.moduleId}: ${result.removed} removed, ${result.kept} kept`
-          );
-        }
+        const result = await resetIndex(process.cwd());
+        console.log("Index cleared successfully.");
+        console.log(`  Removed: ${result.indexDir}`);
       } catch (error) {
-        console.error("Error during cleanup:", error);
+        if (
+          error instanceof Error &&
+          error.message.includes("No index found")
+        ) {
+          console.error("Error: No index found for this directory.");
+          process.exit(1);
+        }
+        console.error("Error during reset:", error);
         process.exit(1);
       }
       break;
@@ -424,7 +433,7 @@ Commands:
   index    Index the current directory
   query    Search the indexed codebase
   status   Show the current state of the index
-  cleanup  Remove stale index entries for deleted files
+  reset    Clear the index for the current directory
 
 Options:
   -h, --help     Show help for a command
@@ -434,7 +443,7 @@ Examples:
   raggrep index
   raggrep query "user login"
   raggrep status
-  raggrep cleanup
+  raggrep reset
 
 Run 'raggrep <command> --help' for more information.
 `);

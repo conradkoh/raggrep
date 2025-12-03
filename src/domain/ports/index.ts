@@ -6,8 +6,12 @@
  */
 
 export type { FileSystem, FileStats } from "./filesystem";
-export type { EmbeddingProvider, EmbeddingConfig, EmbeddingModelName } from "./embedding";
+export type {
+  EmbeddingProvider,
+  EmbeddingConfig,
+  EmbeddingModelName,
+} from "./embedding";
 export type { IndexStorage } from "./storage";
+export type { Logger, ProgressInfo, LoggerFactory } from "./logger";
 
 // Note: cosineSimilarity has moved to domain/services/similarity.ts
-

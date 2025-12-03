@@ -21,8 +21,9 @@ import {
   getRaggrepDir,
 } from "../../infrastructure/config";
 import { registry, registerBuiltInModules } from "../../modules/registry";
-import type { EmbeddingModelName } from "../../domain/ports";
+import type { EmbeddingModelName, Logger } from "../../domain/ports";
 import { IntrospectionIndex } from "../../infrastructure/introspection";
+import { createLogger, createSilentLogger } from "../../infrastructure/logger";
 
 /**
  * Current index schema version.
@@ -45,6 +46,8 @@ export interface IndexOptions {
   verbose?: boolean;
   /** Suppress most output (for use during query) */
   quiet?: boolean;
+  /** Logger for progress reporting. If not provided, uses console by default (quiet mode uses silent logger) */
+  logger?: Logger;
 }
 
 export interface EnsureFreshResult {
@@ -93,15 +96,20 @@ export async function indexDirectory(
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
 
+  // Create logger based on options
+  const logger: Logger = options.logger
+    ? options.logger
+    : quiet
+    ? createSilentLogger()
+    : createLogger({ verbose });
+
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
 
   // Show index location
   const location = getIndexLocation(rootDir);
-  if (!quiet) {
-    console.log(`Indexing directory: ${rootDir}`);
-    console.log(`Index location: ${location.indexDir}`);
-  }
+  logger.info(`Indexing directory: ${rootDir}`);
+  logger.info(`Index location: ${location.indexDir}`);
 
   // Load config
   const config = await loadConfig(rootDir);
@@ -109,13 +117,11 @@ export async function indexDirectory(
   // Initialize introspection
   const introspection = new IntrospectionIndex(rootDir);
   await introspection.initialize();
-  if (verbose) {
-    const structure = introspection.getStructure();
-    if (structure?.isMonorepo) {
-      console.log(
-        `Detected monorepo with ${structure.projects.length} projects`
-      );
-    }
+  const structure = introspection.getStructure();
+  if (structure?.isMonorepo) {
+    logger.debug(
+      `Detected monorepo with ${structure.projects.length} projects`
+    );
   }
 
   // Register built-in modules
@@ -125,36 +131,26 @@ export async function indexDirectory(
   const enabledModules = registry.getEnabled(config);
 
   if (enabledModules.length === 0) {
-    if (!quiet) {
-      console.log("No modules enabled. Check your configuration.");
-    }
+    logger.info("No modules enabled. Check your configuration.");
     return [];
   }
 
-  if (!quiet) {
-    console.log(
-      `Enabled modules: ${enabledModules.map((m) => m.id).join(", ")}`
-    );
-  }
+  logger.info(`Enabled modules: ${enabledModules.map((m) => m.id).join(", ")}`);
 
   // Get all files matching extensions
   const files = await findFiles(rootDir, config);
-  if (!quiet) {
-    console.log(`Found ${files.length} files to index`);
-  }
+  logger.info(`Found ${files.length} files to index`);
 
   // Index with each module
   const results: IndexResult[] = [];
 
   for (const module of enabledModules) {
-    if (!quiet) {
-      console.log(`\n[${module.name}] Starting indexing...`);
-    }
+    logger.info(`\n[${module.name}] Starting indexing...`);
 
     // Initialize module if needed
     const moduleConfig = getModuleConfig(config, module.id);
     if (module.initialize && moduleConfig) {
-      // Apply CLI overrides to module config
+      // Apply CLI overrides to module config, including logger
       const configWithOverrides = { ...moduleConfig };
       if (options.model && module.id === "language/typescript") {
         configWithOverrides.options = {
@@ -162,6 +158,11 @@ export async function indexDirectory(
           embeddingModel: options.model,
         };
       }
+      // Pass logger to module via options
+      configWithOverrides.options = {
+        ...configWithOverrides.options,
+        logger,
+      };
       await module.initialize(configWithOverrides);
     }
 
@@ -171,15 +172,14 @@ export async function indexDirectory(
       module,
       config,
       verbose,
-      introspection
+      introspection,
+      logger
     );
     results.push(result);
 
     // Call finalize to build secondary indexes (Tier 1, BM25, etc.)
     if (module.finalize) {
-      if (!quiet) {
-        console.log(`[${module.name}] Building secondary indexes...`);
-      }
+      logger.info(`[${module.name}] Building secondary indexes...`);
       const ctx: IndexContext = {
         rootDir,
         config,
@@ -200,11 +200,9 @@ export async function indexDirectory(
       await module.finalize(ctx);
     }
 
-    if (!quiet) {
-      console.log(
-        `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`
-      );
-    }
+    logger.info(
+      `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`
+    );
   }
 
   // Save introspection data
@@ -250,6 +248,43 @@ async function deleteIndex(rootDir: string): Promise<void> {
 }
 
 /**
+ * Result of a reset operation
+ */
+export interface ResetResult {
+  /** Whether the reset was successful */
+  success: boolean;
+  /** The index directory that was removed */
+  indexDir: string;
+}
+
+/**
+ * Reset (delete) the index for a directory.
+ *
+ * @param rootDir - Root directory of the project
+ * @returns ResetResult with success status
+ * @throws Error if no index exists
+ */
+export async function resetIndex(rootDir: string): Promise<ResetResult> {
+  // Ensure absolute path
+  rootDir = path.resolve(rootDir);
+
+  // Check if index exists
+  const status = await getIndexStatus(rootDir);
+
+  if (!status.exists) {
+    throw new Error(`No index found for ${rootDir}`);
+  }
+
+  // Delete the index
+  await deleteIndex(rootDir);
+
+  return {
+    success: true,
+    indexDir: status.indexDir,
+  };
+}
+
+/**
  * Ensure the index is fresh by checking for changes and updating incrementally.
  * This function is designed to be called before search to transparently manage the index.
  *
@@ -270,6 +305,13 @@ export async function ensureIndexFresh(
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
 
+  // Create logger based on options
+  const logger: Logger = options.logger
+    ? options.logger
+    : quiet
+    ? createSilentLogger()
+    : createLogger({ verbose });
+
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
 
@@ -278,10 +320,8 @@ export async function ensureIndexFresh(
 
   if (!status.exists) {
     // No index exists - do full indexing
-    if (!quiet) {
-      console.log("No index found. Creating index...\n");
-    }
-    const results = await indexDirectory(rootDir, { ...options, quiet });
+    logger.info("No index found. Creating index...\n");
+    const results = await indexDirectory(rootDir, { ...options, logger });
     const totalIndexed = results.reduce((sum, r) => sum + r.indexed, 0);
     return { indexed: totalIndexed, removed: 0, unchanged: 0 };
   }
@@ -290,11 +330,9 @@ export async function ensureIndexFresh(
   const versionCompatible = await isIndexVersionCompatible(rootDir);
   if (!versionCompatible) {
     // Incompatible index version - delete and rebuild
-    if (!quiet) {
-      console.log("Index version incompatible. Rebuilding...\n");
-    }
+    logger.info("Index version incompatible. Rebuilding...\n");
     await deleteIndex(rootDir);
-    const results = await indexDirectory(rootDir, { ...options, quiet });
+    const results = await indexDirectory(rootDir, { ...options, logger });
     const totalIndexed = results.reduce((sum, r) => sum + r.indexed, 0);
     return { indexed: totalIndexed, removed: 0, unchanged: 0 };
   }
@@ -337,6 +375,11 @@ export async function ensureIndexFresh(
           embeddingModel: options.model,
         };
       }
+      // Pass logger to module
+      configWithOverrides.options = {
+        ...configWithOverrides.options,
+        logger,
+      };
       await module.initialize(configWithOverrides);
     }
 
@@ -354,9 +397,7 @@ export async function ensureIndexFresh(
 
     // Remove stale entries
     for (const filepath of filesToRemove) {
-      if (verbose) {
-        console.log(`  Removing stale: ${filepath}`);
-      }
+      logger.debug(`  Removing stale: ${filepath}`);
       // Remove main index file
       const indexFilePath = path.join(
         indexPath,
@@ -402,8 +443,11 @@ export async function ensureIndexFresh(
       getIntrospection: (filepath: string) => introspection.getFile(filepath),
     };
 
-    for (const filepath of currentFiles) {
+    const totalFiles = currentFiles.length;
+    for (let i = 0; i < currentFiles.length; i++) {
+      const filepath = currentFiles[i];
       const relativePath = path.relative(rootDir, filepath);
+      const progress = `[${i + 1}/${totalFiles}]`;
 
       try {
         const stats = await fs.stat(filepath);
@@ -417,9 +461,7 @@ export async function ensureIndexFresh(
         }
 
         // File is new or modified - index it
-        if (verbose) {
-          console.log(`  Indexing: ${relativePath}`);
-        }
+        logger.progress(`  ${progress} Indexing: ${relativePath}`);
 
         const content = await fs.readFile(filepath, "utf-8");
         introspection.addFile(relativePath, content);
@@ -441,11 +483,13 @@ export async function ensureIndexFresh(
           totalIndexed++;
         }
       } catch (error) {
-        if (verbose) {
-          console.error(`  Error indexing ${relativePath}:`, error);
-        }
+        logger.clearProgress();
+        logger.error(`  ${progress} Error indexing ${relativePath}: ${error}`);
       }
     }
+
+    // Clear progress line
+    logger.clearProgress();
 
     // Update manifest if there were changes
     if (totalIndexed > 0 || totalRemoved > 0) {
@@ -490,7 +534,8 @@ async function indexWithModule(
   module: IndexModule,
   config: Config,
   verbose: boolean,
-  introspection: IntrospectionIndex
+  introspection: IntrospectionIndex,
+  logger: Logger
 ): Promise<IndexResult> {
   const result: IndexResult = {
     moduleId: module.id,
@@ -501,6 +546,49 @@ async function indexWithModule(
 
   // Load existing manifest for this module
   const manifest = await loadModuleManifest(rootDir, module.id, config);
+  const indexPath = getModuleIndexPath(rootDir, module.id, config);
+
+  // Build set of current files for quick lookup
+  const currentFileSet = new Set(files.map((f) => path.relative(rootDir, f)));
+
+  // Clean up stale entries (files in manifest but no longer on disk)
+  const filesToRemove: string[] = [];
+  for (const filepath of Object.keys(manifest.files)) {
+    if (!currentFileSet.has(filepath)) {
+      filesToRemove.push(filepath);
+    }
+  }
+
+  if (filesToRemove.length > 0) {
+    logger.info(`  Removing ${filesToRemove.length} stale entries...`);
+    for (const filepath of filesToRemove) {
+      logger.debug(`    Removing: ${filepath}`);
+      // Remove main index file
+      const indexFilePath = path.join(
+        indexPath,
+        filepath.replace(/\.[^.]+$/, ".json")
+      );
+      try {
+        await fs.unlink(indexFilePath);
+      } catch {
+        // Index file may not exist
+      }
+      // Remove symbolic index file
+      const symbolicFilePath = path.join(
+        indexPath,
+        "symbolic",
+        filepath.replace(/\.[^.]+$/, ".json")
+      );
+      try {
+        await fs.unlink(symbolicFilePath);
+      } catch {
+        // Symbolic file may not exist
+      }
+      delete manifest.files[filepath];
+    }
+    // Clean up empty directories
+    await cleanupEmptyDirectories(indexPath);
+  }
 
   // Create index context
   const ctx: IndexContext = {
@@ -522,9 +610,13 @@ async function indexWithModule(
     getIntrospection: (filepath: string) => introspection.getFile(filepath),
   };
 
+  const totalFiles = files.length;
+
   // Process each file
-  for (const filepath of files) {
+  for (let i = 0; i < files.length; i++) {
+    const filepath = files[i];
     const relativePath = path.relative(rootDir, filepath);
+    const progress = `[${i + 1}/${totalFiles}]`;
 
     try {
       const stats = await fs.stat(filepath);
@@ -533,9 +625,7 @@ async function indexWithModule(
       // Check if file needs re-indexing
       const existingEntry = manifest.files[relativePath];
       if (existingEntry && existingEntry.lastModified === lastModified) {
-        if (verbose) {
-          console.log(`  Skipped ${relativePath} (unchanged)`);
-        }
+        logger.debug(`  ${progress} Skipped ${relativePath} (unchanged)`);
         result.skipped++;
         continue;
       }
@@ -546,15 +636,13 @@ async function indexWithModule(
       // Add introspection for this file
       introspection.addFile(relativePath, content);
 
-      if (verbose) {
-        console.log(`  Processing ${relativePath}...`);
-      }
+      // Show progress using inline replacement
+      logger.progress(`  ${progress} Processing: ${relativePath}`);
+
       const fileIndex = await module.indexFile(relativePath, content, ctx);
 
       if (!fileIndex) {
-        if (verbose) {
-          console.log(`  Skipped ${relativePath} (no chunks)`);
-        }
+        logger.debug(`  ${progress} Skipped ${relativePath} (no chunks)`);
         result.skipped++;
         continue;
       }
@@ -570,10 +658,14 @@ async function indexWithModule(
 
       result.indexed++;
     } catch (error) {
-      console.error(`  Error indexing ${relativePath}:`, error);
+      logger.clearProgress();
+      logger.error(`  ${progress} Error indexing ${relativePath}: ${error}`);
       result.errors++;
     }
   }
+
+  // Clear progress line before final output
+  logger.clearProgress();
 
   // Update manifest
   manifest.lastUpdated = new Date().toISOString();
@@ -665,6 +757,16 @@ async function updateGlobalManifest(
 }
 
 /**
+ * Options for cleanup operation
+ */
+export interface CleanupOptions {
+  /** Show detailed progress */
+  verbose?: boolean;
+  /** Logger for progress reporting */
+  logger?: Logger;
+}
+
+/**
  * Clean up stale index entries for files that no longer exist
  * @param rootDir - Root directory of the project
  * @param options - Cleanup options
@@ -672,14 +774,17 @@ async function updateGlobalManifest(
  */
 export async function cleanupIndex(
   rootDir: string,
-  options: { verbose?: boolean } = {}
+  options: CleanupOptions = {}
 ): Promise<CleanupResult[]> {
   const verbose = options.verbose ?? false;
+
+  // Create logger
+  const logger: Logger = options.logger ?? createLogger({ verbose });
 
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
 
-  console.log(`Cleaning up index in: ${rootDir}`);
+  logger.info(`Cleaning up index in: ${rootDir}`);
 
   // Load config
   const config = await loadConfig(rootDir);
@@ -691,24 +796,19 @@ export async function cleanupIndex(
   const enabledModules = registry.getEnabled(config);
 
   if (enabledModules.length === 0) {
-    console.log("No modules enabled.");
+    logger.info("No modules enabled.");
     return [];
   }
 
   const results: CleanupResult[] = [];
 
   for (const module of enabledModules) {
-    console.log(`\n[${module.name}] Checking for stale entries...`);
+    logger.info(`\n[${module.name}] Checking for stale entries...`);
 
-    const result = await cleanupModuleIndex(
-      rootDir,
-      module.id,
-      config,
-      verbose
-    );
+    const result = await cleanupModuleIndex(rootDir, module.id, config, logger);
     results.push(result);
 
-    console.log(
+    logger.info(
       `[${module.name}] Removed ${result.removed} stale entries, kept ${result.kept} valid entries`
     );
   }
@@ -723,7 +823,7 @@ async function cleanupModuleIndex(
   rootDir: string,
   moduleId: string,
   config: Config,
-  verbose: boolean
+  logger: Logger
 ): Promise<CleanupResult> {
   const result: CleanupResult = {
     moduleId,
@@ -751,10 +851,7 @@ async function cleanupModuleIndex(
       // File doesn't exist, mark for removal
       filesToRemove.push(filepath);
       result.removed++;
-
-      if (verbose) {
-        console.log(`  Removing stale entry: ${filepath}`);
-      }
+      logger.debug(`  Removing stale entry: ${filepath}`);
     }
   }
 

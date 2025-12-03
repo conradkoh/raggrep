@@ -36,7 +36,7 @@ import {
 import { parseCode, generateChunkId } from "./parseCode";
 import { SymbolicIndex } from "../../../infrastructure/storage";
 import { extractKeywords } from "../../../domain/services/keywords";
-import type { EmbeddingConfig } from "../../../domain/ports";
+import type { EmbeddingConfig, Logger } from "../../../domain/ports";
 import type { FileSummary } from "../../../domain/entities";
 import {
   parsePathContext,
@@ -225,10 +225,22 @@ export class TypeScriptModule implements IndexModule {
   private symbolicIndex: SymbolicIndex | null = null;
   private pendingSummaries: Map<string, FileSummary> = new Map();
   private rootDir: string = "";
+  private logger: Logger | undefined = undefined;
 
   async initialize(config: ModuleConfig): Promise<void> {
     // Extract embedding config from module options
     this.embeddingConfig = getEmbeddingConfigFromModule(config);
+
+    // Extract logger from module options (passed from indexer)
+    this.logger = config.options?.logger as Logger | undefined;
+
+    // Add logger to embedding config
+    if (this.logger) {
+      this.embeddingConfig = {
+        ...this.embeddingConfig,
+        logger: this.logger,
+      };
+    }
 
     // Configure the embedding provider
     configureEmbeddings(this.embeddingConfig);

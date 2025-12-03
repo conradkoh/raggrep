@@ -6,6 +6,8 @@
  * (e.g., Transformers.js, OpenAI API, local models).
  */
 
+import type { Logger } from "./logger";
+
 /**
  * Available embedding model names
  */
@@ -21,8 +23,10 @@ export type EmbeddingModelName =
 export interface EmbeddingConfig {
   /** Model name to use */
   model: EmbeddingModelName;
-  /** Whether to show progress during model loading */
+  /** Whether to show progress during model loading (deprecated, use logger instead) */
   showProgress?: boolean;
+  /** Logger for reporting download progress */
+  logger?: Logger;
 }
 
 /**
