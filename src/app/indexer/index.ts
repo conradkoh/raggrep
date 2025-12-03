@@ -84,6 +84,24 @@ export interface IndexResult {
   indexed: number;
   skipped: number;
   errors: number;
+  /** Time taken in milliseconds */
+  durationMs?: number;
+}
+
+/**
+ * Format duration in human-readable format
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
 }
 
 /** Default concurrency for parallel file processing */
@@ -195,10 +213,14 @@ export async function indexDirectory(
   const files = await findFiles(rootDir, config);
   logger.info(`Found ${files.length} files to index`);
 
+  // Track overall timing
+  const overallStart = Date.now();
+
   // Index with each module
   const results: IndexResult[] = [];
 
   for (const module of enabledModules) {
+    const moduleStart = Date.now();
     logger.info(`\n[${module.name}] Starting indexing...`);
 
     // Initialize module if needed
@@ -262,13 +284,28 @@ export async function indexDirectory(
       await module.finalize(ctx);
     }
 
+    const moduleDuration = Date.now() - moduleStart;
+    result.durationMs = moduleDuration;
+
     logger.info(
-      `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors`
+      `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors (${formatDuration(moduleDuration)})`
     );
   }
 
   // Save introspection data
   await introspection.save(config);
+
+  // Log overall timing
+  const overallDuration = Date.now() - overallStart;
+  logger.info(`\nIndexing complete in ${formatDuration(overallDuration)}`);
+
+  // Log summary
+  const totalIndexed = results.reduce((sum, r) => sum + r.indexed, 0);
+  const totalSkipped = results.reduce((sum, r) => sum + r.skipped, 0);
+  const totalErrors = results.reduce((sum, r) => sum + r.errors, 0);
+  logger.info(
+    `Total: ${totalIndexed} indexed, ${totalSkipped} skipped, ${totalErrors} errors`
+  );
 
   // Update global manifest
   await updateGlobalManifest(rootDir, enabledModules, config);
