@@ -100,13 +100,13 @@ raggrep query "auth" --filter src/auth        # Filter by path
 raggrep query "api" -f src/api -f src/routes  # Multiple path filters
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--top <n>` | `-k` | Number of results to return (default: 10) |
-| `--min-score <n>` | `-s` | Minimum similarity score 0-1 (default: 0.15) |
-| `--type <ext>` | `-t` | Filter by file extension (e.g., ts, tsx, js) |
-| `--filter <path>` | `-f` | Filter by path prefix (can be used multiple times) |
-| `--help` | `-h` | Show help message |
+| Flag              | Short | Description                                        |
+| ----------------- | ----- | -------------------------------------------------- |
+| `--top <n>`       | `-k`  | Number of results to return (default: 10)          |
+| `--min-score <n>` | `-s`  | Minimum similarity score 0-1 (default: 0.15)       |
+| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)       |
+| `--filter <path>` | `-f`  | Filter by path prefix (can be used multiple times) |
+| `--help`          | `-h`  | Show help message                                  |
 
 ### Index Options
 
@@ -118,13 +118,13 @@ raggrep index --concurrency 8        # Set parallel workers (default: auto)
 raggrep index --model bge-small-en-v1.5  # Use specific embedding model
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--watch` | `-w` | Watch for file changes and re-index automatically |
-| `--verbose` | `-v` | Show detailed progress |
-| `--concurrency <n>` | `-c` | Number of parallel workers (default: auto based on CPU) |
-| `--model <name>` | `-m` | Embedding model to use |
-| `--help` | `-h` | Show help message |
+| Flag                | Short | Description                                             |
+| ------------------- | ----- | ------------------------------------------------------- |
+| `--watch`           | `-w`  | Watch for file changes and re-index automatically       |
+| `--verbose`         | `-v`  | Show detailed progress                                  |
+| `--concurrency <n>` | `-c`  | Number of parallel workers (default: auto based on CPU) |
+| `--model <name>`    | `-m`  | Embedding model to use                                  |
+| `--help`            | `-h`  | Show help message                                       |
 
 ### Other Commands
 

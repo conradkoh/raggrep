@@ -15,7 +15,8 @@ export type EmbeddingModelName =
   | "all-MiniLM-L6-v2"
   | "all-MiniLM-L12-v2"
   | "bge-small-en-v1.5"
-  | "paraphrase-MiniLM-L3-v2";
+  | "paraphrase-MiniLM-L3-v2"
+  | "nomic-embed-text-v1.5";
 
 /**
  * Configuration for embedding provider

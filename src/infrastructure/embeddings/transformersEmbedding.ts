@@ -36,10 +36,17 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
   "all-MiniLM-L12-v2": "Xenova/all-MiniLM-L12-v2",
   "bge-small-en-v1.5": "Xenova/bge-small-en-v1.5",
   "paraphrase-MiniLM-L3-v2": "Xenova/paraphrase-MiniLM-L3-v2",
+  "nomic-embed-text-v1.5": "nomic-ai/nomic-embed-text-v1.5",
 };
 
-/** Embedding dimension for all MiniLM models */
-const EMBEDDING_DIMENSION = 384;
+/** Embedding dimensions per model */
+export const EMBEDDING_DIMENSIONS: Record<EmbeddingModelName, number> = {
+  "all-MiniLM-L6-v2": 384,
+  "all-MiniLM-L12-v2": 384,
+  "bge-small-en-v1.5": 384,
+  "paraphrase-MiniLM-L3-v2": 384,
+  "nomic-embed-text-v1.5": 768,
+};
 
 /** Maximum texts per batch */
 const BATCH_SIZE = 32;
@@ -59,7 +66,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 
   constructor(config?: Partial<EmbeddingConfig>) {
     this.config = {
-      model: config?.model ?? "all-MiniLM-L6-v2",
+      model: config?.model ?? "bge-small-en-v1.5",
       showProgress: config?.showProgress ?? false, // Silent by default
       logger: config?.logger,
     };
@@ -223,7 +230,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
   }
 
   getDimension(): number {
-    return EMBEDDING_DIMENSION;
+    return EMBEDDING_DIMENSIONS[this.config.model];
   }
 
   getModelName(): string {
@@ -271,7 +278,7 @@ export async function isModelCached(
 /** Global provider instance for convenience functions */
 let globalProvider: TransformersEmbeddingProvider | null = null;
 let globalConfig: EmbeddingConfig = {
-  model: "all-MiniLM-L6-v2",
+  model: "bge-small-en-v1.5",
   showProgress: false, // Silent by default for CLI usage
   logger: undefined,
 };

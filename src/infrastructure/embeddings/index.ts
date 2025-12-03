@@ -9,6 +9,7 @@ export {
   TransformersEmbeddingProvider,
   // Constants
   EMBEDDING_MODELS,
+  EMBEDDING_DIMENSIONS,
   // Utilities
   getCacheDir,
   isModelCached,

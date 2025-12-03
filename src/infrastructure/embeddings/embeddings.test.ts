@@ -92,11 +92,13 @@ describe('EMBEDDING_MODELS', () => {
     expect(modelNames).toContain('all-MiniLM-L12-v2');
     expect(modelNames).toContain('bge-small-en-v1.5');
     expect(modelNames).toContain('paraphrase-MiniLM-L3-v2');
+    expect(modelNames).toContain('nomic-embed-text-v1.5');
   });
 
-  test('model IDs are Xenova models', () => {
+  test('model IDs are valid Hugging Face model paths', () => {
     for (const modelId of Object.values(EMBEDDING_MODELS)) {
-      expect(modelId).toMatch(/^Xenova\//);
+      // Should be in format "org/model-name"
+      expect(modelId).toMatch(/^[\w-]+\/[\w.-]+$/);
     }
   });
 });

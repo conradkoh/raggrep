@@ -77,8 +77,12 @@ async function parallelMap<T, R>(
  * Current index schema version.
  * Increment this when making breaking changes to the index format.
  * This is separate from the package version to allow non-breaking updates.
+ *
+ * History:
+ * - 1.0.0: Initial version
+ * - 1.1.0: Changed default embedding model to bge-small-en-v1.5, added nomic-embed-text-v1.5
  */
-const INDEX_SCHEMA_VERSION = "1.0.0";
+const INDEX_SCHEMA_VERSION = "1.1.0";
 
 export interface IndexResult {
   moduleId: string;
