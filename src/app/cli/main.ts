@@ -58,6 +58,8 @@ interface ParsedFlags {
   verbose: boolean;
   /** Watch mode for continuous indexing */
   watch: boolean;
+  /** Number of files to process in parallel */
+  concurrency?: number;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -119,6 +121,16 @@ function parseFlags(args: string[]): ParsedFlags {
         console.error("--type requires a file extension (e.g., ts, tsx, js)");
         process.exit(1);
       }
+    } else if (arg === "--concurrency" || arg === "-c") {
+      const c = parseInt(args[++i], 10);
+      if (!isNaN(c) && c > 0) {
+        flags.concurrency = c;
+      } else {
+        console.error(
+          `Invalid concurrency: ${args[i]}. Must be a positive integer.`
+        );
+        process.exit(1);
+      }
     } else if (!arg.startsWith("-")) {
       flags.remaining.push(arg);
     }
@@ -141,10 +153,11 @@ Usage:
   raggrep index [options]
 
 Options:
-  -w, --watch          Watch for file changes and re-index automatically
-  -m, --model <name>   Embedding model to use (default: all-MiniLM-L6-v2)
-  -v, --verbose        Show detailed progress
-  -h, --help           Show this help message
+  -w, --watch              Watch for file changes and re-index automatically
+  -m, --model <name>       Embedding model to use (default: all-MiniLM-L6-v2)
+  -c, --concurrency <n>    Number of files to process in parallel (default: 4)
+  -v, --verbose            Show detailed progress
+  -h, --help               Show this help message
 
 Available Models:
   ${models}
@@ -155,6 +168,7 @@ Examples:
   raggrep index
   raggrep index --watch
   raggrep index --model bge-small-en-v1.5
+  raggrep index --concurrency 8
   raggrep index --verbose
 `);
         process.exit(0);
@@ -172,6 +186,7 @@ Examples:
         const results = await indexDirectory(process.cwd(), {
           model: flags.model,
           verbose: flags.verbose,
+          concurrency: flags.concurrency,
           logger,
         });
         console.log("\n================");

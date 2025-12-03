@@ -25,6 +25,53 @@ import type { EmbeddingModelName, Logger } from "../../domain/ports";
 import { IntrospectionIndex } from "../../infrastructure/introspection";
 import { createLogger, createSilentLogger } from "../../infrastructure/logger";
 
+// ============================================================================
+// Parallel Processing Utilities
+// ============================================================================
+
+/**
+ * Process items in parallel with controlled concurrency.
+ * Returns results in the same order as input items.
+ *
+ * @param items - Items to process
+ * @param processor - Async function to process each item
+ * @param concurrency - Maximum number of concurrent operations
+ * @returns Array of results (or errors) in input order
+ */
+async function parallelMap<T, R>(
+  items: T[],
+  processor: (item: T, index: number) => Promise<R>,
+  concurrency: number
+): Promise<
+  Array<{ success: true; value: R } | { success: false; error: unknown }>
+> {
+  const results: Array<
+    { success: true; value: R } | { success: false; error: unknown }
+  > = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      const item = items[index];
+      try {
+        const value = await processor(item, index);
+        results[index] = { success: true, value };
+      } catch (error) {
+        results[index] = { success: false, error };
+      }
+    }
+  }
+
+  // Start workers up to concurrency limit
+  const workers = Array(Math.min(concurrency, items.length))
+    .fill(null)
+    .map(() => worker());
+
+  await Promise.all(workers);
+  return results;
+}
+
 /**
  * Current index schema version.
  * Increment this when making breaking changes to the index format.
@@ -39,6 +86,9 @@ export interface IndexResult {
   errors: number;
 }
 
+/** Default concurrency for parallel file processing */
+const DEFAULT_CONCURRENCY = 4;
+
 export interface IndexOptions {
   /** Override the embedding model (semantic module) */
   model?: EmbeddingModelName;
@@ -48,6 +98,8 @@ export interface IndexOptions {
   quiet?: boolean;
   /** Logger for progress reporting. If not provided, uses console by default (quiet mode uses silent logger) */
   logger?: Logger;
+  /** Number of files to process in parallel (default: 4) */
+  concurrency?: number;
 }
 
 export interface EnsureFreshResult {
@@ -95,6 +147,7 @@ export async function indexDirectory(
 ): Promise<IndexResult[]> {
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
+  const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -110,6 +163,7 @@ export async function indexDirectory(
   const location = getIndexLocation(rootDir);
   logger.info(`Indexing directory: ${rootDir}`);
   logger.info(`Index location: ${location.indexDir}`);
+  logger.debug(`Concurrency: ${concurrency}`);
 
   // Load config
   const config = await loadConfig(rootDir);
@@ -173,7 +227,8 @@ export async function indexDirectory(
       config,
       verbose,
       introspection,
-      logger
+      logger,
+      concurrency
     );
     results.push(result);
 
@@ -526,7 +581,18 @@ export async function ensureIndexFresh(
 }
 
 /**
- * Index files with a specific module
+ * Result of processing a single file
+ */
+interface FileProcessResult {
+  relativePath: string;
+  status: "indexed" | "skipped" | "error";
+  lastModified?: string;
+  chunkCount?: number;
+  error?: unknown;
+}
+
+/**
+ * Index files with a specific module using parallel processing
  */
 async function indexWithModule(
   rootDir: string,
@@ -535,7 +601,8 @@ async function indexWithModule(
   config: Config,
   verbose: boolean,
   introspection: IntrospectionIndex,
-  logger: Logger
+  logger: Logger,
+  concurrency: number = DEFAULT_CONCURRENCY
 ): Promise<IndexResult> {
   const result: IndexResult = {
     moduleId: module.id,
@@ -612,11 +679,15 @@ async function indexWithModule(
 
   const totalFiles = files.length;
 
-  // Process each file
-  for (let i = 0; i < files.length; i++) {
-    const filepath = files[i];
+  // Track progress across parallel operations
+  let completedCount = 0;
+
+  // Process files in parallel with concurrency control
+  const processFile = async (
+    filepath: string,
+    _index: number
+  ): Promise<FileProcessResult> => {
     const relativePath = path.relative(rootDir, filepath);
-    const progress = `[${i + 1}/${totalFiles}]`;
 
     try {
       const stats = await fs.stat(filepath);
@@ -625,47 +696,84 @@ async function indexWithModule(
       // Check if file needs re-indexing
       const existingEntry = manifest.files[relativePath];
       if (existingEntry && existingEntry.lastModified === lastModified) {
-        logger.debug(`  ${progress} Skipped ${relativePath} (unchanged)`);
-        result.skipped++;
-        continue;
+        completedCount++;
+        logger.debug(
+          `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (unchanged)`
+        );
+        return { relativePath, status: "skipped" };
       }
 
       // Read and index file
       const content = await fs.readFile(filepath, "utf-8");
 
-      // Add introspection for this file
+      // Add introspection for this file (thread-safe - just adds to a Map)
       introspection.addFile(relativePath, content);
 
-      // Show progress using inline replacement
-      logger.progress(`  ${progress} Processing: ${relativePath}`);
+      // Update progress
+      completedCount++;
+      logger.progress(
+        `  [${completedCount}/${totalFiles}] Processing: ${relativePath}`
+      );
 
       const fileIndex = await module.indexFile(relativePath, content, ctx);
 
       if (!fileIndex) {
-        logger.debug(`  ${progress} Skipped ${relativePath} (no chunks)`);
-        result.skipped++;
-        continue;
+        logger.debug(
+          `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (no chunks)`
+        );
+        return { relativePath, status: "skipped" };
       }
 
       // Write index file
       await writeFileIndex(rootDir, module.id, relativePath, fileIndex, config);
 
-      // Update manifest
-      manifest.files[relativePath] = {
+      return {
+        relativePath,
+        status: "indexed",
         lastModified,
         chunkCount: fileIndex.chunks.length,
       };
-
-      result.indexed++;
     } catch (error) {
-      logger.clearProgress();
-      logger.error(`  ${progress} Error indexing ${relativePath}: ${error}`);
+      completedCount++;
+      return { relativePath, status: "error", error };
+    }
+  };
+
+  // Run parallel processing
+  logger.debug(`  Using concurrency: ${concurrency}`);
+  const results = await parallelMap(files, processFile, concurrency);
+
+  // Clear progress line
+  logger.clearProgress();
+
+  // Process results and update manifest
+  for (const item of results) {
+    if (!item.success) {
+      // This shouldn't happen as we catch errors in processFile
       result.errors++;
+      continue;
+    }
+
+    const fileResult = item.value;
+    switch (fileResult.status) {
+      case "indexed":
+        manifest.files[fileResult.relativePath] = {
+          lastModified: fileResult.lastModified!,
+          chunkCount: fileResult.chunkCount!,
+        };
+        result.indexed++;
+        break;
+      case "skipped":
+        result.skipped++;
+        break;
+      case "error":
+        logger.error(
+          `  Error indexing ${fileResult.relativePath}: ${fileResult.error}`
+        );
+        result.errors++;
+        break;
     }
   }
-
-  // Clear progress line before final output
-  logger.clearProgress();
 
   // Update manifest
   manifest.lastUpdated = new Date().toISOString();
