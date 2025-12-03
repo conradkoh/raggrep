@@ -36,10 +36,18 @@ export async function registerBuiltInModules(): Promise<void> {
   // Dynamic import to avoid circular dependencies
   const { CoreModule } = await import("./core");
   const { TypeScriptModule } = await import("./language/typescript");
+  const { JsonModule } = await import("./data/json");
+  const { MarkdownModule } = await import("./docs/markdown");
 
   // Register core module first (fast, language-agnostic)
   registry.register(new CoreModule());
 
   // Register language-specific modules
   registry.register(new TypeScriptModule());
+
+  // Register data format modules
+  registry.register(new JsonModule());
+
+  // Register documentation modules
+  registry.register(new MarkdownModule());
 }

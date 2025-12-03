@@ -91,29 +91,39 @@ export const DEFAULT_IGNORE_PATHS = [
 
 /**
  * Default file extensions to index.
+ *
+ * Note: Each module filters for its own supported extensions.
+ * - language/typescript: .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts
+ * - data/json: .json
+ * - docs/markdown: .md
+ * - core: all remaining extensions
  */
 export const DEFAULT_EXTENSIONS = [
-  // Web/JS ecosystem
+  // TypeScript/JavaScript (language/typescript module)
   ".ts",
   ".tsx",
   ".js",
   ".jsx",
   ".mjs",
   ".cjs",
-  // Other languages
+  ".mts",
+  ".cts",
+  // JSON (data/json module)
+  ".json",
+  // Markdown (docs/markdown module)
+  ".md",
+  // Other languages (core module)
   ".py",
   ".go",
   ".rs",
   ".java",
-  // Config & data
-  ".json",
+  // Config & data (core module)
   ".yaml",
   ".yml",
   ".toml",
-  // Database
+  // Database (core module)
   ".sql",
-  // Documentation
-  ".md",
+  // Other documentation (core module)
   ".txt",
 ];
 
@@ -134,6 +144,20 @@ export function createDefaultConfig(): Config {
       },
       {
         id: "language/typescript",
+        enabled: true,
+        options: {
+          embeddingModel: "all-MiniLM-L6-v2",
+        },
+      },
+      {
+        id: "data/json",
+        enabled: true,
+        options: {
+          embeddingModel: "all-MiniLM-L6-v2",
+        },
+      },
+      {
+        id: "docs/markdown",
         enabled: true,
         options: {
           embeddingModel: "all-MiniLM-L6-v2",

@@ -1,10 +1,12 @@
 /**
- * TypeScript Language Index Module
+ * TypeScript/JavaScript Language Index Module
  *
  * Provides TypeScript/JavaScript-aware code search using:
  * - AST parsing via TypeScript Compiler API
  * - Local text embeddings for semantic similarity
  * - BM25 keyword matching for fast filtering
+ *
+ * Supported file types: .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts
  *
  * Index location: .raggrep/index/language/typescript/
  */
@@ -27,21 +29,24 @@ import {
   configureEmbeddings,
   getEmbeddingConfig,
 } from "../../../infrastructure/embeddings";
-import { cosineSimilarity } from "../../../domain/services/similarity";
-import { BM25Index, normalizeScore } from "../../../domain/services/bm25";
+import {
+  cosineSimilarity,
+  BM25Index,
+  normalizeScore,
+  extractKeywords,
+  parsePathContext,
+  formatPathContextForEmbedding,
+  calculateFileTypeBoost,
+  extractQueryTerms,
+} from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
   getRaggrepDir,
 } from "../../../infrastructure/config";
-import { parseCode, generateChunkId } from "./parseCode";
+import { parseTypeScriptCode, generateChunkId } from "./parseCode";
 import { SymbolicIndex } from "../../../infrastructure/storage";
-import { extractKeywords } from "../../../domain/services/keywords";
 import type { EmbeddingConfig, Logger } from "../../../domain/ports";
 import type { FileSummary } from "../../../domain/entities";
-import {
-  parsePathContext,
-  formatPathContextForEmbedding,
-} from "../../../domain/services/keywords";
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -55,122 +60,24 @@ const SEMANTIC_WEIGHT = 0.7;
 /** Weight for BM25 keyword matching in hybrid scoring (0-1) */
 const BM25_WEIGHT = 0.3;
 
-/** Implementation-related query terms that boost source code files */
-const IMPLEMENTATION_TERMS = [
-  "function",
-  "method",
-  "class",
-  "interface",
-  "implement",
-  "implementation",
-  "endpoint",
-  "route",
-  "handler",
-  "controller",
-  "module",
-  "code",
-];
-
-/** Documentation-related query terms that boost documentation files */
-const DOCUMENTATION_TERMS = [
-  "documentation",
-  "docs",
-  "guide",
-  "tutorial",
-  "readme",
-  "how",
-  "what",
-  "why",
-  "explain",
-  "overview",
-  "getting",
-  "started",
-  "requirements",
-  "setup",
-  "install",
-  "configure",
-  "configuration",
-];
-
-/** Source code file extensions */
-const SOURCE_CODE_EXTENSIONS = [
+/** File extensions supported by this module */
+export const TYPESCRIPT_EXTENSIONS = [
   ".ts",
   ".tsx",
   ".js",
   ".jsx",
   ".mjs",
   ".cjs",
-  ".py",
-  ".go",
-  ".rs",
-  ".java",
+  ".mts",
+  ".cts",
 ];
 
-/** Documentation file extensions */
-const DOC_EXTENSIONS = [".md", ".txt", ".rst"];
-
 /**
- * Detect query intent based on terms.
- * Returns: 'implementation' | 'documentation' | 'neutral'
+ * Check if a file is supported by this module.
  */
-function detectQueryIntent(
-  queryTerms: string[]
-): "implementation" | "documentation" | "neutral" {
-  const hasImplementationTerm = queryTerms.some((term) =>
-    IMPLEMENTATION_TERMS.includes(term)
-  );
-  const hasDocumentationTerm = queryTerms.some((term) =>
-    DOCUMENTATION_TERMS.includes(term)
-  );
-
-  // Documentation terms take precedence if both are present
-  // (e.g., "api documentation" should favor docs)
-  if (hasDocumentationTerm) {
-    return "documentation";
-  }
-
-  if (hasImplementationTerm) {
-    return "implementation";
-  }
-
-  return "neutral";
-}
-
-/**
- * Calculate boost based on file type and query context.
- * Bidirectional: boosts code for implementation queries, docs for documentation queries.
- * Only applies when query intent is clear.
- */
-function calculateFileTypeBoost(
-  filepath: string,
-  queryTerms: string[]
-): number {
+export function isTypeScriptFile(filepath: string): boolean {
   const ext = path.extname(filepath).toLowerCase();
-  const isSourceCode = SOURCE_CODE_EXTENSIONS.includes(ext);
-  const isDoc = DOC_EXTENSIONS.includes(ext);
-
-  const intent = detectQueryIntent(queryTerms);
-
-  // For implementation-focused queries, boost source code
-  if (intent === "implementation") {
-    if (isSourceCode) {
-      return 0.06; // Moderate boost for source code
-    }
-    // No penalty for docs - they might still be relevant
-    return 0;
-  }
-
-  // For documentation-focused queries, boost documentation files
-  if (intent === "documentation") {
-    if (isDoc) {
-      return 0.08; // Boost documentation files
-    }
-    // No penalty for code - they might still be relevant
-    return 0;
-  }
-
-  // Neutral queries: no boost either way
-  return 0;
+  return TYPESCRIPT_EXTENSIONS.includes(ext);
 }
 
 /**
@@ -254,11 +161,16 @@ export class TypeScriptModule implements IndexModule {
     content: string,
     ctx: IndexContext
   ): Promise<FileIndex | null> {
+    // Only process TypeScript/JavaScript files
+    if (!isTypeScriptFile(filepath)) {
+      return null;
+    }
+
     // Store rootDir for finalize
     this.rootDir = ctx.rootDir;
 
-    // Parse code into chunks
-    const parsedChunks = parseCode(content, filepath);
+    // Parse code into chunks using TypeScript AST
+    const parsedChunks = parseTypeScriptCode(content, filepath);
 
     if (parsedChunks.length === 0) {
       return null;
@@ -467,11 +379,8 @@ export class TypeScriptModule implements IndexModule {
       bm25Scores.set(result.id, normalizeScore(result.score, 3));
     }
 
-    // Extract query terms for path matching
-    const queryTerms = query
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((t) => t.length > 2);
+    // Extract query terms for path matching and intent detection
+    const queryTerms = extractQueryTerms(query);
 
     // Build path boost map from file summaries
     const pathBoosts = new Map<string, number>();

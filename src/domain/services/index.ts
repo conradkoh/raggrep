@@ -28,3 +28,29 @@ export {
 // Vector similarity
 export { cosineSimilarity, euclideanDistance } from "./similarity";
 
+// Query intent detection
+export {
+  detectQueryIntent,
+  extractQueryTerms,
+  calculateFileTypeBoost,
+  isSourceCodeFile,
+  isDocFile,
+  isDataFile,
+  IMPLEMENTATION_TERMS,
+  DOCUMENTATION_TERMS,
+  SOURCE_CODE_EXTENSIONS,
+  DOC_EXTENSIONS,
+  DATA_EXTENSIONS,
+  type QueryIntent,
+} from "./queryIntent";
+
+// Text chunking
+export {
+  createLineBasedChunks,
+  createSingleChunk,
+  generateChunkId,
+  DEFAULT_CHUNK_SIZE,
+  DEFAULT_OVERLAP,
+  type TextChunk,
+  type ChunkingOptions,
+} from "./chunking";

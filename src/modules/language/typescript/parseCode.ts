@@ -1,24 +1,15 @@
 /**
  * TypeScript/JavaScript Code Parser
- * 
+ *
  * Uses the TypeScript Compiler API for accurate AST-based parsing.
  * Extracts semantic chunks: functions, classes, interfaces, types, enums.
+ *
+ * This parser is specifically for TypeScript/JavaScript files.
+ * For other file types, use the generic chunking in domain/services/chunking.
  */
 
-import * as ts from 'typescript';
-
-/**
- * Chunk types that can be extracted from code
- */
-export type ChunkType = 
-  | 'function' 
-  | 'class' 
-  | 'interface' 
-  | 'type' 
-  | 'enum'
-  | 'variable'
-  | 'block' 
-  | 'file';
+import * as ts from "typescript";
+import type { ChunkType } from "../../../domain/entities";
 
 /**
  * Represents a parsed chunk of code with location information
@@ -41,21 +32,20 @@ export interface ParsedChunk {
 }
 
 /**
- * Parse code into semantic chunks based on file extension
+ * Parse TypeScript/JavaScript code into semantic chunks.
+ *
+ * Uses the TypeScript Compiler API for accurate AST-based parsing.
+ * Returns chunks for functions, classes, interfaces, types, enums, and exported variables.
+ *
  * @param content - The source code content
- * @param filepath - The file path (used to determine language)
+ * @param filepath - The file path (used for JSX detection)
  * @returns Array of parsed chunks
  */
-export function parseCode(content: string, filepath: string): ParsedChunk[] {
-  const ext = filepath.split('.').pop()?.toLowerCase();
-
-  // For TypeScript/JavaScript files, use the TypeScript parser
-  if (['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs'].includes(ext || '')) {
-    return parseTypeScript(content, filepath);
-  }
-
-  // For other files, use simple line-based chunking
-  return parseGenericCode(content);
+export function parseTypeScriptCode(
+  content: string,
+  filepath: string
+): ParsedChunk[] {
+  return parseTypeScript(content, filepath);
 }
 
 /**
@@ -66,7 +56,7 @@ export function parseCode(content: string, filepath: string): ParsedChunk[] {
  */
 function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
   const chunks: ParsedChunk[] = [];
-  const lines = content.split('\n');
+  const lines = content.split("\n");
 
   // Create a source file from the content
   const sourceFile = ts.createSourceFile(
@@ -74,15 +64,18 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
     content,
     ts.ScriptTarget.Latest,
     true, // setParentNodes
-    filepath.endsWith('.tsx') || filepath.endsWith('.jsx') 
-      ? ts.ScriptKind.TSX 
+    filepath.endsWith(".tsx") || filepath.endsWith(".jsx")
+      ? ts.ScriptKind.TSX
       : ts.ScriptKind.TS
   );
 
   /**
    * Get line numbers for a node (1-based)
    */
-  function getLineNumbers(node: ts.Node): { startLine: number; endLine: number } {
+  function getLineNumbers(node: ts.Node): {
+    startLine: number;
+    endLine: number;
+  } {
     const start = sourceFile.getLineAndCharacterOfPosition(node.getStart());
     const end = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
     return {
@@ -104,7 +97,9 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
   function isExported(node: ts.Node): boolean {
     if (!ts.canHaveModifiers(node)) return false;
     const modifiers = ts.getModifiers(node);
-    return modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+    return (
+      modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false
+    );
   }
 
   /**
@@ -113,10 +108,8 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
   function getJSDoc(node: ts.Node): string | undefined {
     const jsDocNodes = ts.getJSDocCommentsAndTags(node);
     if (jsDocNodes.length === 0) return undefined;
-    
-    return jsDocNodes
-      .map(doc => doc.getText(sourceFile))
-      .join('\n');
+
+    return jsDocNodes.map((doc) => doc.getText(sourceFile)).join("\n");
   }
 
   /**
@@ -147,7 +140,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
         content: getNodeText(node),
         startLine,
         endLine,
-        type: 'function',
+        type: "function",
         name: node.name.text,
         isExported: isExported(node),
         jsDoc: getJSDoc(node),
@@ -158,14 +151,17 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
     // Arrow functions and function expressions assigned to variables
     if (ts.isVariableStatement(node)) {
       for (const decl of node.declarationList.declarations) {
-        if (decl.initializer && 
-            (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) {
+        if (
+          decl.initializer &&
+          (ts.isArrowFunction(decl.initializer) ||
+            ts.isFunctionExpression(decl.initializer))
+        ) {
           const name = ts.isIdentifier(decl.name) ? decl.name.text : undefined;
           chunks.push({
             content: getNodeText(node),
             startLine,
             endLine,
-            type: 'function',
+            type: "function",
             name,
             isExported: isExported(node),
             jsDoc: getJSDoc(node),
@@ -181,7 +177,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
         content: getNodeText(node),
         startLine,
         endLine,
-        type: 'class',
+        type: "class",
         name: node.name.text,
         isExported: isExported(node),
         jsDoc: getJSDoc(node),
@@ -195,7 +191,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
         content: getNodeText(node),
         startLine,
         endLine,
-        type: 'interface',
+        type: "interface",
         name: node.name.text,
         isExported: isExported(node),
         jsDoc: getJSDoc(node),
@@ -209,7 +205,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
         content: getNodeText(node),
         startLine,
         endLine,
-        type: 'type',
+        type: "type",
         name: node.name.text,
         isExported: isExported(node),
         jsDoc: getJSDoc(node),
@@ -223,7 +219,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
         content: getNodeText(node),
         startLine,
         endLine,
-        type: 'enum',
+        type: "enum",
         name: node.name.text,
         isExported: isExported(node),
         jsDoc: getJSDoc(node),
@@ -235,8 +231,11 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
     if (ts.isVariableStatement(node) && isExported(node)) {
       for (const decl of node.declarationList.declarations) {
         // Skip if it's a function (already handled above)
-        if (decl.initializer && 
-            (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) {
+        if (
+          decl.initializer &&
+          (ts.isArrowFunction(decl.initializer) ||
+            ts.isFunctionExpression(decl.initializer))
+        ) {
           continue;
         }
         const name = ts.isIdentifier(decl.name) ? decl.name.text : undefined;
@@ -244,7 +243,7 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
           content: getNodeText(node),
           startLine,
           endLine,
-          type: 'variable',
+          type: "variable",
           name,
           isExported: true,
           jsDoc: getJSDoc(node),
@@ -260,49 +259,18 @@ function parseTypeScript(content: string, filepath: string): ParsedChunk[] {
   // Start visiting from the root
   ts.forEachChild(sourceFile, visit);
 
-  // If no semantic chunks found, fall back to block-based chunking
+  // If no semantic chunks found, create a single file chunk
+  // (This can happen for files with only top-level statements or imports)
   if (chunks.length === 0) {
-    return parseGenericCode(content);
-  }
-
-  return chunks;
-}
-
-/**
- * Parse generic code using line-based chunking
- * Used for non-TypeScript/JavaScript files or as fallback
- * @param content - The source code content
- * @returns Array of parsed chunks
- */
-function parseGenericCode(content: string): ParsedChunk[] {
-  const chunks: ParsedChunk[] = [];
-  const lines = content.split('\n');
-  const CHUNK_SIZE = 30; // lines per chunk
-  const OVERLAP = 5; // overlap between chunks
-
-  // If file is small, treat as single chunk
-  if (lines.length <= CHUNK_SIZE) {
+    const lines = content.split("\n");
     return [
       {
-        content: content,
+        content,
         startLine: 1,
         endLine: lines.length,
-        type: 'file',
+        type: "file",
       },
     ];
-  }
-
-  // Split into overlapping chunks
-  for (let i = 0; i < lines.length; i += CHUNK_SIZE - OVERLAP) {
-    const endIdx = Math.min(i + CHUNK_SIZE, lines.length);
-    chunks.push({
-      content: lines.slice(i, endIdx).join('\n'),
-      startLine: i + 1,
-      endLine: endIdx,
-      type: 'block',
-    });
-
-    if (endIdx >= lines.length) break;
   }
 
   return chunks;
@@ -315,7 +283,11 @@ function parseGenericCode(content: string): ParsedChunk[] {
  * @param endLine - End line number
  * @returns Unique chunk identifier
  */
-export function generateChunkId(filepath: string, startLine: number, endLine: number): string {
-  const safePath = filepath.replace(/[/\\]/g, '-').replace(/\./g, '_');
+export function generateChunkId(
+  filepath: string,
+  startLine: number,
+  endLine: number
+): string {
+  const safePath = filepath.replace(/[/\\]/g, "-").replace(/\./g, "_");
   return `${safePath}-${startLine}-${endLine}`;
 }
