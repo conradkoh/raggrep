@@ -78,19 +78,60 @@ This monitors file changes and re-indexes automatically. Useful during active de
 [Watch] language/typescript: 2 indexed, 0 errors
 ```
 
-## CLI Quick Reference
+## CLI Reference
+
+### Commands
 
 ```bash
-# Search (auto-indexes if needed)
-raggrep query "user login"
-raggrep query "error handling" --top 5
-raggrep query "database" --type ts
+raggrep query <query>    # Search the codebase
+raggrep index            # Build/update the index
+raggrep status           # Show index status
+raggrep reset            # Clear the index
+```
 
-# Watch mode
-raggrep index --watch
+### Query Options
 
-# Check index status
-raggrep status
+```bash
+raggrep query "user login"                    # Basic search
+raggrep query "error handling" --top 5        # Limit results
+raggrep query "database" --min-score 0.2      # Set minimum score threshold
+raggrep query "interface" --type ts           # Filter by file extension
+raggrep query "auth" --filter src/auth        # Filter by path
+raggrep query "api" -f src/api -f src/routes  # Multiple path filters
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--top <n>` | `-k` | Number of results to return (default: 10) |
+| `--min-score <n>` | `-s` | Minimum similarity score 0-1 (default: 0.15) |
+| `--type <ext>` | `-t` | Filter by file extension (e.g., ts, tsx, js) |
+| `--filter <path>` | `-f` | Filter by path prefix (can be used multiple times) |
+| `--help` | `-h` | Show help message |
+
+### Index Options
+
+```bash
+raggrep index                        # Index current directory
+raggrep index --watch                # Watch mode - re-index on file changes
+raggrep index --verbose              # Show detailed progress
+raggrep index --concurrency 8        # Set parallel workers (default: auto)
+raggrep index --model bge-small-en-v1.5  # Use specific embedding model
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--watch` | `-w` | Watch for file changes and re-index automatically |
+| `--verbose` | `-v` | Show detailed progress |
+| `--concurrency <n>` | `-c` | Number of parallel workers (default: auto based on CPU) |
+| `--model <name>` | `-m` | Embedding model to use |
+| `--help` | `-h` | Show help message |
+
+### Other Commands
+
+```bash
+raggrep status           # Show index status and statistics
+raggrep reset            # Clear the index completely
+raggrep --version        # Show version
 ```
 
 ## How It Works
@@ -104,9 +145,13 @@ The index is stored in a system temp directory, keeping your project clean.
 
 ## What Gets Indexed
 
-**File types:** `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.md`, `.txt`
+**TypeScript/JavaScript:** `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` — AST-parsed for functions, classes, interfaces, types, enums
 
-**Code structures:** Functions, classes, interfaces, types, enums, exports
+**Documentation:** `.md`, `.txt` — Section-aware parsing with heading extraction
+
+**Data:** `.json` — Structure-aware with key/value extraction
+
+**Other languages:** `.py`, `.go`, `.rs`, `.java`, `.yaml`, `.yml`, `.toml`, `.sql` — Symbol extraction and keyword search
 
 **Automatically ignored:** `node_modules`, `dist`, `build`, `.git`, and other common directories
 

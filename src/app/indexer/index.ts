@@ -2,6 +2,7 @@
 import { glob } from "glob";
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as os from "os";
 import {
   Config,
   IndexContext,
@@ -104,8 +105,30 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
 }
 
-/** Default concurrency for parallel file processing */
-const DEFAULT_CONCURRENCY = 4;
+/**
+ * Get optimal concurrency based on CPU specs.
+ *
+ * Uses the number of CPU cores with some considerations:
+ * - Minimum: 2 (ensure some parallelism)
+ * - Maximum: 16 (avoid diminishing returns / memory pressure)
+ * - For embedding generation, we leave 1-2 cores free for the system
+ *
+ * @returns Optimal concurrency value
+ */
+function getOptimalConcurrency(): number {
+  const cpuCount = os.cpus().length;
+
+  // Leave some cores for system/other processes
+  // For 4 cores: use 3
+  // For 8 cores: use 6
+  // For 16+ cores: use 12-14
+  const optimal = Math.max(2, Math.min(16, Math.floor(cpuCount * 0.75)));
+
+  return optimal;
+}
+
+/** Default concurrency for parallel file processing (dynamic based on CPU) */
+const DEFAULT_CONCURRENCY = getOptimalConcurrency();
 
 export interface IndexOptions {
   /** Override the embedding model (semantic module) */
@@ -116,7 +139,7 @@ export interface IndexOptions {
   quiet?: boolean;
   /** Logger for progress reporting. If not provided, uses console by default (quiet mode uses silent logger) */
   logger?: Logger;
-  /** Number of files to process in parallel (default: 4) */
+  /** Number of files to process in parallel (default: auto based on CPU cores) */
   concurrency?: number;
 }
 
@@ -288,7 +311,9 @@ export async function indexDirectory(
     result.durationMs = moduleDuration;
 
     logger.info(
-      `[${module.name}] Complete: ${result.indexed} indexed, ${result.skipped} skipped, ${result.errors} errors (${formatDuration(moduleDuration)})`
+      `[${module.name}] Complete: ${result.indexed} indexed, ${
+        result.skipped
+      } skipped, ${result.errors} errors (${formatDuration(moduleDuration)})`
     );
   }
 
