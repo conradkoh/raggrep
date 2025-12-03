@@ -90,6 +90,12 @@ export interface SearchOptions {
   filePatterns?: string[];
 
   /**
+   * Filter to files within specified paths (e.g., ['src/auth', 'src/utils']).
+   * Results will only include files that start with one of the specified paths.
+   */
+  pathFilter?: string[];
+
+  /**
    * Ensure the index is fresh before searching (default: true).
    *
    * When true, the search will automatically:
@@ -109,5 +115,6 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   topK: 10,
   minScore: 0.15,
   filePatterns: [],
+  pathFilter: [],
   ensureFresh: true,
 };

@@ -83,12 +83,30 @@ export async function search(
     allResults.push(...moduleResults);
   }
 
+  // Apply path filter if specified
+  let filteredResults = allResults;
+  if (options.pathFilter && options.pathFilter.length > 0) {
+    const normalizedFilters = options.pathFilter.map((p) =>
+      p.replace(/\\/g, "/").replace(/^\//, "").replace(/\/$/, "")
+    );
+    filteredResults = allResults.filter((result) => {
+      const normalizedPath = result.filepath.replace(/\\/g, "/");
+      return normalizedFilters.some(
+        (filter) =>
+          normalizedPath.startsWith(filter + "/") ||
+          normalizedPath === filter ||
+          normalizedPath.startsWith("./" + filter + "/") ||
+          normalizedPath === "./" + filter
+      );
+    });
+  }
+
   // Sort all results by score
-  allResults.sort((a, b) => b.score - a.score);
+  filteredResults.sort((a, b) => b.score - a.score);
 
   // Return top K
   const topK = options.topK ?? 10;
-  return allResults.slice(0, topK);
+  return filteredResults.slice(0, topK);
 }
 
 /**

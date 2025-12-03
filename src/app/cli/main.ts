@@ -52,6 +52,8 @@ interface ParsedFlags {
   minScore?: number;
   /** File extension filter (e.g., 'ts', 'tsx') */
   fileType?: string;
+  /** Path filter for search (e.g., 'src/auth') */
+  pathFilter?: string[];
   /** Show help message */
   help: boolean;
   /** Show detailed progress */
@@ -129,6 +131,17 @@ function parseFlags(args: string[]): ParsedFlags {
         console.error(
           `Invalid concurrency: ${args[i]}. Must be a positive integer.`
         );
+        process.exit(1);
+      }
+    } else if (arg === "--filter" || arg === "-f") {
+      const filterPath = args[++i];
+      if (filterPath) {
+        if (!flags.pathFilter) {
+          flags.pathFilter = [];
+        }
+        flags.pathFilter.push(filterPath);
+      } else {
+        console.error("--filter requires a path (e.g., src/auth)");
         process.exit(1);
       }
     } else if (!arg.startsWith("-")) {
@@ -253,6 +266,7 @@ Options:
   -k, --top <n>        Number of results to return (default: 10)
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
+  -f, --filter <path>  Filter by path prefix (can be used multiple times)
   -h, --help           Show this help message
 
 Note:
@@ -267,6 +281,8 @@ Examples:
   raggrep query "handle errors" --top 5
   raggrep query "database" --min-score 0.1
   raggrep query "interface" --type ts
+  raggrep query "login" --filter src/auth
+  raggrep query "api" --filter src/api --filter src/routes
 `);
         process.exit(0);
       }
@@ -318,6 +334,7 @@ Examples:
           topK: flags.topK ?? 10,
           minScore: flags.minScore,
           filePatterns,
+          pathFilter: flags.pathFilter,
           // Skip automatic freshness check since we already called ensureIndexFresh above
           ensureFresh: false,
         });
