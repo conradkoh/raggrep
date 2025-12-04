@@ -85,3 +85,6 @@ export {
   EXPANSION_WEIGHTS,
   DEFAULT_EXPANSION_OPTIONS,
 } from "./lexicon";
+
+// JSON path extraction for literal indexing
+export { extractJsonPaths, extractJsonKeywords } from "./jsonPathExtractor";

@@ -2,9 +2,11 @@
  * JSON Data Index Module
  *
  * Provides JSON file search using:
- * - JSON structure parsing
- * - Local text embeddings for semantic similarity
- * - Key/value extraction for better search
+ * - Literal indexing of dot-notation key paths (e.g., "package.dependencies.react")
+ * - BM25 keyword matching for fuzzy search
+ *
+ * Note: This module uses literal-only indexing (no embeddings) for fast indexing.
+ * JSON keys are indexed as dot-notation paths prefixed with the filename.
  *
  * Supported file types: .json
  *
@@ -23,38 +25,38 @@ import {
   ModuleConfig,
 } from "../../../types";
 import {
-  getEmbeddings,
-  getEmbedding,
-  configureEmbeddings,
-  getEmbeddingConfig,
-} from "../../../infrastructure/embeddings";
-import {
-  cosineSimilarity,
   BM25Index,
   normalizeScore,
-  extractQueryTerms,
-  createLineBasedChunks,
   generateChunkId,
+  // Literal boosting
+  parseQueryLiterals,
+  calculateLiteralContribution,
+  applyLiteralBoost,
+  LITERAL_SCORING_CONSTANTS,
+  // JSON path extraction
+  extractJsonPaths,
+  extractJsonKeywords,
 } from "../../../domain/services";
-import {
-  getEmbeddingConfigFromModule,
-  getRaggrepDir,
-} from "../../../infrastructure/config";
-import { SymbolicIndex } from "../../../infrastructure/storage";
-import type { EmbeddingConfig, Logger } from "../../../domain/ports";
-import type { FileSummary } from "../../../domain/entities";
+import { getRaggrepDir } from "../../../infrastructure/config";
+import { SymbolicIndex, LiteralIndex } from "../../../infrastructure/storage";
+import type { Logger } from "../../../domain/ports";
+import type {
+  FileSummary,
+  ExtractedLiteral,
+  LiteralMatch,
+} from "../../../domain/entities";
 
 /** Default minimum similarity score for search results */
-export const DEFAULT_MIN_SCORE = 0.15;
+export const DEFAULT_MIN_SCORE = 0.1;
 
 /** Default number of results to return */
 export const DEFAULT_TOP_K = 10;
 
-/** Weight for semantic similarity in hybrid scoring (0-1) */
-const SEMANTIC_WEIGHT = 0.7;
+/** Weight for BM25 keyword matching in scoring */
+const BM25_WEIGHT = 0.4;
 
-/** Weight for BM25 keyword matching in hybrid scoring (0-1) */
-const BM25_WEIGHT = 0.3;
+/** Weight for literal matching in scoring */
+const LITERAL_WEIGHT = 0.6;
 
 /** File extensions supported by this module */
 export const JSON_EXTENSIONS = [".json"];
@@ -71,103 +73,40 @@ export function isJsonFile(filepath: string): boolean {
 export const supportsFile = isJsonFile;
 
 /**
- * Extract all keys from a JSON object recursively.
- */
-function extractJsonKeys(obj: unknown, prefix = ""): string[] {
-  const keys: string[] = [];
-
-  if (obj === null || obj === undefined) {
-    return keys;
-  }
-
-  if (Array.isArray(obj)) {
-    obj.forEach((item, index) => {
-      keys.push(...extractJsonKeys(item, `${prefix}[${index}]`));
-    });
-  } else if (typeof obj === "object") {
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key;
-      keys.push(key);
-      keys.push(...extractJsonKeys(value, fullKey));
-    }
-  }
-
-  return keys;
-}
-
-/**
- * Extract keywords from JSON content for BM25 search.
- */
-function extractJsonKeywords(content: string): string[] {
-  try {
-    const parsed = JSON.parse(content);
-    const keys = extractJsonKeys(parsed);
-
-    // Also extract string values
-    const stringValues: string[] = [];
-    const extractStrings = (obj: unknown): void => {
-      if (typeof obj === "string") {
-        // Split camelCase and extract words
-        const words = obj
-          .replace(/([a-z])([A-Z])/g, "$1 $2")
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 2);
-        stringValues.push(...words);
-      } else if (Array.isArray(obj)) {
-        obj.forEach(extractStrings);
-      } else if (obj && typeof obj === "object") {
-        Object.values(obj as Record<string, unknown>).forEach(extractStrings);
-      }
-    };
-    extractStrings(parsed);
-
-    return [...new Set([...keys, ...stringValues])];
-  } catch {
-    // If JSON parsing fails, return empty keywords
-    return [];
-  }
-}
-
-/**
  * Module-specific data stored alongside file index
  */
 export interface JsonModuleData {
-  embeddings: number[][];
-  embeddingModel: string;
-  jsonKeys: string[];
+  /** Dot-notation paths extracted from the JSON file */
+  jsonPaths: string[];
   [key: string]: unknown;
 }
 
 export class JsonModule implements IndexModule {
   readonly id = "data/json";
   readonly name = "JSON Search";
-  readonly description = "JSON file search with structure-aware indexing";
-  readonly version = "1.0.0";
+  readonly description =
+    "JSON file search with literal-based key path indexing";
+  readonly version = "2.0.0"; // Bumped for literal-only mode
 
   supportsFile(filepath: string): boolean {
     return isJsonFile(filepath);
   }
 
-  private embeddingConfig: EmbeddingConfig | null = null;
   private symbolicIndex: SymbolicIndex | null = null;
+  private literalIndex: LiteralIndex | null = null;
   private pendingSummaries: Map<string, FileSummary> = new Map();
+  /** Map from chunkId → { filepath, literals } for building literal index */
+  private pendingLiterals: Map<
+    string,
+    { filepath: string; literals: ExtractedLiteral[] }
+  > = new Map();
   private rootDir: string = "";
   private logger: Logger | undefined = undefined;
 
   async initialize(config: ModuleConfig): Promise<void> {
-    this.embeddingConfig = getEmbeddingConfigFromModule(config);
     this.logger = config.options?.logger as Logger | undefined;
-
-    if (this.logger) {
-      this.embeddingConfig = {
-        ...this.embeddingConfig,
-        logger: this.logger,
-      };
-    }
-
-    configureEmbeddings(this.embeddingConfig);
     this.pendingSummaries.clear();
+    this.pendingLiterals.clear();
   }
 
   async indexFile(
@@ -182,59 +121,58 @@ export class JsonModule implements IndexModule {
 
     this.rootDir = ctx.rootDir;
 
-    // Create chunks from JSON content
-    const textChunks = createLineBasedChunks(content, {
-      chunkSize: 50,
-      overlap: 10,
-    });
-
-    if (textChunks.length === 0) {
+    // Parse JSON content
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Invalid JSON, skip indexing
       return null;
     }
 
-    // Generate embeddings for chunks
-    const chunkContents = textChunks.map((c) => {
-      // Include file context in embedding
-      const filename = path.basename(filepath);
-      return `${filename}: ${c.content}`;
-    });
-    const embeddings = await getEmbeddings(chunkContents);
+    // Get filename without extension for path prefix
+    const fileBasename = path.basename(filepath, path.extname(filepath));
 
-    // Create chunks with metadata
-    const chunks: Chunk[] = textChunks.map((tc, i) => ({
-      id: generateChunkId(filepath, tc.startLine, tc.endLine),
-      content: tc.content,
-      startLine: tc.startLine,
-      endLine: tc.endLine,
-      type: tc.type,
-    }));
+    // Extract dot-notation paths as literals
+    const jsonPathLiterals = extractJsonPaths(parsed, fileBasename);
 
-    // Extract JSON keys for metadata
-    const jsonKeys = extractJsonKeys(
-      (() => {
-        try {
-          return JSON.parse(content);
-        } catch {
-          return {};
-        }
-      })()
-    );
+    // Count lines for chunk metadata
+    const lines = content.split("\n");
+    const lineCount = lines.length;
+
+    // Create single chunk for the entire file
+    const chunkId = generateChunkId(filepath, 1, lineCount);
+    const chunks: Chunk[] = [
+      {
+        id: chunkId,
+        content: content,
+        startLine: 1,
+        endLine: lineCount,
+        type: "file",
+      },
+    ];
+
+    // Store literals for finalize
+    if (jsonPathLiterals.length > 0) {
+      this.pendingLiterals.set(chunkId, {
+        filepath,
+        literals: jsonPathLiterals,
+      });
+    }
 
     const stats = await ctx.getFileStats(filepath);
-    const currentConfig = getEmbeddingConfig();
 
+    // Module data without embeddings
     const moduleData: JsonModuleData = {
-      embeddings,
-      embeddingModel: currentConfig.model,
-      jsonKeys,
+      jsonPaths: jsonPathLiterals.map((l) => l.value),
     };
 
-    // Build file summary
-    const keywords = extractJsonKeywords(content);
+    // Build file summary with keywords for BM25
+    const keywords = extractJsonKeywords(parsed);
 
     const fileSummary: FileSummary = {
       filepath,
-      chunkCount: chunks.length,
+      chunkCount: 1,
       chunkTypes: ["file"],
       keywords,
       exports: [], // JSON files don't have exports
@@ -251,21 +189,70 @@ export class JsonModule implements IndexModule {
     };
   }
 
+  /**
+   * Finalize indexing by building and saving the symbolic and literal indexes
+   */
   async finalize(ctx: IndexContext): Promise<void> {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
 
+    // Initialize symbolic index
     this.symbolicIndex = new SymbolicIndex(indexDir, this.id);
     await this.symbolicIndex.initialize();
 
+    // Add all pending summaries
     for (const [filepath, summary] of this.pendingSummaries) {
       this.symbolicIndex.addFile(summary);
     }
 
+    // Build BM25 index from summaries
     this.symbolicIndex.buildBM25Index();
+
+    // Save to disk
     await this.symbolicIndex.save();
+
+    // Initialize and build literal index
+    this.literalIndex = new LiteralIndex(indexDir, this.id);
+    await this.literalIndex.initialize();
+
+    // Get all filepaths that were indexed in this run
+    const indexedFilepaths = new Set<string>();
+    for (const filepath of this.pendingSummaries.keys()) {
+      indexedFilepaths.add(filepath);
+    }
+    for (const { filepath } of this.pendingLiterals.values()) {
+      indexedFilepaths.add(filepath);
+    }
+
+    // Remove old literals for all files that were re-indexed
+    for (const filepath of indexedFilepaths) {
+      this.literalIndex.removeFile(filepath);
+    }
+
+    // Add all pending literals
+    for (const [chunkId, { filepath, literals }] of this.pendingLiterals) {
+      this.literalIndex.addLiterals(chunkId, filepath, literals);
+    }
+
+    // Save literal index to disk
+    await this.literalIndex.save();
+
+    // Clear pending data
     this.pendingSummaries.clear();
+    this.pendingLiterals.clear();
   }
 
+  /**
+   * Search the JSON index for files matching the query.
+   *
+   * Uses a two-source approach:
+   * 1. Literal index for exact path matches (e.g., `package.dependencies.react`)
+   * 2. BM25 keyword search for fuzzy matching
+   *
+   * @param query - Search query (supports backticks for exact literal matching)
+   * @param ctx - Search context with index access
+   * @param options - Search options (topK, minScore, filePatterns)
+   * @returns Array of search results sorted by relevance
+   */
   async search(
     query: string,
     ctx: SearchContext,
@@ -277,11 +264,28 @@ export class JsonModule implements IndexModule {
       filePatterns,
     } = options;
 
+    // Parse query for literals (explicit backticks/quotes and implicit patterns)
+    const { literals: queryLiterals, remainingQuery } =
+      parseQueryLiterals(query);
+
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
+
+    // Load symbolic index for BM25 and file listing
     const symbolicIndex = new SymbolicIndex(indexDir, this.id);
 
-    let allFiles: string[];
+    // Load literal index for exact-match boosting
+    const literalIndex = new LiteralIndex(indexDir, this.id);
+    let literalMatchMap = new Map<string, LiteralMatch[]>();
 
+    try {
+      await literalIndex.initialize();
+      literalMatchMap = literalIndex.buildMatchMap(queryLiterals);
+    } catch {
+      // Literal index doesn't exist yet, continue without it
+    }
+
+    // Get all indexed JSON files
+    let allFiles: string[];
     try {
       await symbolicIndex.initialize();
       allFiles = symbolicIndex.getAllFiles();
@@ -292,6 +296,7 @@ export class JsonModule implements IndexModule {
     // Filter to JSON files only
     let filesToSearch = allFiles.filter((f) => isJsonFile(f));
 
+    // Apply file pattern filter if specified
     if (filePatterns && filePatterns.length > 0) {
       filesToSearch = filesToSearch.filter((filepath) => {
         return filePatterns.some((pattern) => {
@@ -304,37 +309,29 @@ export class JsonModule implements IndexModule {
       });
     }
 
-    const queryEmbedding = await getEmbedding(query);
+    // Build BM25 index from all chunks
     const bm25Index = new BM25Index();
     const allChunksData: Array<{
       filepath: string;
       chunk: Chunk;
-      embedding: number[];
     }> = [];
 
     for (const filepath of filesToSearch) {
       const fileIndex = await ctx.loadFileIndex(filepath);
       if (!fileIndex) continue;
 
-      const moduleData = fileIndex.moduleData as unknown as JsonModuleData;
-      if (!moduleData?.embeddings) continue;
-
-      for (let i = 0; i < fileIndex.chunks.length; i++) {
-        const chunk = fileIndex.chunks[i];
-        const embedding = moduleData.embeddings[i];
-
-        if (!embedding) continue;
-
+      for (const chunk of fileIndex.chunks) {
         allChunksData.push({
           filepath: fileIndex.filepath,
           chunk,
-          embedding,
         });
 
+        // Add to BM25 index
         bm25Index.addDocuments([{ id: chunk.id, content: chunk.content }]);
       }
     }
 
+    // Perform BM25 search
     const bm25Results = bm25Index.search(query, topK * 3);
     const bm25Scores = new Map<string, number>();
 
@@ -342,30 +339,98 @@ export class JsonModule implements IndexModule {
       bm25Scores.set(result.id, normalizeScore(result.score, 3));
     }
 
-    const queryTerms = extractQueryTerms(query);
+    // Calculate scores for all chunks
     const results: SearchResult[] = [];
+    const processedChunkIds = new Set<string>();
 
-    for (const { filepath, chunk, embedding } of allChunksData) {
-      const semanticScore = cosineSimilarity(queryEmbedding, embedding);
+    for (const { filepath, chunk } of allChunksData) {
       const bm25Score = bm25Scores.get(chunk.id) || 0;
 
-      const hybridScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score;
+      // Get literal matches for this chunk
+      const literalMatches = literalMatchMap.get(chunk.id) || [];
+      const literalContribution = calculateLiteralContribution(
+        literalMatches,
+        bm25Score > 0 // hasSemanticOrBm25
+      );
 
-      if (hybridScore >= minScore || bm25Score > 0.3) {
+      // Base score from BM25
+      const baseScore = BM25_WEIGHT * bm25Score;
+
+      // Apply literal boosting
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        literalMatches,
+        bm25Score > 0
+      );
+
+      // Add literal contribution if no BM25 score
+      const literalBase =
+        literalMatches.length > 0 && bm25Score === 0
+          ? LITERAL_SCORING_CONSTANTS.BASE_SCORE * LITERAL_WEIGHT
+          : 0;
+
+      const finalScore = boostedScore + literalBase;
+
+      processedChunkIds.add(chunk.id);
+
+      // Include if score meets threshold or has literal matches
+      if (finalScore >= minScore || literalMatches.length > 0) {
         results.push({
           filepath,
           chunk,
-          score: hybridScore,
+          score: finalScore,
           moduleId: this.id,
           context: {
-            semanticScore,
             bm25Score,
+            literalMultiplier: literalContribution.multiplier,
+            literalMatchType: literalContribution.bestMatchType,
+            literalConfidence: literalContribution.bestConfidence,
+            literalMatchCount: literalContribution.matchCount,
           },
         });
       }
     }
 
+    // Add literal-only results (chunks found by literal index but not loaded)
+    for (const [chunkId, matches] of literalMatchMap) {
+      if (processedChunkIds.has(chunkId)) {
+        continue;
+      }
+
+      const filepath = matches[0]?.filepath;
+      if (!filepath) continue;
+
+      // Load the file index
+      const fileIndex = await ctx.loadFileIndex(filepath);
+      if (!fileIndex) continue;
+
+      const chunk = fileIndex.chunks.find((c) => c.id === chunkId);
+      if (!chunk) continue;
+
+      const literalContribution = calculateLiteralContribution(matches, false);
+
+      const score =
+        LITERAL_SCORING_CONSTANTS.BASE_SCORE * literalContribution.multiplier;
+
+      processedChunkIds.add(chunkId);
+
+      results.push({
+        filepath,
+        chunk,
+        score,
+        moduleId: this.id,
+        context: {
+          bm25Score: 0,
+          literalMultiplier: literalContribution.multiplier,
+          literalMatchType: literalContribution.bestMatchType,
+          literalConfidence: literalContribution.bestConfidence,
+          literalMatchCount: literalContribution.matchCount,
+          literalOnly: true,
+        },
+      });
+    }
+
+    // Sort by score descending and take top K
     results.sort((a, b) => b.score - a.score);
     return results.slice(0, topK);
   }
