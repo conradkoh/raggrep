@@ -138,3 +138,4 @@ export function generateChunkId(
   const safePath = filepath.replace(/[/\\]/g, "-").replace(/\./g, "_");
   return `${safePath}-${startLine}-${endLine}`;
 }
+

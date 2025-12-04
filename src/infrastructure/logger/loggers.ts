@@ -151,3 +151,4 @@ export function createInlineLogger(options?: LoggerOptions): Logger {
 export function createSilentLogger(): Logger {
   return new SilentLogger();
 }
+

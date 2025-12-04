@@ -96,3 +96,4 @@ interface SessionStore {
   delete(sessionId: string): Promise<void>;
   deleteByUserId(userId: string): Promise<number>;
 }
+

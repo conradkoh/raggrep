@@ -67,3 +67,4 @@ run_test "Validation Utils" "email validation" "src/utils/validation.ts"
 echo "========================================"
 echo "Sanity checks complete"
 echo "========================================"
+

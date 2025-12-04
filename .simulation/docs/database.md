@@ -118,3 +118,4 @@ npm run db:migrate:create add_phone_to_users
 - Increase `maxConnections` if needed
 - Check for connection leaks (unreleased clients)
 - Review long-running queries
+

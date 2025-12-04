@@ -146,3 +146,4 @@ When adding files to this scenario:
 2. Update this README's file structure section
 3. Add expected queries to `test-queries.md`
 4. Update `run-sanity-checks.sh` if adding new test cases
+

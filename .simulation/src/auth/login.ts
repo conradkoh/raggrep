@@ -101,3 +101,4 @@ interface UserRepository {
   findByEmail(email: string): Promise<User | null>;
   updateLastLogin(userId: string): Promise<void>;
 }
+

@@ -107,3 +107,4 @@ export async function closeDatabase(): Promise<void> {
     console.log("Database connections closed");
   }
 }
+

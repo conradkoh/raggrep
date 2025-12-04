@@ -77,3 +77,4 @@ Sessions are stored in Redis with a 24-hour TTL. Users can:
 
 - Ensure token is included in Authorization header
 - Verify token format: `Bearer <token>`
+

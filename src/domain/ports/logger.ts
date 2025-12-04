@@ -70,3 +70,4 @@ export interface Logger {
  * Factory function type for creating loggers
  */
 export type LoggerFactory = (options?: { verbose?: boolean }) => Logger;
+

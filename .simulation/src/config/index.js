@@ -70,3 +70,4 @@ module.exports = {
   config: loadConfig(),
   loadConfig,
 };
+

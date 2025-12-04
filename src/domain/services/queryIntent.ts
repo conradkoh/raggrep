@@ -183,3 +183,4 @@ export function calculateFileTypeBoost(
   // Neutral queries: no boost either way
   return 0;
 }
+
