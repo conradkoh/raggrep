@@ -185,39 +185,45 @@ Copy this for PR reviews:
 ## Index Feature Review
 
 ### Pre-flight
+
 - [ ] `bun test` passes
 - [ ] `tsc --noEmit` passes
 
 ### Invalidation
+
 - [ ] File modification cleans up old entries
 - [ ] File deletion removes all entries
 - [ ] Chunk IDs handled correctly
 
 ### Incremental
+
 - [ ] Only modified files re-indexed
 - [ ] Has `removeFile()` method
 - [ ] `finalize()` handles cleanup
 
 ### Storage
+
 - [ ] JSON format with version
 - [ ] Correct paths with `getRaggrepDir()`
 
 ### Search
+
 - [ ] Query parsing correct
 - [ ] Results merge properly
 - [ ] Index-only matches included
 
 ### Performance
+
 - [ ] O(1) lookup
 - [ ] Tested with large codebase
 ```
 
 ## Common Issues & Fixes
 
-| Issue | Symptom | Fix |
-|-------|---------|-----|
-| Stale entries | Old identifiers still found | Add `removeFile()` call in `finalize()` |
-| Full rebuild | Index slow after 1-file change | Check if `finalize()` clears everything |
-| Missing results | Index-only matches not showing | Implement two-path retrieval |
-| Wrong paths | Index not found | Use `getRaggrepDir()` consistently |
-| Type errors | Build fails | Export types from `domain/entities` |
+| Issue           | Symptom                        | Fix                                     |
+| --------------- | ------------------------------ | --------------------------------------- |
+| Stale entries   | Old identifiers still found    | Add `removeFile()` call in `finalize()` |
+| Full rebuild    | Index slow after 1-file change | Check if `finalize()` clears everything |
+| Missing results | Index-only matches not showing | Implement two-path retrieval            |
+| Wrong paths     | Index not found                | Use `getRaggrepDir()` consistently      |
+| Type errors     | Build fails                    | Export types from `domain/entities`     |
