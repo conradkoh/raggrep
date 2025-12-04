@@ -158,13 +158,13 @@ Query: "find the `AuthService` class"
 
 Literals are detected in queries through:
 
-| Method        | Example                         | Confidence |
-| ------------- | ------------------------------- | ---------- |
-| **Backticks** | `` find `AuthService` ``        | High       |
-| **Quotes**    | `find "handleLogin"`            | High       |
-| **PascalCase**| `find AuthService`              | Medium     |
-| **camelCase** | `find getUserById`              | Medium     |
-| **SCREAMING** | `find MAX_RETRIES`              | Medium     |
+| Method         | Example                  | Confidence |
+| -------------- | ------------------------ | ---------- |
+| **Backticks**  | `` find `AuthService` `` | High       |
+| **Quotes**     | `find "handleLogin"`     | High       |
+| **PascalCase** | `find AuthService`       | Medium     |
+| **camelCase**  | `find getUserById`       | Medium     |
+| **SCREAMING**  | `find MAX_RETRIES`       | Medium     |
 
 ### Index-Time Extraction
 
@@ -421,11 +421,11 @@ Pure business logic with **no external dependencies**.
 
 **Literal Boosting Services:**
 
-| Service                   | Description                                    |
-| ------------------------- | ---------------------------------------------- |
-| `queryLiteralParser.ts`   | Detect literals in queries (backticks, casing) |
-| `literalExtractor.ts`     | Extract literals from AST-parsed chunks        |
-| `literalScorer.ts`        | Calculate multipliers and merge results        |
+| Service                 | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `queryLiteralParser.ts` | Detect literals in queries (backticks, casing) |
+| `literalExtractor.ts`   | Extract literals from AST-parsed chunks        |
+| `literalScorer.ts`      | Calculate multipliers and merge results        |
 
 ### Infrastructure Layer (`src/infrastructure/`)
 
@@ -455,9 +455,9 @@ Pluggable modules implementing the `IndexModule` interface.
 
 **Current Modules:**
 
-| Module ID             | Location                           | Description                                              |
-| --------------------- | ---------------------------------- | -------------------------------------------------------- |
-| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25               |
+| Module ID             | Location                           | Description                                                |
+| --------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25                 |
 | `language/typescript` | `src/modules/language/typescript/` | AST parsing + embeddings + literal index + two-path search |
 
 Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score. The TypeScript module implements the full literal boosting pipeline.

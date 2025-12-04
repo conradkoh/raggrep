@@ -319,7 +319,23 @@ export class TypeScriptModule implements IndexModule {
     this.literalIndex = new LiteralIndex(indexDir, this.id);
     await this.literalIndex.initialize();
 
-    // Add all pending literals
+    // Get all filepaths that were indexed in this run
+    // (both from summaries for any indexed files and from literals for chunks with names)
+    const indexedFilepaths = new Set<string>();
+    for (const filepath of this.pendingSummaries.keys()) {
+      indexedFilepaths.add(filepath);
+    }
+    for (const { filepath } of this.pendingLiterals.values()) {
+      indexedFilepaths.add(filepath);
+    }
+
+    // Remove old literals for all files that were re-indexed
+    // This ensures stale literals (from renamed/deleted functions) are removed
+    for (const filepath of indexedFilepaths) {
+      this.literalIndex.removeFile(filepath);
+    }
+
+    // Add all pending literals (fresh data from this indexing run)
     for (const [chunkId, { filepath, literals }] of this.pendingLiterals) {
       this.literalIndex.addLiterals(chunkId, filepath, literals);
     }

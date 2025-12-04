@@ -524,6 +524,8 @@ export async function ensureIndexFresh(
     }
 
     // Remove stale entries
+    // Also need to track files removed for literal index cleanup
+    const removedFilepaths: string[] = [];
     for (const filepath of filesToRemove) {
       logger.debug(`  Removing stale: ${filepath}`);
       // Remove main index file
@@ -548,7 +550,27 @@ export async function ensureIndexFresh(
         // Symbolic file may not exist
       }
       delete manifest.files[filepath];
+      removedFilepaths.push(filepath);
       totalRemoved++;
+    }
+
+    // Clean up literal index for removed files
+    if (removedFilepaths.length > 0) {
+      try {
+        const { LiteralIndex } = await import(
+          "../../infrastructure/storage/literalIndex"
+        );
+        // LiteralIndex expects the base raggrep directory
+        const raggrepDir = getRaggrepDir(rootDir, config);
+        const literalIndex = new LiteralIndex(raggrepDir, module.id);
+        await literalIndex.initialize();
+        for (const filepath of removedFilepaths) {
+          literalIndex.removeFile(filepath);
+        }
+        await literalIndex.save();
+      } catch {
+        // Literal index may not exist yet
+      }
     }
 
     // Index new/modified files

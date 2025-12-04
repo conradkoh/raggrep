@@ -119,6 +119,30 @@ export class LiteralIndex {
   }
 
   /**
+   * Remove all literals for a file.
+   * Used when a file is re-indexed or deleted.
+   *
+   * @param filepath - Filepath to remove all literals for
+   * @returns Number of literals removed
+   */
+  removeFile(filepath: string): number {
+    let removed = 0;
+    for (const [key, entries] of this.entries) {
+      const filtered = entries.filter((e) => e.filepath !== filepath);
+      const removedCount = entries.length - filtered.length;
+      if (removedCount > 0) {
+        removed += removedCount;
+        if (filtered.length === 0) {
+          this.entries.delete(key);
+        } else {
+          this.entries.set(key, filtered);
+        }
+      }
+    }
+    return removed;
+  }
+
+  /**
    * Find matches for query literals.
    *
    * @param queryLiterals - Literals detected in the query
