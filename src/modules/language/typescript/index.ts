@@ -433,7 +433,9 @@ export class TypeScriptModule implements IndexModule {
     });
 
     // Use expanded query for embedding to improve semantic recall
-    const queryEmbedding = await getEmbedding(expandedQuery.expandedQueryString);
+    const queryEmbedding = await getEmbedding(
+      expandedQuery.expandedQueryString
+    );
 
     // Load all indexed files and compute scores
     // BM25 is used for keyword scoring, not filtering

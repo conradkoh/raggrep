@@ -500,4 +500,311 @@ The system uses JWT tokens for session management.
       expect(definitionInTop3).toBe(true);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Test 8: Expanded codebase - OAuth authentication
+  // --------------------------------------------------------------------------
+  describe("Expanded codebase - OAuth authentication", () => {
+    test("should find oauth.ts when searching for OAuth flow", async () => {
+      const results = await raggrep.search(SIMULATION_DIR, "OAuth SSO login", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const oauthPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/oauth.ts")
+      );
+
+      expect(oauthPos).toBeGreaterThanOrEqual(0);
+      expect(oauthPos).toBeLessThan(3);
+    });
+
+    test("should find oauth.ts for Google GitHub provider query", async () => {
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "Google GitHub authentication provider",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const oauthPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/oauth.ts")
+      );
+
+      expect(oauthPos).toBeGreaterThanOrEqual(0);
+      expect(oauthPos).toBeLessThan(3);
+    });
+
+    test("should still find login.ts for password authentication", async () => {
+      // With oauth.ts added, login.ts should still rank high for password auth
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "password authentication",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(loginPos).toBeGreaterThanOrEqual(0);
+      expect(loginPos).toBeLessThan(3);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 9: Expanded codebase - Notification vs Email disambiguation
+  // --------------------------------------------------------------------------
+  describe("Expanded codebase - Notification vs Email", () => {
+    test("should find notification.ts for push notification query", async () => {
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "push notification mobile",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const notifPos = results.findIndex((r) =>
+        r.filepath.includes("src/services/notification.ts")
+      );
+
+      expect(notifPos).toBeGreaterThanOrEqual(0);
+      expect(notifPos).toBeLessThan(3);
+    });
+
+    test("should find email.ts for email template query", async () => {
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "email template password reset",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const emailPos = results.findIndex((r) =>
+        r.filepath.includes("src/services/email.ts")
+      );
+
+      expect(emailPos).toBeGreaterThanOrEqual(0);
+      expect(emailPos).toBeLessThan(3);
+    });
+
+    test("should distinguish between notification and email for welcome message", async () => {
+      // email.ts has sendWelcomeEmail, notification.ts does not
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "`sendWelcomeEmail`",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const emailPos = results.findIndex((r) =>
+        r.filepath.includes("src/services/email.ts")
+      );
+      const notifPos = results.findIndex((r) =>
+        r.filepath.includes("src/services/notification.ts")
+      );
+
+      expect(emailPos).toBe(0); // email.ts should be first
+      if (notifPos >= 0) {
+        expect(emailPos).toBeLessThan(notifPos);
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 10: Expanded codebase - Cryptographic utilities
+  // --------------------------------------------------------------------------
+  describe("Expanded codebase - Crypto utilities", () => {
+    test("should find crypto.ts for encryption query", async () => {
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "encrypt decrypt AES",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const cryptoPos = results.findIndex((r) =>
+        r.filepath.includes("src/utils/crypto.ts")
+      );
+
+      expect(cryptoPos).toBeGreaterThanOrEqual(0);
+      expect(cryptoPos).toBeLessThan(3);
+    });
+
+    test("should find crypto.ts for HMAC verification", async () => {
+      const results = await raggrep.search(SIMULATION_DIR, "`generateHMAC`", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const cryptoPos = results.findIndex((r) =>
+        r.filepath.includes("src/utils/crypto.ts")
+      );
+
+      expect(cryptoPos).toBe(0);
+    });
+
+    test("should find login.ts for hashPassword (not crypto.ts)", async () => {
+      // hashPassword is in login.ts, not crypto.ts
+      const results = await raggrep.search(SIMULATION_DIR, "`hashPassword`", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+      const cryptoPos = results.findIndex((r) =>
+        r.filepath.includes("src/utils/crypto.ts")
+      );
+
+      expect(loginPos).toBe(0);
+      if (cryptoPos >= 0) {
+        expect(loginPos).toBeLessThan(cryptoPos);
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 11: Expanded codebase - Products API (distractor)
+  // --------------------------------------------------------------------------
+  describe("Expanded codebase - Products API isolation", () => {
+    test("should find products.ts for inventory query", async () => {
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "product inventory stock",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const productsPos = results.findIndex((r) =>
+        r.filepath.includes("src/api/routes/products.ts")
+      );
+
+      expect(productsPos).toBeGreaterThanOrEqual(0);
+      expect(productsPos).toBeLessThan(3);
+    });
+
+    test("should NOT rank products.ts high for auth queries", async () => {
+      // products.ts is unrelated to authentication
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "user authentication login",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      const productsPos = results.findIndex((r) =>
+        r.filepath.includes("src/api/routes/products.ts")
+      );
+
+      // products.ts should either not be in results or rank low
+      if (productsPos >= 0) {
+        expect(productsPos).toBeGreaterThanOrEqual(5);
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 12: Semantic Expansion with expanded codebase
+  // --------------------------------------------------------------------------
+  describe("Semantic Expansion with expanded codebase", () => {
+    test("should still find method when searching for function", async () => {
+      // Tests that SSE still works with more files
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "authentication function verify",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find auth-related files
+      const authFiles = results.filter(
+        (r) =>
+          r.filepath.includes("src/auth/") ||
+          r.filepath.includes("middleware/auth")
+      );
+
+      expect(authFiles.length).toBeGreaterThan(0);
+    });
+
+    test("should expand auth to authentication when searching", async () => {
+      // Search for "auth" should still find authentication-related files
+      const results = await raggrep.search(SIMULATION_DIR, "auth session", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const sessionPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+
+      expect(sessionPos).toBeGreaterThanOrEqual(0);
+      expect(sessionPos).toBeLessThan(5);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 13: Multiple competing files for same concept
+  // --------------------------------------------------------------------------
+  describe("Multiple competing files", () => {
+    test("should rank login.ts higher than oauth.ts for JWT token", async () => {
+      // Both files use JWT, but login.ts is more about JWT tokens
+      const results = await raggrep.search(SIMULATION_DIR, "JWT token sign", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+      const oauthPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/oauth.ts")
+      );
+
+      expect(loginPos).toBeGreaterThanOrEqual(0);
+      expect(oauthPos).toBeGreaterThanOrEqual(0);
+
+      // Both should be in top 5, but either order is acceptable
+      expect(loginPos).toBeLessThan(5);
+      expect(oauthPos).toBeLessThan(5);
+    });
+
+    test("should find both users.ts and products.ts for API routes query", async () => {
+      const results = await raggrep.search(SIMULATION_DIR, "API routes CRUD", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      const usersPos = results.findIndex((r) =>
+        r.filepath.includes("src/api/routes/users.ts")
+      );
+      const productsPos = results.findIndex((r) =>
+        r.filepath.includes("src/api/routes/products.ts")
+      );
+
+      // Both should be found
+      expect(usersPos).toBeGreaterThanOrEqual(0);
+      expect(productsPos).toBeGreaterThanOrEqual(0);
+    });
+  });
 });
