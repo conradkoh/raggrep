@@ -314,4 +314,190 @@ The system uses JWT tokens for session management.
       expect(sourceIndex).toBeLessThan(5);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Test 4: Literal Boosting - Explicit backticks
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting - Explicit backticks", () => {
+    test("should boost exact function match with explicit backticks", async () => {
+      // Search with explicit backtick literal
+      const resultsWithBackticks = await raggrep.search(
+        SIMULATION_DIR,
+        "`hashPassword`",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Both should find login.ts at position 0
+      const loginPosWithBackticks = resultsWithBackticks.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(loginPosWithBackticks).toBe(0);
+
+      // The result should have a literal multiplier > 1 (definition match)
+      const loginResult = resultsWithBackticks[0];
+      expect(loginResult?.context?.literalMultiplier).toBeGreaterThan(1);
+    });
+
+    test("should detect literal context in search results", async () => {
+      // Search with explicit backtick literal
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "`validateSession`",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find session.ts first
+      const sessionResult = results.find((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+
+      expect(sessionResult).toBeDefined();
+
+      // Check that literal context is included in results
+      if (sessionResult?.context) {
+        // literalMultiplier should be present and > 1 for matches
+        expect(sessionResult.context.literalMultiplier).toBeDefined();
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 5: Literal Boosting - Implicit PascalCase detection
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting - Implicit PascalCase detection", () => {
+    test("should detect PascalCase interface name and find definition", async () => {
+      // Search for a PascalCase interface name
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "SessionMetadata interface",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find session.ts which defines SessionMetadata
+      const sessionResult = results.find((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+
+      expect(sessionResult).toBeDefined();
+
+      // Should be in top 3 results
+      const sessionPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+      expect(sessionPos).toBeLessThan(3);
+    });
+
+    test("should detect camelCase function name implicitly", async () => {
+      // Search with camelCase function name (implicit detection)
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "where is authenticateUser defined",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find login.ts which defines authenticateUser
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(loginPos).toBeGreaterThanOrEqual(0);
+      expect(loginPos).toBeLessThan(3);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 6: Literal Boosting - Multiple literals in query
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting - Multiple literals", () => {
+    test("should handle query with multiple explicit literals", async () => {
+      // Search with multiple backtick literals
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "`createSession` and `validateSession`",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find session.ts which has both functions
+      const sessionResult = results.find((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+
+      expect(sessionResult).toBeDefined();
+
+      // session.ts should rank high because it contains both literals
+      const sessionPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/session.ts")
+      );
+      expect(sessionPos).toBe(0);
+    });
+
+    test("should handle mixed explicit and implicit literals", async () => {
+      // Mix of backtick (explicit) and PascalCase (implicit)
+      const results = await raggrep.search(
+        SIMULATION_DIR,
+        "`authenticateUser` returns AuthToken",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Should find login.ts which has both
+      const loginResult = results.find((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(loginResult).toBeDefined();
+
+      // login.ts should be first or second
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+      expect(loginPos).toBeLessThan(2);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 7: Literal Boosting - Definition vs Reference ranking
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting - Definition vs Reference", () => {
+    test("should rank definition higher than references for exact literal", async () => {
+      // Search for User interface - should find definition first
+      const results = await raggrep.search(SIMULATION_DIR, "`User` interface", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      // Should find files that define User
+      // login.ts defines User interface
+      const loginPos = results.findIndex((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      // models/user.ts might also define User
+      const modelPos = results.findIndex((r) =>
+        r.filepath.includes("database/models/user.ts")
+      );
+
+      // At least one definition should be in top 3
+      const definitionInTop3 = loginPos < 3 || (modelPos >= 0 && modelPos < 3);
+      expect(definitionInTop3).toBe(true);
+    });
+  });
 });

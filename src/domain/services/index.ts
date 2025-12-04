@@ -54,3 +54,25 @@ export {
   type TextChunk,
   type ChunkingOptions,
 } from "./chunking";
+
+// Literal boosting - Query parsing
+export { parseQueryLiterals } from "./queryLiteralParser";
+
+// Literal boosting - Code extraction
+export {
+  extractLiterals,
+  extractLiteralsWithReferences,
+} from "./literalExtractor";
+
+// Literal boosting - Scoring
+export {
+  calculateLiteralMultiplier,
+  calculateMaxMultiplier,
+  calculateLiteralContribution,
+  applyLiteralBoost,
+  mergeWithLiteralBoost,
+  LITERAL_SCORING_CONSTANTS,
+  type LiteralScoreContribution,
+  type MergeInput,
+  type MergeOutput,
+} from "./literalScorer";

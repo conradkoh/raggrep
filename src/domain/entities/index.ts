@@ -60,3 +60,18 @@ export type {
   FrameworkConventions,
   ConventionMatch,
 } from "./conventions";
+
+// Literal - Types for literal boosting
+export type {
+  LiteralType,
+  LiteralMatchType,
+  LiteralConfidence,
+  LiteralDetectionMethod,
+  ExtractedLiteral,
+  DetectedLiteral,
+  QueryLiteralParseResult,
+  LiteralMatch,
+  LiteralIndexEntry,
+  LiteralIndexData,
+} from "./literal";
+export { LITERAL_SCORING } from "./literal";

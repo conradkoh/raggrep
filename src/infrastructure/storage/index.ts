@@ -6,4 +6,4 @@
 
 export { FileIndexStorage } from "./fileIndexStorage";
 export { SymbolicIndex, getSymbolicPath } from "./symbolicIndex";
-
+export { LiteralIndex, getLiteralIndexPath } from "./literalIndex";

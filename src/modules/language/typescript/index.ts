@@ -38,15 +38,25 @@ import {
   formatPathContextForEmbedding,
   calculateFileTypeBoost,
   extractQueryTerms,
+  // Literal boosting
+  parseQueryLiterals,
+  extractLiterals,
+  calculateLiteralContribution,
+  applyLiteralBoost,
+  LITERAL_SCORING_CONSTANTS,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
   getRaggrepDir,
 } from "../../../infrastructure/config";
 import { parseTypeScriptCode, generateChunkId } from "./parseCode";
-import { SymbolicIndex } from "../../../infrastructure/storage";
+import { SymbolicIndex, LiteralIndex } from "../../../infrastructure/storage";
 import type { EmbeddingConfig, Logger } from "../../../domain/ports";
-import type { FileSummary } from "../../../domain/entities";
+import type {
+  FileSummary,
+  ExtractedLiteral,
+  LiteralMatch,
+} from "../../../domain/entities";
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
@@ -137,7 +147,13 @@ export class TypeScriptModule implements IndexModule {
 
   private embeddingConfig: EmbeddingConfig | null = null;
   private symbolicIndex: SymbolicIndex | null = null;
+  private literalIndex: LiteralIndex | null = null;
   private pendingSummaries: Map<string, FileSummary> = new Map();
+  /** Map from chunkId → { filepath, literals } for building literal index */
+  private pendingLiterals: Map<
+    string,
+    { filepath: string; literals: ExtractedLiteral[] }
+  > = new Map();
   private rootDir: string = "";
   private logger: Logger | undefined = undefined;
 
@@ -159,8 +175,9 @@ export class TypeScriptModule implements IndexModule {
     // Configure the embedding provider
     configureEmbeddings(this.embeddingConfig);
 
-    // Clear pending summaries for fresh indexing
+    // Clear pending data for fresh indexing
     this.pendingSummaries.clear();
+    this.pendingLiterals.clear();
   }
 
   async indexFile(
@@ -255,6 +272,19 @@ export class TypeScriptModule implements IndexModule {
     // Store summary for finalize
     this.pendingSummaries.set(filepath, fileSummary);
 
+    // Extract literals from each chunk for literal boosting
+    for (const chunk of chunks) {
+      const literals = extractLiterals(chunk);
+      if (literals.length > 0) {
+        const existing = this.pendingLiterals.get(chunk.id);
+        if (existing) {
+          existing.literals.push(...literals);
+        } else {
+          this.pendingLiterals.set(chunk.id, { filepath, literals });
+        }
+      }
+    }
+
     return {
       filepath,
       lastModified: stats.lastModified,
@@ -265,7 +295,7 @@ export class TypeScriptModule implements IndexModule {
   }
 
   /**
-   * Finalize indexing by building and saving the symbolic index
+   * Finalize indexing by building and saving the symbolic and literal indexes
    */
   async finalize(ctx: IndexContext): Promise<void> {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
@@ -285,16 +315,30 @@ export class TypeScriptModule implements IndexModule {
     // Save to disk (creates symbolic/ folder with per-file summaries)
     await this.symbolicIndex.save();
 
-    // Clear pending summaries
+    // Initialize and build literal index
+    this.literalIndex = new LiteralIndex(indexDir, this.id);
+    await this.literalIndex.initialize();
+
+    // Add all pending literals
+    for (const [chunkId, { filepath, literals }] of this.pendingLiterals) {
+      this.literalIndex.addLiterals(chunkId, filepath, literals);
+    }
+
+    // Save literal index to disk
+    await this.literalIndex.save();
+
+    // Clear pending data
     this.pendingSummaries.clear();
+    this.pendingLiterals.clear();
   }
 
   /**
    * Search the semantic index for chunks matching the query.
    *
-   * Uses a tiered approach for efficient search:
-   * 1. Tier 1: Use BM25 on file summaries to find candidate files
-   * 2. Tier 2: Load only candidate files and compute semantic similarity
+   * Uses a three-source approach:
+   * 1. Semantic search with embeddings
+   * 2. BM25 keyword search
+   * 3. Literal index for exact-match boosting
    *
    * @param query - Natural language search query
    * @param ctx - Search context with index access
@@ -312,9 +356,24 @@ export class TypeScriptModule implements IndexModule {
       filePatterns,
     } = options;
 
+    // Parse query for literals (explicit backticks/quotes and implicit casing)
+    const { literals: queryLiterals, remainingQuery } =
+      parseQueryLiterals(query);
+
     // Load symbolic index for BM25 scoring (not filtering)
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
     const symbolicIndex = new SymbolicIndex(indexDir, this.id);
+
+    // Load literal index for exact-match boosting
+    const literalIndex = new LiteralIndex(indexDir, this.id);
+    let literalMatchMap = new Map<string, LiteralMatch[]>();
+
+    try {
+      await literalIndex.initialize();
+      literalMatchMap = literalIndex.buildMatchMap(queryLiterals);
+    } catch {
+      // Literal index doesn't exist yet, continue without it
+    }
 
     // Get ALL indexed files - semantic search needs to check all embeddings
     // BM25 contributes to the hybrid score but doesn't filter candidates
@@ -343,7 +402,9 @@ export class TypeScriptModule implements IndexModule {
     }
 
     // Get query embedding for semantic search
-    const queryEmbedding = await getEmbedding(query);
+    // Use remaining query (without explicit literals) for semantic search
+    const semanticQuery = remainingQuery.trim() || query; // Fall back to full query if empty
+    const queryEmbedding = await getEmbedding(semanticQuery);
 
     // Load all indexed files and compute scores
     // BM25 is used for keyword scoring, not filtering
@@ -378,7 +439,7 @@ export class TypeScriptModule implements IndexModule {
       }
     }
 
-    // Perform BM25 search at chunk level
+    // Perform BM25 search at chunk level (use full query for BM25)
     const bm25Results = bm25Index.search(query, topK * 3);
     const bm25Scores = new Map<string, number>();
 
@@ -395,13 +456,13 @@ export class TypeScriptModule implements IndexModule {
       const summary = symbolicIndex.getFileSummary(filepath);
       if (summary?.pathContext) {
         let boost = 0;
-        const ctx = summary.pathContext;
+        const pathCtx = summary.pathContext;
 
         // Check if query terms match domain
         if (
-          ctx.domain &&
+          pathCtx.domain &&
           queryTerms.some(
-            (t) => ctx.domain!.includes(t) || t.includes(ctx.domain!)
+            (t) => pathCtx.domain!.includes(t) || t.includes(pathCtx.domain!)
           )
         ) {
           boost += 0.1;
@@ -409,16 +470,16 @@ export class TypeScriptModule implements IndexModule {
 
         // Check if query terms match layer
         if (
-          ctx.layer &&
+          pathCtx.layer &&
           queryTerms.some(
-            (t) => ctx.layer!.includes(t) || t.includes(ctx.layer!)
+            (t) => pathCtx.layer!.includes(t) || t.includes(pathCtx.layer!)
           )
         ) {
           boost += 0.05;
         }
 
         // Check if query terms match path segments
-        const segmentMatch = ctx.segments.some((seg) =>
+        const segmentMatch = pathCtx.segments.some((seg) =>
           queryTerms.some(
             (t) =>
               seg.toLowerCase().includes(t) || t.includes(seg.toLowerCase())
@@ -434,6 +495,7 @@ export class TypeScriptModule implements IndexModule {
 
     // Calculate hybrid scores for all chunks
     const results: SearchResult[] = [];
+    const processedChunkIds = new Set<string>();
 
     for (const { filepath, chunk, embedding } of allChunksData) {
       const semanticScore = cosineSimilarity(queryEmbedding, embedding);
@@ -444,18 +506,35 @@ export class TypeScriptModule implements IndexModule {
       const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
       const chunkTypeBoost = calculateChunkTypeBoost(chunk);
       const exportBoost = calculateExportBoost(chunk);
-      const totalBoost =
+      const additiveBoost =
         pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
 
-      // Hybrid score: weighted combination of semantic, BM25, and boosts
-      const hybridScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score + totalBoost;
+      // Base hybrid score: weighted combination of semantic and BM25
+      const baseScore =
+        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score;
 
-      if (hybridScore >= minScore || bm25Score > 0.3) {
+      // Apply literal boosting (multiplicative)
+      const literalMatches = literalMatchMap.get(chunk.id) || [];
+      const literalContribution = calculateLiteralContribution(
+        literalMatches,
+        true // hasSemanticOrBm25
+      );
+      const boostedScore = applyLiteralBoost(baseScore, literalMatches, true);
+
+      // Final score = boosted base score + additive boosts
+      const finalScore = boostedScore + additiveBoost;
+
+      processedChunkIds.add(chunk.id);
+
+      if (
+        finalScore >= minScore ||
+        bm25Score > 0.3 ||
+        literalMatches.length > 0
+      ) {
         results.push({
           filepath,
           chunk,
-          score: hybridScore,
+          score: finalScore,
           moduleId: this.id,
           context: {
             semanticScore,
@@ -464,6 +543,115 @@ export class TypeScriptModule implements IndexModule {
             fileTypeBoost,
             chunkTypeBoost,
             exportBoost,
+            // Literal boosting context
+            literalMultiplier: literalContribution.multiplier,
+            literalMatchType: literalContribution.bestMatchType,
+            literalConfidence: literalContribution.bestConfidence,
+            literalMatchCount: literalContribution.matchCount,
+          },
+        });
+      }
+    }
+
+    // Add literal-only results (chunks found by literal index but not loaded above)
+    // This ensures exact matches always surface even if they weren't in the search scope
+    const literalOnlyFiles = new Map<string, LiteralMatch[]>();
+
+    // Group unprocessed literal matches by filepath
+    for (const [chunkId, matches] of literalMatchMap) {
+      if (processedChunkIds.has(chunkId)) {
+        continue;
+      }
+
+      // Get filepath from the first match (all matches for same chunkId have same filepath)
+      const filepath = matches[0]?.filepath;
+      if (!filepath) continue;
+
+      const existing = literalOnlyFiles.get(filepath) || [];
+      existing.push(...matches);
+      literalOnlyFiles.set(filepath, existing);
+    }
+
+    // Load and score literal-only chunks
+    for (const [filepath, matches] of literalOnlyFiles) {
+      const fileIndex = await ctx.loadFileIndex(filepath);
+      if (!fileIndex) continue;
+
+      const moduleData = fileIndex.moduleData as unknown as SemanticModuleData;
+
+      // Group matches by chunkId for this file
+      const chunkMatches = new Map<string, LiteralMatch[]>();
+      for (const match of matches) {
+        const existing = chunkMatches.get(match.chunkId) || [];
+        existing.push(match);
+        chunkMatches.set(match.chunkId, existing);
+      }
+
+      // Find and score each matched chunk
+      for (const [chunkId, chunkLiteralMatches] of chunkMatches) {
+        if (processedChunkIds.has(chunkId)) continue;
+
+        const chunkIndex = fileIndex.chunks.findIndex((c) => c.id === chunkId);
+        if (chunkIndex === -1) continue;
+
+        const chunk = fileIndex.chunks[chunkIndex];
+        const embedding = moduleData?.embeddings?.[chunkIndex];
+
+        // Calculate semantic score if embedding available
+        let semanticScore = 0;
+        if (embedding) {
+          semanticScore = cosineSimilarity(queryEmbedding, embedding);
+        }
+
+        // BM25 score (chunk wasn't in our search, so typically 0)
+        const bm25Score = bm25Scores.get(chunkId) || 0;
+
+        // Additional boosts
+        const pathBoost = pathBoosts.get(filepath) || 0;
+        const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
+        const chunkTypeBoost = calculateChunkTypeBoost(chunk);
+        const exportBoost = calculateExportBoost(chunk);
+        const additiveBoost =
+          pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
+
+        // For literal-only results, use literal scoring
+        const literalContribution = calculateLiteralContribution(
+          chunkLiteralMatches,
+          false // hasSemanticOrBm25 = false (literal-only)
+        );
+
+        // Use LITERAL_SCORING_CONSTANTS.BASE_SCORE as base for literal-only
+        const baseScore =
+          semanticScore > 0
+            ? SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score
+            : LITERAL_SCORING_CONSTANTS.BASE_SCORE;
+
+        const boostedScore = applyLiteralBoost(
+          baseScore,
+          chunkLiteralMatches,
+          semanticScore > 0
+        );
+        const finalScore = boostedScore + additiveBoost;
+
+        processedChunkIds.add(chunkId);
+
+        results.push({
+          filepath,
+          chunk,
+          score: finalScore,
+          moduleId: this.id,
+          context: {
+            semanticScore,
+            bm25Score,
+            pathBoost,
+            fileTypeBoost,
+            chunkTypeBoost,
+            exportBoost,
+            literalMultiplier: literalContribution.multiplier,
+            literalMatchType: literalContribution.bestMatchType,
+            literalConfidence: literalContribution.bestConfidence,
+            literalMatchCount: literalContribution.matchCount,
+            literalOnly: true, // Mark as literal-only result
           },
         });
       }

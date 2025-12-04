@@ -21,6 +21,7 @@
 | Language Conventions  | ✅ Implemented | Go, Python entry points and config files   |
 | Contribution Tracking | ✅ Implemented | Module attribution shown in search results |
 | Embedding Models      | ✅ Implemented | bge-small (default), nomic-embed-text      |
+| Literal Boosting      | ✅ Implemented | Exact identifier matching with multipliers |
 
 ## Overview
 
@@ -294,6 +295,12 @@ interface SearchResult {
     fileTypeBoost?: number; // File type relevance boost
     chunkTypeBoost?: number; // Chunk type boost (function > block)
     exportBoost?: number; // Exported symbols boost
+    // Literal boosting context
+    literalMultiplier?: number; // Score multiplier from literal match
+    literalMatchType?: string; // "definition" | "reference" | "import"
+    literalConfidence?: string; // "high" | "medium" | "low"
+    literalMatchCount?: number; // Number of literal matches
+    literalOnly?: boolean; // True if found only via literal index
   };
 }
 ```
@@ -307,17 +314,24 @@ When displaying results, the CLI shows the contributing module:
 
 ### Hybrid Scoring (TypeScript Module)
 
-The TypeScript module uses a hybrid scoring approach:
+The TypeScript module uses a hybrid scoring approach with literal boosting:
 
 ```typescript
 // Weights
 const SEMANTIC_WEIGHT = 0.7; // Embedding similarity
 const BM25_WEIGHT = 0.3; // Keyword matching
 
-// Final score calculation
-const hybridScore =
+// Base score calculation
+const baseScore =
   SEMANTIC_WEIGHT * semanticScore +
-  BM25_WEIGHT * bm25Score +
+  BM25_WEIGHT * bm25Score;
+
+// Apply literal multiplier (1.0 if no match, up to 2.5 for exact definition match)
+const boostedScore = baseScore * literalMultiplier;
+
+// Final score with additive boosts
+const finalScore =
+  boostedScore +
   pathBoost + // +0.1 for domain match, +0.05 for layer/segment match
   fileTypeBoost + // Boost for source vs docs
   chunkTypeBoost + // +0.05 for functions, +0.04 for classes, etc.
@@ -326,6 +340,8 @@ const hybridScore =
 
 The semantic score dominates (70%) because it captures meaning and intent,
 while BM25 (30%) ensures exact keyword matches are not overlooked.
+Literal boosting applies a multiplicative factor when query terms exactly match
+identifier names (class names, function names, etc.).
 
 ### Context-Aware Boosting
 

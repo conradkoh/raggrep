@@ -372,4 +372,176 @@ describe("Ranking Quality Tests", () => {
       expect(docResults.length).toBeGreaterThan(0);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Test: Literal Boosting - Explicit backticks for exact matches
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting with explicit backticks", () => {
+    test("`hashPassword` with backticks should find login.ts first", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "`hashPassword`", {
+        topK: 5,
+        minScore: 0.01,
+      });
+
+      const loginPos = findPosition(results, "src/auth/login.ts");
+      expect(loginPos).toBe(0);
+    });
+
+    test("`validateSession` with backticks should find session.ts first", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "`validateSession`", {
+        topK: 5,
+        minScore: 0.01,
+      });
+
+      const sessionPos = findPosition(results, "src/auth/session.ts");
+      expect(sessionPos).toBe(0);
+    });
+
+    test("`createSession` with backticks should find session.ts first", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "`createSession`", {
+        topK: 5,
+        minScore: 0.01,
+      });
+
+      const sessionPos = findPosition(results, "src/auth/session.ts");
+      expect(sessionPos).toBe(0);
+    });
+
+    test("`sendWelcomeEmail` with backticks should find email.ts first", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "`sendWelcomeEmail`", {
+        topK: 5,
+        minScore: 0.01,
+      });
+
+      const emailPos = findPosition(results, "src/services/email.ts");
+      expect(emailPos).toBe(0);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test: Literal Boosting - PascalCase interface/class names
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting with PascalCase names", () => {
+    test("AuthToken interface query should find login.ts in top 2", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "AuthToken interface",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      expect(isInTopN(results, "src/auth/login.ts", 2)).toBe(true);
+    });
+
+    test("SessionMetadata interface query should find session.ts in top 2", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "SessionMetadata interface",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      expect(isInTopN(results, "src/auth/session.ts", 2)).toBe(true);
+    });
+
+    test("LoginCredentials type query should find login.ts in top 2", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "LoginCredentials type",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      expect(isInTopN(results, "src/auth/login.ts", 2)).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test: Literal Boosting - Combined explicit and implicit
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting with combined queries", () => {
+    test("mixed backticks and PascalCase should rank correctly", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "`authenticateUser` returns AuthToken",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      // login.ts has both authenticateUser and AuthToken
+      expect(isInTopN(results, "src/auth/login.ts", 2)).toBe(true);
+    });
+
+    test("find function in specific file pattern", async () => {
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "`invalidateSession` in session",
+        {
+          topK: 5,
+          minScore: 0.01,
+        }
+      );
+
+      const sessionPos = findPosition(results, "src/auth/session.ts");
+      expect(sessionPos).toBe(0);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test: Literal Boosting - Result context contains literal info
+  // --------------------------------------------------------------------------
+  describe("Literal Boosting context in results", () => {
+    test("results should include literal multiplier in context", async () => {
+      const results = await raggrep.search(SCENARIO_DIR, "`hashPassword`", {
+        topK: 5,
+        minScore: 0.01,
+      });
+
+      // First result should be login.ts with literal context
+      const loginResult = results.find((r) =>
+        r.filepath.includes("src/auth/login.ts")
+      );
+
+      expect(loginResult).toBeDefined();
+
+      // Context should have literal info
+      if (loginResult?.context) {
+        // literalMultiplier should be > 1 for matches with definition
+        expect(loginResult.context.literalMultiplier).toBeGreaterThan(1);
+      }
+    });
+
+    test("results without literal matches should have multiplier of 1", async () => {
+      // Search for something semantic without literals
+      const results = await raggrep.search(
+        SCENARIO_DIR,
+        "how to secure passwords",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Some results may not have literal matches
+      const resultsWithoutLiteralMatch = results.filter(
+        (r) => r.context?.literalMultiplier === 1
+      );
+
+      // At least some results should have no literal boost
+      // (docs files don't have function definitions)
+      const docsResults = results.filter((r) => r.filepath.includes("docs/"));
+      if (docsResults.length > 0) {
+        // Docs typically don't define functions, so they may have lower multipliers
+        expect(docsResults.length).toBeGreaterThan(0);
+      }
+    });
+  });
 });

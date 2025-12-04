@@ -66,7 +66,7 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 
 ## Hybrid Search System
 
-RAGgrep uses a hybrid scoring approach that combines semantic similarity with keyword matching:
+RAGgrep uses a hybrid scoring approach that combines semantic similarity, keyword matching, and literal boosting:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -88,28 +88,40 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity with ke
 │  src/auth/authService.json                                      │
 │  (chunks + 384/768-dim embeddings)                              │
 └─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│              LITERAL INDEX (Exact Match Lookup)                 │
+│         Maps identifier names to chunk locations                │
+│            Enables O(1) exact-match retrieval                   │
+│                                                                 │
+│  literals/                                                      │
+│  └── _index.json (literal → chunkId + filepath mappings)       │
+└─────────────────────────────────────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    HYBRID SCORING                               │
 │                                                                 │
-│  Final Score = 0.7 × Semantic + 0.3 × BM25 + Boosts            │
+│  Base Score = 0.7 × Semantic + 0.3 × BM25                      │
+│  Final Score = Base × LiteralMultiplier + Boosts               │
 │                                                                 │
 │  • Semantic: Cosine similarity of query vs chunk embeddings    │
 │  • BM25: Keyword matching score                                 │
+│  • Literal: Multiplicative boost for exact identifier matches  │
 │  • Boosts: Path context, file type, chunk type, exports        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why Hybrid Scoring?
 
-| Approach      | Strength                      | Weakness                       |
-| ------------- | ----------------------------- | ------------------------------ |
-| Semantic only | Understands meaning, synonyms | May miss exact keyword matches |
-| BM25 only     | Fast, exact matches           | No understanding of meaning    |
-| **Hybrid**    | Best of both worlds           | Slightly more computation      |
+| Approach          | Strength                           | Weakness                       |
+| ----------------- | ---------------------------------- | ------------------------------ |
+| Semantic only     | Understands meaning, synonyms      | May miss exact keyword matches |
+| BM25 only         | Fast, exact matches                | No understanding of meaning    |
+| **Hybrid**        | Best of both worlds                | Slightly more computation      |
+| **+ Literal**     | Precise identifier matching        | Requires AST parsing           |
 
-The 70/30 weighting favors semantic understanding while still boosting exact keyword matches.
+The 70/30 weighting favors semantic understanding while still boosting exact keyword matches. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 
 ## Data Flow
 
@@ -131,22 +143,28 @@ The 70/30 weighting favors semantic understanding while still boosting exact key
 ### Search Flow
 
 ```
-1. Load symbolic index (for path context and metadata)
-2. Get list of all indexed files
-3. Apply file pattern filters if specified (e.g., --type ts)
-4. Generate query embedding
-5. For each indexed file:
+1. Parse query for literals (explicit backticks, implicit patterns)
+2. Load symbolic index (for path context and metadata)
+3. Load literal index (for exact-match lookup)
+4. Get list of all indexed files
+5. Apply file pattern filters if specified (e.g., --type ts)
+6. Generate query embedding (using remaining query after literal extraction)
+7. Build literal match map from query literals
+8. For each indexed file:
    a. Load file index (chunks + embeddings)
    b. Build BM25 index from chunk contents
-6. Compute BM25 scores for query
-7. For each chunk:
-   - Compute cosine similarity (semantic score)
-   - Look up BM25 score (keyword score)
-   - Calculate boosts (path, file type, chunk type, export)
-   - Hybrid score = 0.7 × semantic + 0.3 × BM25 + boosts
-8. Filter by minimum score threshold
-9. Sort by hybrid score
-10. Return top K results
+9. Compute BM25 scores for query
+10. For each chunk:
+    - Compute cosine similarity (semantic score)
+    - Look up BM25 score (keyword score)
+    - Look up literal matches for chunk
+    - Calculate base score = 0.7 × semantic + 0.3 × BM25
+    - Apply literal multiplier if matched
+    - Add boosts (path, file type, chunk type, export)
+11. Add literal-only results (chunks found only via literal index)
+12. Filter by minimum score threshold
+13. Sort by final score
+14. Return top K results
 ```
 
 > **Note:** The current implementation loads all embeddings before scoring.
@@ -184,6 +202,8 @@ Index data is stored in a **system temp directory** (not in your project) to kee
             │   ├── _meta.json   # BM25 statistics
             │   └── src/auth/
             │       └── authService.json  # File summary
+            ├── literals/        # Literal index (exact-match lookup)
+            │   └── _index.json  # Literal → chunk mappings
             └── src/auth/
                 └── authService.json  # Full index (chunks + embeddings)
 ```
@@ -250,6 +270,38 @@ RAGgrep extracts structural information from file paths to improve search releva
 1. **Path keywords** are added to the BM25 index (e.g., "auth", "service", "api")
 2. **Path context** is prepended to embeddings: `[auth service] export function login...`
 3. **Search boosting**: Files with matching domain/layer get score boosts
+
+### Literal Index Format
+
+**\_index.json** — Literal to chunk mappings:
+
+```json
+{
+  "version": "1.0.0",
+  "entries": {
+    "authservice": [
+      {
+        "chunkId": "src-auth-authService_ts-10-45",
+        "filepath": "src/auth/authService.ts",
+        "originalCasing": "AuthService",
+        "type": "className",
+        "matchType": "definition"
+      }
+    ],
+    "validatesession": [
+      {
+        "chunkId": "src-auth-session_ts-20-55",
+        "filepath": "src/auth/session.ts",
+        "originalCasing": "validateSession",
+        "type": "functionName",
+        "matchType": "definition"
+      }
+    ]
+  }
+}
+```
+
+The literal index enables O(1) lookup for exact identifier matches. Keys are lowercase for case-insensitive matching, but original casing is preserved for display.
 
 ### Embedding Index Format
 
@@ -474,12 +526,14 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 - [x] **Path filtering**: Filter search results by path prefix
 - [x] **Improved embedding model**: Changed default to `bge-small-en-v1.5`
 - [x] **Higher-quality model option**: Added `nomic-embed-text-v1.5` (768 dimensions)
+- [x] **Literal boosting**: Exact identifier matching with multiplicative score boost (v0.7.0)
 
 ### Planned
 
 - [ ] **Cross-reference boosting**: Boost files imported by matched results
 - [ ] **Code-aware embeddings**: Use code-specific models like `CodeRankEmbed`
 - [ ] **Pre-commit hook**: Auto-index changed files before commit
+- [ ] **Structured Semantic Expansion**: Synonym-based query expansion
 
 ### Possible Extensions
 

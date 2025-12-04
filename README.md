@@ -11,6 +11,7 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 - **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
 - **Watch mode** — Keep the index fresh in real-time as you code.
 - **Hybrid search** — Combines semantic similarity with keyword matching for best results.
+- **Literal boosting** — Exact identifier matches get priority. Use backticks for precise matching: `` `AuthService` ``.
 
 ## Installation
 
@@ -98,6 +99,7 @@ raggrep query "database" --min-score 0.2      # Set minimum score threshold
 raggrep query "interface" --type ts           # Filter by file extension
 raggrep query "auth" --filter src/auth        # Filter by path
 raggrep query "api" -f src/api -f src/routes  # Multiple path filters
+raggrep query "\`AuthService\` class"         # Exact identifier match (backticks)
 ```
 
 | Flag              | Short | Description                                        |
