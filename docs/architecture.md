@@ -51,16 +51,17 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 │  │   FileIndex    │ │  │   ConfigLoader │ │  │   BM25 keyword index │
 │  │   Config       │ │  ├── filesystem/  │ │  │                      │
 │  │   FileSummary  │ │  │   NodeFS       │ │  └── language/          │
-│  │                │ │  ├── embeddings/  │ │      └── typescript/    │
-│  ├── ports/       │ │  │   Transformers │ │         AST parsing     │
-│  │   FileSystem   │ │  ├── storage/     │ │         Embeddings      │
-│  │   Embedding    │ │  │   FileStorage  │ │                         │
-│  │   Storage      │ │  │   SymbolicIndex│ │                         │
+│  │   Literal      │ │  ├── embeddings/  │ │      └── typescript/    │
+│  │                │ │  │   Transformers │ │         AST parsing     │
+│  ├── ports/       │ │  ├── storage/     │ │         Embeddings      │
+│  │   FileSystem   │ │  │   FileStorage  │ │         LiteralIndex    │
+│  │   Embedding    │ │  │   SymbolicIndex│ │                         │
+│  │   Storage      │ │  │   LiteralIndex │ │                         │
 │  │                │ │  └── introspection│ │                         │
 │  └── services/    │ │      ProjectDetect│ │                         │
 │      BM25Index    │ │      IntroIndex   │ │                         │
 │      Introspection│ │                   │ │                         │
-│      Conventions  │ │                   │ │                         │
+│      LiteralScore │ │                   │ │                         │
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
@@ -123,6 +124,80 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 
 The 70/30 weighting favors semantic understanding while still boosting exact keyword matches. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 
+## Literal Boosting
+
+Literal boosting ensures that searches for specific code identifiers (class names, function names, etc.) return precise matches rather than semantically similar but incorrect results.
+
+### The Problem
+
+Semantic search treats all terms as concepts. A query for `AuthService` might return files about "authentication" or "services" rather than the actual `AuthService` class. This is because embedding models don't understand that `AuthService` is a specific identifier.
+
+### The Solution: Two-Path Retrieval
+
+RAGgrep uses two parallel retrieval paths:
+
+```
+Query: "find the `AuthService` class"
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+┌──────────────────┐    ┌──────────────────┐
+│ Semantic + BM25  │    │ Literal Index    │
+│ "find the class" │    │ "AuthService"    │
+│ (remaining text) │    │ (exact lookup)   │
+└────────┬─────────┘    └────────┬─────────┘
+         │                       │
+         │ Results with          │ Direct matches
+         │ literal multiplier    │ (O(1) lookup)
+         └───────────┬───────────┘
+                     ▼
+            Merged & Ranked Results
+```
+
+### Query Literal Detection
+
+Literals are detected in queries through:
+
+| Method        | Example                         | Confidence |
+| ------------- | ------------------------------- | ---------- |
+| **Backticks** | `` find `AuthService` ``        | High       |
+| **Quotes**    | `find "handleLogin"`            | High       |
+| **PascalCase**| `find AuthService`              | Medium     |
+| **camelCase** | `find getUserById`              | Medium     |
+| **SCREAMING** | `find MAX_RETRIES`              | Medium     |
+
+### Index-Time Extraction
+
+The TypeScript module extracts literals from AST-parsed code structures:
+
+| Code Structure | Indexed Literal      | Match Type |
+| -------------- | -------------------- | ---------- |
+| `class Foo`    | `Foo` (className)    | definition |
+| `function bar` | `bar` (functionName) | definition |
+| `interface X`  | `X` (interfaceName)  | definition |
+| `type T`       | `T` (typeName)       | definition |
+| `enum E`       | `E` (enumName)       | definition |
+
+### Multiplicative Scoring
+
+When a literal matches, the base score is multiplied (not added):
+
+```
+Final Score = (0.7 × Semantic + 0.3 × BM25) × LiteralMultiplier + Boosts
+```
+
+| Match Type | High Confidence | Medium Confidence |
+| ---------- | --------------- | ----------------- |
+| definition | 2.5×            | 2.0×              |
+| reference  | 2.0×            | 1.5×              |
+| import     | 1.5×            | 1.3×              |
+
+### Literal-Only Results
+
+Chunks found **only** by the literal index (not by semantic/BM25) still appear in results with a base score of 0.5. This ensures exact matches always surface, even if the query has low semantic similarity.
+
+For detailed design documentation, see [Literal Boosting Design](./design/literal-boosting.md).
+
 ## Data Flow
 
 ### Indexing Flow
@@ -132,12 +207,14 @@ The 70/30 weighting favors semantic understanding while still boosting exact key
 2. Load config from index directory (or use defaults)
 3. Find all matching files (respecting ignore patterns)
 4. For each file (in parallel):
-   a. Parse into chunks (functions, classes, etc.)
+   a. Parse into chunks via AST (functions, classes, etc.)
    b. Generate embeddings for each chunk
    c. Extract keywords for symbolic index
-   d. Write per-file index to index/<module>/
+   d. Extract literals from chunk names (for literal index)
+   e. Write per-file index to index/<module>/
 5. Build and persist BM25 index
-6. Update manifests
+6. Build and persist literal index
+7. Update manifests
 ```
 
 ### Search Flow
@@ -336,11 +413,19 @@ The literal index enables O(1) lookup for exact identifier matches. Keys are low
 
 Pure business logic with **no external dependencies**.
 
-| Component   | Description                                           |
-| ----------- | ----------------------------------------------------- |
-| `entities/` | Core data structures (Chunk, FileIndex, Config, etc.) |
-| `ports/`    | Interfaces for external dependencies                  |
-| `services/` | Pure algorithms (BM25 search, keyword extraction)     |
+| Component   | Description                                                   |
+| ----------- | ------------------------------------------------------------- |
+| `entities/` | Core data structures (Chunk, FileIndex, Config, Literal, etc) |
+| `ports/`    | Interfaces for external dependencies                          |
+| `services/` | Pure algorithms (BM25, keywords, literal parsing/scoring)     |
+
+**Literal Boosting Services:**
+
+| Service                   | Description                                    |
+| ------------------------- | ---------------------------------------------- |
+| `queryLiteralParser.ts`   | Detect literals in queries (backticks, casing) |
+| `literalExtractor.ts`     | Extract literals from AST-parsed chunks        |
+| `literalScorer.ts`        | Calculate multipliers and merge results        |
 
 ### Infrastructure Layer (`src/infrastructure/`)
 
@@ -351,6 +436,8 @@ Adapters implementing domain ports.
 | `NodeFileSystem`                | `FileSystem`        | Node.js `fs` and `path` |
 | `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js         |
 | `FileIndexStorage`              | `IndexStorage`      | JSON file storage       |
+| `LiteralIndex`                  | —                   | Literal → chunk mapping |
+| `SymbolicIndex`                 | —                   | BM25 + file metadata    |
 
 ### Application Layer (`src/app/`)
 
@@ -368,12 +455,12 @@ Pluggable modules implementing the `IndexModule` interface.
 
 **Current Modules:**
 
-| Module ID             | Location                           | Description                                    |
-| --------------------- | ---------------------------------- | ---------------------------------------------- |
-| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25     |
-| `language/typescript` | `src/modules/language/typescript/` | TypeScript/JavaScript AST parsing + embeddings |
+| Module ID             | Location                           | Description                                              |
+| --------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25               |
+| `language/typescript` | `src/modules/language/typescript/` | AST parsing + embeddings + literal index + two-path search |
 
-Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score.
+Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score. The TypeScript module implements the full literal boosting pipeline.
 
 ### Introspection
 
