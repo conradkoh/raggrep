@@ -32,16 +32,16 @@ That's it. No separate index command needed — the index is created and maintai
 
 ## Key Features
 
-| Feature                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| **Zero-config search** | Just run `raggrep query` and it works. Index managed auto.      |
-| **Local-first**        | All processing happens locally. No external API calls.          |
-| **Incremental**        | Only re-indexes files that have changed.                        |
-| **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`.     |
-| **Hybrid scoring**     | Combines semantic similarity with keyword matching (BM25).      |
+| Feature                | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| **Zero-config search** | Just run `raggrep query` and it works. Index managed auto.         |
+| **Local-first**        | All processing happens locally. No external API calls.             |
+| **Incremental**        | Only re-indexes files that have changed.                           |
+| **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`.        |
+| **Hybrid scoring**     | Combines semantic similarity with keyword matching (BM25).         |
 | **Literal boosting**   | Exact identifier matches get priority (e.g., `` `AuthService` ``). |
-| **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.      |
-| **Path filtering**     | Filter results by path with `--filter src/auth`.                |
+| **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.         |
+| **Path filtering**     | Filter results by path with `--filter src/auth`.                   |
 
 ## How Auto-Indexing Works
 

@@ -148,9 +148,9 @@ export function extractLiterals(chunk: Chunk): ExtractedLiteral[] {
 
 **What gets indexed as literals:**
 
-| Chunk Type  | Example                       | Literal Type    |
-| ----------- | ----------------------------- | --------------- |
-| `class`     | `class AuthService {}`        | `className`     |
+| Chunk Type  | Example                      | Literal Type    |
+| ----------- | ---------------------------- | --------------- |
+| `class`     | `class AuthService {}`       | `className`     |
 | `function`  | `function validateSession()` | `functionName`  |
 | `interface` | `interface UserProfile {}`   | `interfaceName` |
 | `type`      | `type AuthToken = ...`       | `typeName`      |
@@ -300,13 +300,13 @@ interface SearchResult {
 
 Literal Boosting and [Structured Semantic Expansion](./structured-semantic-expansion.md) are complementary but separate concerns:
 
-| Aspect          | Literal Boosting              | Semantic Expansion   |
-| --------------- | ----------------------------- | -------------------- |
-| **Goal**        | Preserve exactness            | Broaden search       |
-| **Direction**   | Term → itself                 | Term → related terms |
-| **Data source** | AST-extracted from code       | Curated lexicon      |
-| **Lifecycle**   | Automatic                     | Manual curation      |
-| **Status**      | ✅ Implemented                | 📋 Planned           |
+| Aspect          | Literal Boosting        | Semantic Expansion   |
+| --------------- | ----------------------- | -------------------- |
+| **Goal**        | Preserve exactness      | Broaden search       |
+| **Direction**   | Term → itself           | Term → related terms |
+| **Data source** | AST-extracted from code | Curated lexicon      |
+| **Lifecycle**   | Automatic               | Manual curation      |
+| **Status**      | ✅ Implemented          | 📋 Planned           |
 
 ## Future Considerations
 

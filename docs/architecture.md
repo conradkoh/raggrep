@@ -114,12 +114,12 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 
 ### Why Hybrid Scoring?
 
-| Approach          | Strength                           | Weakness                       |
-| ----------------- | ---------------------------------- | ------------------------------ |
-| Semantic only     | Understands meaning, synonyms      | May miss exact keyword matches |
-| BM25 only         | Fast, exact matches                | No understanding of meaning    |
-| **Hybrid**        | Best of both worlds                | Slightly more computation      |
-| **+ Literal**     | Precise identifier matching        | Requires AST parsing           |
+| Approach      | Strength                      | Weakness                       |
+| ------------- | ----------------------------- | ------------------------------ |
+| Semantic only | Understands meaning, synonyms | May miss exact keyword matches |
+| BM25 only     | Fast, exact matches           | No understanding of meaning    |
+| **Hybrid**    | Best of both worlds           | Slightly more computation      |
+| **+ Literal** | Precise identifier matching   | Requires AST parsing           |
 
 The 70/30 weighting favors semantic understanding while still boosting exact keyword matches. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 

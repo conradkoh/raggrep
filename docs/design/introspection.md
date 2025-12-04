@@ -322,9 +322,7 @@ const SEMANTIC_WEIGHT = 0.7; // Embedding similarity
 const BM25_WEIGHT = 0.3; // Keyword matching
 
 // Base score calculation
-const baseScore =
-  SEMANTIC_WEIGHT * semanticScore +
-  BM25_WEIGHT * bm25Score;
+const baseScore = SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score;
 
 // Apply literal multiplier (1.0 if no match, up to 2.5 for exact definition match)
 const boostedScore = baseScore * literalMultiplier;
