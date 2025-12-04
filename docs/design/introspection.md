@@ -311,17 +311,17 @@ The TypeScript module uses a hybrid scoring approach:
 
 ```typescript
 // Weights
-const SEMANTIC_WEIGHT = 0.7;  // Embedding similarity
-const BM25_WEIGHT = 0.3;      // Keyword matching
+const SEMANTIC_WEIGHT = 0.7; // Embedding similarity
+const BM25_WEIGHT = 0.3; // Keyword matching
 
 // Final score calculation
 const hybridScore =
   SEMANTIC_WEIGHT * semanticScore +
   BM25_WEIGHT * bm25Score +
-  pathBoost +        // +0.1 for domain match, +0.05 for layer/segment match
-  fileTypeBoost +    // Boost for source vs docs
-  chunkTypeBoost +   // +0.05 for functions, +0.04 for classes, etc.
-  exportBoost;       // +0.03 for exported symbols
+  pathBoost + // +0.1 for domain match, +0.05 for layer/segment match
+  fileTypeBoost + // Boost for source vs docs
+  chunkTypeBoost + // +0.05 for functions, +0.04 for classes, etc.
+  exportBoost; // +0.03 for exported symbols
 ```
 
 The semantic score dominates (70%) because it captures meaning and intent,

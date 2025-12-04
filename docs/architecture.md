@@ -103,11 +103,11 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity with ke
 
 ### Why Hybrid Scoring?
 
-| Approach        | Strength                              | Weakness                        |
-| --------------- | ------------------------------------- | ------------------------------- |
-| Semantic only   | Understands meaning, synonyms         | May miss exact keyword matches  |
-| BM25 only       | Fast, exact matches                   | No understanding of meaning     |
-| **Hybrid**      | Best of both worlds                   | Slightly more computation       |
+| Approach      | Strength                      | Weakness                       |
+| ------------- | ----------------------------- | ------------------------------ |
+| Semantic only | Understands meaning, synonyms | May miss exact keyword matches |
+| BM25 only     | Fast, exact matches           | No understanding of meaning    |
+| **Hybrid**    | Best of both worlds           | Slightly more computation      |
 
 The 70/30 weighting favors semantic understanding while still boosting exact keyword matches.
 
