@@ -71,8 +71,9 @@ The same file name means different things based on where it lives:
 │    (regex-based)        │     │  ├── AST parsing            │
 │  • BM25 text search     │     │  ├── Type extraction        │
 │  • Fast, deterministic  │     │  ├── Semantic embeddings    │
-│                         │     │  └── Export/import tracking │
-│  Works on ANY file      │     │                             │
+│                         │     │  ├── BM25 keyword scoring   │
+│  Works on ANY file      │     │  └── Export/import tracking │
+│                         │     │                             │
 │                         │     │  python/ (future)           │
 │                         │     │  rust/ (future)             │
 └─────────────────────────┘     └─────────────────────────────┘
@@ -82,8 +83,8 @@ The same file name means different things based on where it lives:
 ┌─────────────────────────────────────────────────────────────┐
 │                  SEARCH AGGREGATOR                           │
 │  • Merges results from all indexes                          │
-│  • Applies introspection-based boosting                      │
-│  • Tracks contributions for learning                         │
+│  • Applies hybrid scoring (semantic + BM25 + boosts)        │
+│  • Tracks module contributions                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -290,7 +291,9 @@ interface SearchResult {
     semanticScore?: number; // Embedding similarity (TypeScript module)
     bm25Score?: number; // BM25 keyword match
     pathBoost?: number; // Path context boost
-    symbolScore?: number; // Symbol name match (Core module)
+    fileTypeBoost?: number; // File type relevance boost
+    chunkTypeBoost?: number; // Chunk type boost (function > block)
+    exportBoost?: number; // Exported symbols boost
   };
 }
 ```
@@ -302,35 +305,27 @@ When displaying results, the CLI shows the contributing module:
    Score: 85.2% | Type: function | via TypeScript | exported
 ```
 
-### Score Aggregation
+### Hybrid Scoring (TypeScript Module)
+
+The TypeScript module uses a hybrid scoring approach:
 
 ```typescript
-function aggregateScores(
-  coreResult: CoreResult | null,
-  languageResult: LanguageResult | null,
-  introspection: FileIntrospection,
-  query: string
-): number {
-  let score = 0;
+// Weights
+const SEMANTIC_WEIGHT = 0.7;  // Embedding similarity
+const BM25_WEIGHT = 0.3;      // Keyword matching
 
-  // Core contribution (weight: 0.3)
-  if (coreResult) {
-    score += 0.2 * coreResult.symbolMatch;
-    score += 0.1 * coreResult.keywordMatch;
-  }
-
-  // Language contribution (weight: 0.5)
-  if (languageResult) {
-    score += 0.4 * languageResult.semanticMatch;
-    score += 0.1 * languageResult.typeMatch;
-  }
-
-  // Introspection boost (weight: 0.2)
-  score += calculateContextBoost(introspection, query);
-
-  return score;
-}
+// Final score calculation
+const hybridScore =
+  SEMANTIC_WEIGHT * semanticScore +
+  BM25_WEIGHT * bm25Score +
+  pathBoost +        // +0.1 for domain match, +0.05 for layer/segment match
+  fileTypeBoost +    // Boost for source vs docs
+  chunkTypeBoost +   // +0.05 for functions, +0.04 for classes, etc.
+  exportBoost;       // +0.03 for exported symbols
 ```
+
+The semantic score dominates (70%) because it captures meaning and intent,
+while BM25 (30%) ensures exact keyword matches are not overlooked.
 
 ### Context-Aware Boosting
 

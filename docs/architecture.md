@@ -64,42 +64,52 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
-## Two-Tier Index System
+## Hybrid Search System
 
-RAGgrep uses a two-layer index for efficient search on large codebases:
+RAGgrep uses a hybrid scoring approach that combines semantic similarity with keyword matching:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              SYMBOLIC INDEX (Lightweight)                       │
+│              SYMBOLIC INDEX (Metadata & Keywords)               │
 │         Per-file summaries with extracted keywords              │
-│                    Persisted BM25 index                         │
+│            Used for path context and boost calculation          │
 │                                                                 │
 │  symbolic/                                                      │
-│  ├── _meta.json (BM25 stats)                                   │
+│  ├── _meta.json (file metadata)                                │
 │  └── src/                                                       │
 │      └── auth/                                                  │
-│          └── authService.json (keywords, exports)               │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ BM25 filter → candidates
-                        ▼
+│          └── authService.json (keywords, exports, path context) │
+└─────────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────────┐
 │           EMBEDDING INDEX (Full Semantic Data)                  │
 │            Chunk embeddings for semantic search                 │
-│              Only loaded for candidate files                    │
 │                                                                 │
-│  src/auth/authService.json  ← loaded on demand                  │
+│  src/auth/authService.json                                      │
 │  (chunks + 384/768-dim embeddings)                              │
+└─────────────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    HYBRID SCORING                               │
+│                                                                 │
+│  Final Score = 0.7 × Semantic + 0.3 × BM25 + Boosts            │
+│                                                                 │
+│  • Semantic: Cosine similarity of query vs chunk embeddings    │
+│  • BM25: Keyword matching score                                 │
+│  • Boosts: Path context, file type, chunk type, exports        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Two Tiers?
+### Why Hybrid Scoring?
 
-| Problem                                   | Solution                                           |
-| ----------------------------------------- | -------------------------------------------------- |
-| Loading all embeddings is slow            | Symbolic index filters first, load only candidates |
-| Single large index file doesn't scale     | Per-file storage, parallel reads                   |
-| BM25 rebuild on every search is expensive | Persist BM25 during indexing                       |
-| Memory grows with codebase size           | Only relevant files loaded into memory             |
+| Approach        | Strength                              | Weakness                        |
+| --------------- | ------------------------------------- | ------------------------------- |
+| Semantic only   | Understands meaning, synonyms         | May miss exact keyword matches  |
+| BM25 only       | Fast, exact matches                   | No understanding of meaning     |
+| **Hybrid**      | Best of both worlds                   | Slightly more computation       |
+
+The 70/30 weighting favors semantic understanding while still boosting exact keyword matches.
 
 ## Data Flow
 
@@ -121,17 +131,27 @@ RAGgrep uses a two-layer index for efficient search on large codebases:
 ### Search Flow
 
 ```
-1. Load symbolic index (_meta.json)
-2. BM25 search on file keywords
-3. Select top candidate files (3× requested results)
-4. Load embedding indexes only for candidates
-5. For each chunk:
+1. Load symbolic index (for path context and metadata)
+2. Get list of all indexed files
+3. Apply file pattern filters if specified (e.g., --type ts)
+4. Generate query embedding
+5. For each indexed file:
+   a. Load file index (chunks + embeddings)
+   b. Build BM25 index from chunk contents
+6. Compute BM25 scores for query
+7. For each chunk:
    - Compute cosine similarity (semantic score)
-   - Compute BM25 score (keyword score)
-   - Hybrid score = 0.7 × semantic + 0.3 × BM25
-6. Sort by hybrid score
-7. Return top K results
+   - Look up BM25 score (keyword score)
+   - Calculate boosts (path, file type, chunk type, export)
+   - Hybrid score = 0.7 × semantic + 0.3 × BM25 + boosts
+8. Filter by minimum score threshold
+9. Sort by hybrid score
+10. Return top K results
 ```
+
+> **Note:** The current implementation loads all embeddings before scoring.
+> For very large codebases (100k+ files), this may use significant memory.
+> Future versions may implement BM25 pre-filtering for better scalability.
 
 ## Index Structure
 
