@@ -1,5 +1,7 @@
 # Structured Semantic Expansion
 
+**Status: Implemented** in v0.8.0
+
 ## Overview
 
 Structured Semantic Expansion (SSE) is a technique for improving search recall by augmenting queries with domain-specific synonym knowledge, without requiring model retraining.

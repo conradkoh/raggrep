@@ -305,8 +305,8 @@ Literal Boosting and [Structured Semantic Expansion](./structured-semantic-expan
 | **Goal**        | Preserve exactness      | Broaden search       |
 | **Direction**   | Term → itself           | Term → related terms |
 | **Data source** | AST-extracted from code | Curated lexicon      |
-| **Lifecycle**   | Automatic               | Manual curation      |
-| **Status**      | ✅ Implemented          | 📋 Planned           |
+| **Lifecycle**   | Automatic               | Automatic            |
+| **Status**      | ✅ Implemented          | ✅ Implemented       |
 
 ## Future Considerations
 

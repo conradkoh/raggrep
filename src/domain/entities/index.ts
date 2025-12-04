@@ -75,3 +75,15 @@ export type {
   LiteralIndexData,
 } from "./literal";
 export { LITERAL_SCORING } from "./literal";
+
+// Lexicon - Types for structured semantic expansion
+export type {
+  SynonymGrade,
+  Synonym,
+  SynonymEntry,
+  Lexicon,
+  ExpandedTerm,
+  ExpandedQuery,
+  ExpansionOptions,
+} from "./lexicon";
+export { DEFAULT_EXPANSION_OPTIONS, EXPANSION_WEIGHTS } from "./lexicon";

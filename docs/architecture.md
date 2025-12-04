@@ -620,7 +620,10 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 - [ ] **Cross-reference boosting**: Boost files imported by matched results
 - [ ] **Code-aware embeddings**: Use code-specific models like `CodeRankEmbed`
 - [ ] **Pre-commit hook**: Auto-index changed files before commit
-- [ ] **Structured Semantic Expansion**: Synonym-based query expansion
+
+### Recently Completed (v0.8.0)
+
+- [x] **Structured Semantic Expansion**: Synonym-based query expansion for improved recall
 
 ### Possible Extensions
 

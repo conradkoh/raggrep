@@ -76,3 +76,12 @@ export {
   type MergeInput,
   type MergeOutput,
 } from "./literalScorer";
+
+// Structured Semantic Expansion - Query expansion with synonyms
+export {
+  getSynonyms,
+  expandQuery,
+  DEFAULT_LEXICON,
+  EXPANSION_WEIGHTS,
+  DEFAULT_EXPANSION_OPTIONS,
+} from "./lexicon";

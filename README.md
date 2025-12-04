@@ -12,6 +12,7 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 - **Watch mode** — Keep the index fresh in real-time as you code.
 - **Hybrid search** — Combines semantic similarity with keyword matching for best results.
 - **Literal boosting** — Exact identifier matches get priority. Use backticks for precise matching: `` `AuthService` ``.
+- **Semantic expansion** — Domain-specific synonyms improve recall (function ↔ method, auth ↔ authentication).
 
 ## Installation
 

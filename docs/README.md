@@ -40,6 +40,7 @@ That's it. No separate index command needed — the index is created and maintai
 | **Watch mode**         | Keep index fresh in real-time with `raggrep index --watch`.        |
 | **Hybrid scoring**     | Combines semantic similarity with keyword matching (BM25).         |
 | **Literal boosting**   | Exact identifier matches get priority (e.g., `` `AuthService` ``). |
+| **Semantic expansion** | Domain-specific synonyms improve recall (function ↔ method).       |
 | **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.         |
 | **Path filtering**     | Filter results by path with `--filter src/auth`.                   |
 

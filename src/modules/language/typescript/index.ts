@@ -44,6 +44,8 @@ import {
   calculateLiteralContribution,
   applyLiteralBoost,
   LITERAL_SCORING_CONSTANTS,
+  // Structured Semantic Expansion
+  expandQuery,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -420,7 +422,18 @@ export class TypeScriptModule implements IndexModule {
     // Get query embedding for semantic search
     // Use remaining query (without explicit literals) for semantic search
     const semanticQuery = remainingQuery.trim() || query; // Fall back to full query if empty
-    const queryEmbedding = await getEmbedding(semanticQuery);
+
+    // Apply Structured Semantic Expansion to broaden search recall
+    // This adds domain-specific synonyms (function → method, auth → authentication, etc.)
+    // Use conservative settings: no weak synonyms, limited max terms
+    const expandedQuery = expandQuery(semanticQuery, undefined, {
+      maxDepth: 1,
+      includeWeak: false, // Only strong and moderate synonyms
+      maxTerms: 10, // Conservative limit to avoid diluting specificity
+    });
+
+    // Use expanded query for embedding to improve semantic recall
+    const queryEmbedding = await getEmbedding(expandedQuery.expandedQueryString);
 
     // Load all indexed files and compute scores
     // BM25 is used for keyword scoring, not filtering
@@ -564,6 +577,12 @@ export class TypeScriptModule implements IndexModule {
             literalMatchType: literalContribution.bestMatchType,
             literalConfidence: literalContribution.bestConfidence,
             literalMatchCount: literalContribution.matchCount,
+            // Semantic expansion context
+            synonymsUsed: expandedQuery.wasExpanded
+              ? expandedQuery.expandedTerms
+                  .filter((t) => t.source !== "original")
+                  .map((t) => t.term)
+              : undefined,
           },
         });
       }
