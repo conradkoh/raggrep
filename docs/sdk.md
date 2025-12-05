@@ -92,7 +92,7 @@ for (const result of results) {
 | `options.topK`         | `number`   | `10`     | Number of results to return     |
 | `options.minScore`     | `number`   | `0.15`   | Minimum similarity threshold    |
 | `options.filePatterns` | `string[]` | all      | File patterns to filter         |
-| `options.pathFilter`   | `string[]` | all      | Path prefixes to filter         |
+| `options.pathFilter`   | `string[]` | all      | Path or glob patterns to filter |
 | `options.ensureFresh`  | `boolean`  | `true`   | Auto-update index before search |
 
 **Returns:** `Promise<SearchResult[]>`

@@ -1,6 +1,7 @@
 // Search module - queries across all enabled modules
 import * as fs from "fs/promises";
 import * as path from "path";
+import { minimatch } from "minimatch";
 import {
   Config,
   SearchContext,
@@ -91,13 +92,25 @@ export async function search(
     );
     filteredResults = allResults.filter((result) => {
       const normalizedPath = result.filepath.replace(/\\/g, "/");
-      return normalizedFilters.some(
-        (filter) =>
-          normalizedPath.startsWith(filter + "/") ||
-          normalizedPath === filter ||
-          normalizedPath.startsWith("./" + filter + "/") ||
-          normalizedPath === "./" + filter
-      );
+      return normalizedFilters.some((filter) => {
+        // Check if the filter is a glob pattern
+        const isGlobPattern = /[*?[\]{}!]/.test(filter);
+
+        if (isGlobPattern) {
+          // Use minimatch for glob patterns
+          // Support patterns like "*.ts", "src/**/*.ts", "**/*.md"
+          const pattern = filter.startsWith("**/") ? filter : `**/${filter}`;
+          return minimatch(normalizedPath, pattern, { matchBase: true });
+        } else {
+          // Fall back to path prefix matching for non-glob patterns
+          return (
+            normalizedPath.startsWith(filter + "/") ||
+            normalizedPath === filter ||
+            normalizedPath.startsWith("./" + filter + "/") ||
+            normalizedPath === "./" + filter
+          );
+        }
+      });
     });
   }
 

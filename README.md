@@ -103,13 +103,34 @@ raggrep query "api" -f src/api -f src/routes  # Multiple path filters
 raggrep query "\`AuthService\` class"         # Exact identifier match (backticks)
 ```
 
-| Flag              | Short | Description                                        |
-| ----------------- | ----- | -------------------------------------------------- |
-| `--top <n>`       | `-k`  | Number of results to return (default: 10)          |
-| `--min-score <n>` | `-s`  | Minimum similarity score 0-1 (default: 0.15)       |
-| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)       |
-| `--filter <path>` | `-f`  | Filter by path prefix (can be used multiple times) |
-| `--help`          | `-h`  | Show help message                                  |
+| Flag              | Short | Description                                                |
+| ----------------- | ----- | ---------------------------------------------------------- |
+| `--top <n>`       | `-k`  | Number of results to return (default: 10)                  |
+| `--min-score <n>` | `-s`  | Minimum similarity score 0-1 (default: 0.15)               |
+| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)               |
+| `--filter <path>` | `-f`  | Filter by path or glob pattern (can be used multiple times)|
+| `--help`          | `-h`  | Show help message                                          |
+
+### Filtering by File Type
+
+Use glob patterns with `--filter` to search specific file types:
+
+```bash
+# Search only source code files
+raggrep query "service controller" --filter "*.ts"
+raggrep query "component state" --filter "*.tsx"
+
+# Search only documentation
+raggrep query "deployment workflow" --filter "*.md"
+
+# Search test files
+raggrep query "mock setup" --filter "*.test.ts"
+
+# Combine with path prefix
+raggrep query "api handler" --filter "src/**/*.ts"
+```
+
+This is useful when you know whether you're looking for code or documentation.
 
 ### Index Options
 

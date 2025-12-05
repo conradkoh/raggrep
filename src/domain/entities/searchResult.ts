@@ -90,8 +90,17 @@ export interface SearchOptions {
   filePatterns?: string[];
 
   /**
-   * Filter to files within specified paths (e.g., ['src/auth', 'src/utils']).
-   * Results will only include files that start with one of the specified paths.
+   * Filter results by path prefix or glob pattern.
+   *
+   * Supports two modes:
+   * - Path prefix: 'src/auth' matches all files in src/auth/
+   * - Glob pattern: '*.ts' matches all TypeScript files, '*.md' matches markdown
+   *
+   * Examples:
+   * - ['src/auth'] - files in src/auth/
+   * - ['*.ts'] - all TypeScript files
+   * - ['*.md'] - all Markdown files
+   * - ['src/**\/*.test.ts'] - test files in src/
    */
   pathFilter?: string[];
 

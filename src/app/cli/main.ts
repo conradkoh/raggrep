@@ -141,7 +141,9 @@ function parseFlags(args: string[]): ParsedFlags {
         }
         flags.pathFilter.push(filterPath);
       } else {
-        console.error("--filter requires a path (e.g., src/auth)");
+        console.error(
+          '--filter requires a path or glob pattern (e.g., src/auth, "*.ts")'
+        );
         process.exit(1);
       }
     } else if (!arg.startsWith("-")) {
@@ -266,7 +268,7 @@ Options:
   -k, --top <n>        Number of results to return (default: 10)
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
-  -f, --filter <path>  Filter by path prefix (can be used multiple times)
+  -f, --filter <path>  Filter by path or glob pattern (can be used multiple times)
   -h, --help           Show this help message
 
 Note:
@@ -276,6 +278,12 @@ Note:
   - Deleted files are cleaned up automatically
   - Unchanged files use the cached index (instant)
 
+Filter Patterns:
+  Path prefix:    --filter src/auth          (matches src/auth/*)
+  Glob pattern:   --filter "*.ts"            (matches all .ts files)
+  Glob pattern:   --filter "*.md"            (matches all .md files)
+  Glob pattern:   --filter "src/**/*.test.ts" (matches test files in src/)
+
 Examples:
   raggrep query "user authentication"
   raggrep query "handle errors" --top 5
@@ -283,6 +291,16 @@ Examples:
   raggrep query "interface" --type ts
   raggrep query "login" --filter src/auth
   raggrep query "api" --filter src/api --filter src/routes
+
+  # Search only source code files
+  raggrep query "service controller" --filter "*.ts"
+  raggrep query "component state" --filter "*.tsx"
+
+  # Search only documentation
+  raggrep query "deployment workflow" --filter "*.md"
+
+  # Search specific patterns
+  raggrep query "test helpers" --filter "*.test.ts"
 `);
         process.exit(0);
       }

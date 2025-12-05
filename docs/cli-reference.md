@@ -25,13 +25,24 @@ The index is managed automatically:
 
 **Options:**
 
-| Flag              | Short | Description                                        |
-| ----------------- | ----- | -------------------------------------------------- |
-| `--top <n>`       | `-k`  | Number of results to return (default: 10)          |
-| `--min-score <n>` | `-s`  | Minimum similarity 0-1 (default: 0.15)             |
-| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)       |
-| `--filter <path>` | `-f`  | Filter by path prefix (can be used multiple times) |
-| `--help`          | `-h`  | Show help message                                  |
+| Flag              | Short | Description                                                |
+| ----------------- | ----- | ---------------------------------------------------------- |
+| `--top <n>`       | `-k`  | Number of results to return (default: 10)                  |
+| `--min-score <n>` | `-s`  | Minimum similarity 0-1 (default: 0.15)                     |
+| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)               |
+| `--filter <path>` | `-f`  | Filter by path or glob pattern (can be used multiple times)|
+| `--help`          | `-h`  | Show help message                                          |
+
+**Filter Patterns:**
+
+The `--filter` flag supports both path prefixes and glob patterns:
+
+| Pattern Type | Example | Matches |
+| ------------ | ------- | ------- |
+| Path prefix | `src/auth` | All files in `src/auth/` |
+| Extension glob | `*.ts` | All TypeScript files |
+| Extension glob | `*.md` | All Markdown files |
+| Path glob | `src/**/*.test.ts` | All test files in `src/` |
 
 **Examples:**
 
@@ -56,6 +67,18 @@ raggrep query "api" --filter src/api --filter src/routes
 
 # Combine options
 raggrep query "component" --type tsx --top 5 --filter src/components
+
+# Search only source code files
+raggrep query "service controller" --filter "*.ts"
+raggrep query "component state" --filter "*.tsx"
+
+# Search only documentation
+raggrep query "deployment workflow" --filter "*.md"
+raggrep query "API reference" --filter "*.md"
+
+# Search test files
+raggrep query "mock setup" --filter "*.test.ts"
+raggrep query "test helpers" --filter "**/*.spec.ts"
 ```
 
 **Output Format:**

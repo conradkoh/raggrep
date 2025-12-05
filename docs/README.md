@@ -42,7 +42,7 @@ That's it. No separate index command needed — the index is created and maintai
 | **Literal boosting**   | Exact identifier matches get priority (e.g., `` `AuthService` ``). |
 | **Semantic expansion** | Domain-specific synonyms improve recall (function ↔ method).       |
 | **TypeScript-aware**   | AST-based parsing extracts functions, classes, interfaces.         |
-| **Path filtering**     | Filter results by path with `--filter src/auth`.                   |
+| **Path filtering**     | Filter results by path or glob pattern with `--filter`.            |
 
 ## How Auto-Indexing Works
 

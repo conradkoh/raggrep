@@ -248,11 +248,17 @@ raggrep query "interface" --type ts    # Only .ts files
 raggrep query "component" --type tsx   # Only .tsx files
 ```
 
-### Filter by Path
+### Filter by Path or Glob Pattern
 
 ```bash
+# Filter by path prefix
 raggrep query "login" --filter src/auth           # Only src/auth/
 raggrep query "api" --filter src/api --filter src/routes  # Multiple paths
+
+# Filter by file type (glob patterns)
+raggrep query "service controller" --filter "*.ts"   # Only TypeScript files
+raggrep query "deployment workflow" --filter "*.md"  # Only Markdown files
+raggrep query "mock setup" --filter "*.test.ts"      # Only test files
 ```
 
 ## How Auto-Indexing Works
