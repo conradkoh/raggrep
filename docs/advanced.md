@@ -259,6 +259,10 @@ raggrep query "api" --filter src/api --filter src/routes  # Multiple paths
 raggrep query "service controller" --filter "*.ts"   # Only TypeScript files
 raggrep query "deployment workflow" --filter "*.md"  # Only Markdown files
 raggrep query "mock setup" --filter "*.test.ts"      # Only test files
+
+# Multiple filters (OR logic) - matches ANY of the patterns
+raggrep query "component" --filter "*.ts" --filter "*.tsx"  # .ts OR .tsx
+raggrep query "config" --filter "*.json" --filter "*.yaml"  # JSON OR YAML
 ```
 
 ## How Auto-Indexing Works

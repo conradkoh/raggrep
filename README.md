@@ -130,6 +130,21 @@ raggrep query "mock setup" --filter "*.test.ts"
 raggrep query "api handler" --filter "src/**/*.ts"
 ```
 
+### Multiple Filters (OR Logic)
+
+Use multiple `--filter` flags to match files that match **any** of the patterns:
+
+```bash
+# Search TypeScript OR TSX files
+raggrep query "component" --filter "*.ts" --filter "*.tsx"
+
+# Search in multiple directories
+raggrep query "api" --filter src/api --filter src/routes
+
+# Mix glob patterns and path prefixes
+raggrep query "config" --filter "*.json" --filter "*.yaml" --filter config/
+```
+
 This is useful when you know whether you're looking for code or documentation.
 
 ### Index Options

@@ -284,6 +284,11 @@ Filter Patterns:
   Glob pattern:   --filter "*.md"            (matches all .md files)
   Glob pattern:   --filter "src/**/*.test.ts" (matches test files in src/)
 
+Multiple Filters (OR logic):
+  Use multiple --filter flags to match files that match ANY of the patterns.
+  raggrep query "api" --filter "*.ts" --filter "*.tsx"  (matches .ts OR .tsx)
+  raggrep query "docs" --filter "*.md" --filter docs/   (matches .md OR docs/)
+
 Examples:
   raggrep query "user authentication"
   raggrep query "handle errors" --top 5
@@ -472,6 +477,123 @@ Examples:
       break;
     }
 
+    case "opencode": {
+      const subcommand = flags.remaining[0];
+
+      if (flags.help || !subcommand) {
+        console.log(`
+raggrep opencode - Manage opencode integration
+
+Usage:
+  raggrep opencode <subcommand>
+
+Subcommands:
+  install    Install or update the raggrep tool for opencode
+
+Description:
+  Installs the raggrep tool to ~/.config/opencode/tool/raggrep.ts
+  This allows opencode to use raggrep for semantic code search.
+
+Examples:
+  raggrep opencode install
+`);
+        process.exit(0);
+      }
+
+      if (subcommand === "install") {
+        const os = await import("os");
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        const homeDir = os.homedir();
+        const toolDir = path.join(homeDir, ".config", "opencode", "tool");
+        const toolPath = path.join(toolDir, "raggrep.ts");
+
+        const toolContent = `import { tool } from "@opencode-ai/plugin";
+
+export default tool({
+  description:
+    "Search the codebase using semantic RAG (Retrieval-Augmented Generation). Uses raggrep to find relevant code snippets based on natural language queries. The index is managed automatically - first query creates it, changed files are re-indexed, and unchanged files use cached index.",
+  args: {
+    query: tool.schema
+      .string()
+      .describe(
+        "Natural language search query (e.g., 'user authentication', 'handle errors')"
+      ),
+    top: tool.schema
+      .number()
+      .optional()
+      .describe("Number of results to return (default: 10)"),
+    minScore: tool.schema
+      .number()
+      .optional()
+      .describe("Minimum similarity score 0-1 (default: 0.15)"),
+    type: tool.schema
+      .string()
+      .optional()
+      .describe("Filter by file extension (e.g., ts, tsx, js)"),
+    filter: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe(
+        "Filter by path prefix or glob pattern. Multiple filters use OR logic. Examples: 'src/auth', '*.ts', '*.md', 'src/**/*.test.ts'"
+      ),
+  },
+  async execute(args) {
+    const cmdArgs = [args.query];
+
+    if (args.top !== undefined) {
+      cmdArgs.push("--top", String(args.top));
+    }
+    if (args.minScore !== undefined) {
+      cmdArgs.push("--min-score", String(args.minScore));
+    }
+    if (args.type !== undefined) {
+      cmdArgs.push("--type", args.type);
+    }
+    if (args.filter !== undefined && args.filter.length > 0) {
+      for (const f of args.filter) {
+        cmdArgs.push("--filter", f);
+      }
+    }
+
+    const result = await Bun.$\`raggrep query \${cmdArgs}\`.text();
+    return result.trim();
+  },
+});
+`;
+
+        try {
+          // Create directory if it doesn't exist
+          await fs.mkdir(toolDir, { recursive: true });
+
+          // Check if file exists
+          let action = "Installed";
+          try {
+            await fs.access(toolPath);
+            action = "Updated";
+          } catch {
+            // File doesn't exist, will be created
+          }
+
+          // Write the tool file
+          await fs.writeFile(toolPath, toolContent, "utf-8");
+
+          console.log(`${action} raggrep tool for opencode.`);
+          console.log(`  Location: ${toolPath}`);
+          console.log(`\nThe raggrep tool is now available in opencode.`);
+        } catch (error) {
+          console.error("Error installing opencode tool:", error);
+          process.exit(1);
+        }
+      } else {
+        console.error(`Unknown subcommand: ${subcommand}`);
+        console.error('Run "raggrep opencode --help" for usage.');
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
       console.log(`
 raggrep v${VERSION} - Local filesystem-based RAG system for codebases
@@ -480,10 +602,11 @@ Usage:
   raggrep <command> [options]
 
 Commands:
-  index    Index the current directory
-  query    Search the indexed codebase
-  status   Show the current state of the index
-  reset    Clear the index for the current directory
+  index      Index the current directory
+  query      Search the indexed codebase
+  status     Show the current state of the index
+  reset      Clear the index for the current directory
+  opencode   Manage opencode integration
 
 Options:
   -h, --help     Show help for a command
@@ -494,6 +617,7 @@ Examples:
   raggrep query "user login"
   raggrep status
   raggrep reset
+  raggrep opencode install
 
 Run 'raggrep <command> --help' for more information.
 `);

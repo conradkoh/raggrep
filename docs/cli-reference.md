@@ -44,6 +44,16 @@ The `--filter` flag supports both path prefixes and glob patterns:
 | Extension glob | `*.md` | All Markdown files |
 | Path glob | `src/**/*.test.ts` | All test files in `src/` |
 
+**Multiple Filters (OR Logic):**
+
+Use multiple `--filter` flags to match files that match **any** of the patterns:
+
+```bash
+raggrep query "component" --filter "*.ts" --filter "*.tsx"  # .ts OR .tsx files
+raggrep query "api" --filter src/api --filter src/routes    # Multiple directories
+raggrep query "config" --filter "*.json" --filter config/   # Mix glob and path
+```
+
 **Examples:**
 
 ```bash
