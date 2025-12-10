@@ -23,3 +23,6 @@ SELECT id, email, first_name, last_name, role FROM users;
 SELECT 'Sessions:' as info;
 SELECT id, user_id, expires_at FROM sessions;
 
+
+
+
