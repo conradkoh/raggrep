@@ -3,6 +3,7 @@ import { glob } from "glob";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
+import * as crypto from "crypto";
 import {
   Config,
   IndexContext,
@@ -25,6 +26,21 @@ import { registry, registerBuiltInModules } from "../../modules/registry";
 import type { EmbeddingModelName, Logger } from "../../domain/ports";
 import { IntrospectionIndex } from "../../infrastructure/introspection";
 import { createLogger, createSilentLogger } from "../../infrastructure/logger";
+
+// ============================================================================
+// Content Hashing
+// ============================================================================
+
+/**
+ * Compute a SHA-256 hash of file content.
+ * Used for reliable change detection that's immune to git mtime changes.
+ *
+ * @param content - File content to hash
+ * @returns Hex-encoded SHA-256 hash
+ */
+function computeContentHash(content: string): string {
+  return crypto.createHash("sha256").update(content, "utf-8").digest("hex");
+}
 
 // ============================================================================
 // Parallel Processing Utilities
@@ -602,18 +618,33 @@ export async function ensureIndexFresh(
       try {
         const stats = await fs.stat(filepath);
         const lastModified = stats.mtime.toISOString();
-
-        // Check if file needs re-indexing
         const existingEntry = manifest.files[relativePath];
+
+        // Fast path: if mtime unchanged, skip (no need to read file)
         if (existingEntry && existingEntry.lastModified === lastModified) {
           totalUnchanged++;
           continue;
         }
 
-        // File is new or modified - index it
+        // Read file content
+        const content = await fs.readFile(filepath, "utf-8");
+        const contentHash = computeContentHash(content);
+
+        // Check if content actually changed (handles git branch switches)
+        // If we have a stored hash and it matches, just update mtime and skip re-indexing
+        if (existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
+          // Content unchanged, just update mtime in manifest
+          manifest.files[relativePath] = {
+            ...existingEntry,
+            lastModified,
+          };
+          totalUnchanged++;
+          continue;
+        }
+
+        // File is new or content actually changed - index it
         logger.progress(`  ${progress} Indexing: ${relativePath}`);
 
-        const content = await fs.readFile(filepath, "utf-8");
         introspection.addFile(relativePath, content);
 
         const fileIndex = await module.indexFile(relativePath, content, ctx);
@@ -629,6 +660,7 @@ export async function ensureIndexFresh(
           manifest.files[relativePath] = {
             lastModified,
             chunkCount: fileIndex.chunks.length,
+            contentHash,
           };
           totalIndexed++;
         }
@@ -683,6 +715,7 @@ interface FileProcessResult {
   status: "indexed" | "skipped" | "error";
   lastModified?: string;
   chunkCount?: number;
+  contentHash?: string;
   error?: unknown;
 }
 
@@ -787,9 +820,9 @@ async function indexWithModule(
     try {
       const stats = await fs.stat(filepath);
       const lastModified = stats.mtime.toISOString();
-
-      // Check if file needs re-indexing
       const existingEntry = manifest.files[relativePath];
+
+      // Fast path: if mtime unchanged, skip (no need to read file)
       if (existingEntry && existingEntry.lastModified === lastModified) {
         completedCount++;
         logger.debug(
@@ -800,6 +833,22 @@ async function indexWithModule(
 
       // Read and index file
       const content = await fs.readFile(filepath, "utf-8");
+      const contentHash = computeContentHash(content);
+
+      // Check if content actually changed (handles git branch switches)
+      if (existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
+        completedCount++;
+        logger.debug(
+          `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (content unchanged)`
+        );
+        // Return with updated mtime but mark as skipped since content is same
+        return {
+          relativePath,
+          status: "skipped",
+          lastModified,
+          contentHash,
+        };
+      }
 
       // Add introspection for this file (thread-safe - just adds to a Map)
       introspection.addFile(relativePath, content);
@@ -827,6 +876,7 @@ async function indexWithModule(
         status: "indexed",
         lastModified,
         chunkCount: fileIndex.chunks.length,
+        contentHash,
       };
     } catch (error) {
       completedCount++;
@@ -855,10 +905,22 @@ async function indexWithModule(
         manifest.files[fileResult.relativePath] = {
           lastModified: fileResult.lastModified!,
           chunkCount: fileResult.chunkCount!,
+          contentHash: fileResult.contentHash,
         };
         result.indexed++;
         break;
       case "skipped":
+        // If skipped due to content hash match but mtime changed, update mtime
+        if (fileResult.lastModified && fileResult.contentHash) {
+          const existingEntry = manifest.files[fileResult.relativePath];
+          if (existingEntry) {
+            manifest.files[fileResult.relativePath] = {
+              ...existingEntry,
+              lastModified: fileResult.lastModified,
+              contentHash: fileResult.contentHash,
+            };
+          }
+        }
         result.skipped++;
         break;
       case "error":

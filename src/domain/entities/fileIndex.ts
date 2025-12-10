@@ -39,6 +39,12 @@ export interface FileManifestEntry {
 
   /** Number of chunks in the file */
   chunkCount: number;
+
+  /**
+   * SHA-256 hash of file content for reliable change detection.
+   * This prevents false positives when git updates mtime on branch switches.
+   */
+  contentHash?: string;
 }
 
 /**
