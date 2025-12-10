@@ -610,10 +610,13 @@ export async function ensureIndexFresh(
     };
 
     const totalFiles = currentFiles.length;
-    for (let i = 0; i < currentFiles.length; i++) {
-      const filepath = currentFiles[i];
+    let completedCount = 0;
+
+    // Process files in parallel with concurrency control
+    const processIncrementalFile = async (
+      filepath: string
+    ): Promise<IncrementalFileResult> => {
       const relativePath = path.relative(rootDir, filepath);
-      const progress = `[${i + 1}/${totalFiles}]`;
 
       try {
         const stats = await fs.stat(filepath);
@@ -622,8 +625,8 @@ export async function ensureIndexFresh(
 
         // Fast path: if mtime unchanged, skip (no need to read file)
         if (existingEntry && existingEntry.lastModified === lastModified) {
-          totalUnchanged++;
-          continue;
+          completedCount++;
+          return { relativePath, status: "unchanged" };
         }
 
         // Read file content
@@ -631,57 +634,110 @@ export async function ensureIndexFresh(
         const contentHash = computeContentHash(content);
 
         // Check if content actually changed (handles git branch switches)
-        // If we have a stored hash and it matches, just update mtime and skip re-indexing
         if (existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
-          // Content unchanged, just update mtime in manifest
-          manifest.files[relativePath] = {
-            ...existingEntry,
+          completedCount++;
+          // Content unchanged, return with updated mtime
+          return {
+            relativePath,
+            status: "mtime_updated",
             lastModified,
+            contentHash,
           };
-          totalUnchanged++;
-          continue;
         }
 
         // File is new or content actually changed - index it
-        logger.progress(`  ${progress} Indexing: ${relativePath}`);
+        completedCount++;
+        logger.progress(
+          `  [${completedCount}/${totalFiles}] Indexing: ${relativePath}`
+        );
 
         introspection.addFile(relativePath, content);
 
         const fileIndex = await module.indexFile(relativePath, content, ctx);
 
-        if (fileIndex) {
-          await writeFileIndex(
-            rootDir,
-            module.id,
-            relativePath,
-            fileIndex,
-            config
-          );
-          manifest.files[relativePath] = {
-            lastModified,
-            chunkCount: fileIndex.chunks.length,
-            contentHash,
-          };
-          totalIndexed++;
+        if (!fileIndex) {
+          return { relativePath, status: "unchanged" };
         }
+
+        await writeFileIndex(
+          rootDir,
+          module.id,
+          relativePath,
+          fileIndex,
+          config
+        );
+
+        return {
+          relativePath,
+          status: "indexed",
+          lastModified,
+          chunkCount: fileIndex.chunks.length,
+          contentHash,
+        };
       } catch (error) {
-        logger.clearProgress();
-        logger.error(`  ${progress} Error indexing ${relativePath}: ${error}`);
+        completedCount++;
+        return { relativePath, status: "error", error };
       }
-    }
+    };
+
+    // Run parallel processing
+    const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+    const results = await parallelMap(currentFiles, processIncrementalFile, concurrency);
 
     // Clear progress line
     logger.clearProgress();
 
-    // Update manifest if there were changes
-    if (totalIndexed > 0 || totalRemoved > 0) {
+    // Process results and update manifest
+    let mtimeUpdates = 0;
+    for (const item of results) {
+      if (!item.success) {
+        continue;
+      }
+
+      const fileResult = item.value;
+      switch (fileResult.status) {
+        case "indexed":
+          manifest.files[fileResult.relativePath] = {
+            lastModified: fileResult.lastModified!,
+            chunkCount: fileResult.chunkCount!,
+            contentHash: fileResult.contentHash,
+          };
+          totalIndexed++;
+          break;
+        case "mtime_updated":
+          // Update mtime without re-indexing
+          if (manifest.files[fileResult.relativePath]) {
+            manifest.files[fileResult.relativePath] = {
+              ...manifest.files[fileResult.relativePath],
+              lastModified: fileResult.lastModified!,
+              contentHash: fileResult.contentHash,
+            };
+            mtimeUpdates++;
+          }
+          totalUnchanged++;
+          break;
+        case "unchanged":
+          totalUnchanged++;
+          break;
+        case "error":
+          logger.error(
+            `  Error indexing ${fileResult.relativePath}: ${fileResult.error}`
+          );
+          break;
+      }
+    }
+
+    // Update manifest if there were any changes (including mtime-only updates)
+    const hasManifestChanges = totalIndexed > 0 || totalRemoved > 0 || mtimeUpdates > 0;
+    if (hasManifestChanges) {
       manifest.lastUpdated = new Date().toISOString();
       await writeModuleManifest(rootDir, module.id, manifest, config);
+    }
 
-      // Call finalize to rebuild secondary indexes
-      if (module.finalize) {
-        await module.finalize(ctx);
-      }
+    // Only call finalize when there are actual content changes (not just mtime updates)
+    const hasContentChanges = totalIndexed > 0 || totalRemoved > 0;
+    if (hasContentChanges && module.finalize) {
+      await module.finalize(ctx);
     }
 
     // Clean up empty directories
@@ -708,11 +764,23 @@ export async function ensureIndexFresh(
 }
 
 /**
- * Result of processing a single file
+ * Result of processing a single file during full indexing
  */
 interface FileProcessResult {
   relativePath: string;
   status: "indexed" | "skipped" | "error";
+  lastModified?: string;
+  chunkCount?: number;
+  contentHash?: string;
+  error?: unknown;
+}
+
+/**
+ * Result of processing a single file during incremental (ensureIndexFresh) indexing
+ */
+interface IncrementalFileResult {
+  relativePath: string;
+  status: "indexed" | "unchanged" | "mtime_updated" | "error";
   lastModified?: string;
   chunkCount?: number;
   contentHash?: string;
