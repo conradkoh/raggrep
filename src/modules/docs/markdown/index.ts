@@ -314,15 +314,24 @@ export class MarkdownModule implements IndexModule {
   async finalize(ctx: IndexContext): Promise<void> {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
 
+    // Initialize symbolic index (loads existing data including BM25)
     this.symbolicIndex = new SymbolicIndex(indexDir, this.id);
     await this.symbolicIndex.initialize();
 
+    // Track which files were updated for incremental save
+    const updatedFilepaths: string[] = [];
+
+    // Add all pending summaries incrementally (updates BM25 as we go)
     for (const [filepath, summary] of this.pendingSummaries) {
-      this.symbolicIndex.addFile(summary);
+      this.symbolicIndex.addFileIncremental(summary);
+      updatedFilepaths.push(filepath);
     }
 
-    this.symbolicIndex.buildBM25Index();
-    await this.symbolicIndex.save();
+    // Save to disk (only saves updated files + serialized BM25)
+    if (updatedFilepaths.length > 0) {
+      await this.symbolicIndex.saveIncremental(updatedFilepaths);
+    }
+
     this.pendingSummaries.clear();
   }
 
@@ -449,4 +458,7 @@ export class MarkdownModule implements IndexModule {
     return results.slice(0, topK);
   }
 }
+
+
+
 

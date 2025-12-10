@@ -166,4 +166,120 @@ describe('normalizeScore', () => {
   });
 });
 
+describe('BM25Index incremental operations', () => {
+  let index: BM25Index;
+
+  beforeEach(() => {
+    index = new BM25Index();
+    index.addDocuments([
+      { id: 'doc1', content: 'user authentication login' },
+      { id: 'doc2', content: 'session management token' },
+      { id: 'doc3', content: 'database connection query' },
+    ]);
+  });
+
+  describe('removeDocument', () => {
+    test('removes a document from the index', () => {
+      expect(index.size).toBe(3);
+      const removed = index.removeDocument('doc1');
+      expect(removed).toBe(true);
+      expect(index.size).toBe(2);
+    });
+
+    test('returns false for non-existent document', () => {
+      const removed = index.removeDocument('nonexistent');
+      expect(removed).toBe(false);
+      expect(index.size).toBe(3);
+    });
+
+    test('search no longer returns removed document', () => {
+      index.removeDocument('doc1');
+      const results = index.search('authentication');
+      expect(results.find(r => r.id === 'doc1')).toBeUndefined();
+    });
+
+    test('updates IDF correctly after removal', () => {
+      // Before removal, 'user' only exists in doc1
+      const resultsBefore = index.search('user');
+      expect(resultsBefore.length).toBe(1);
+      
+      index.removeDocument('doc1');
+      
+      // After removal, no documents contain 'user'
+      const resultsAfter = index.search('user');
+      expect(resultsAfter.length).toBe(0);
+    });
+  });
+
+  describe('updateDocument', () => {
+    test('updates document content', () => {
+      // Initially doc1 has 'authentication'
+      let results = index.search('authentication');
+      expect(results.find(r => r.id === 'doc1')).toBeDefined();
+
+      // Update doc1 to have different content
+      index.updateDocument('doc1', ['password', 'reset', 'email']);
+
+      // Now doc1 should not match 'authentication'
+      results = index.search('authentication');
+      expect(results.find(r => r.id === 'doc1')).toBeUndefined();
+
+      // But should match 'password'
+      results = index.search('password');
+      expect(results.find(r => r.id === 'doc1')).toBeDefined();
+    });
+
+    test('maintains correct document count', () => {
+      expect(index.size).toBe(3);
+      index.updateDocument('doc1', ['new', 'content']);
+      expect(index.size).toBe(3);
+    });
+  });
+
+  describe('hasDocument', () => {
+    test('returns true for existing document', () => {
+      expect(index.hasDocument('doc1')).toBe(true);
+    });
+
+    test('returns false for non-existent document', () => {
+      expect(index.hasDocument('nonexistent')).toBe(false);
+    });
+
+    test('returns false after document removal', () => {
+      index.removeDocument('doc1');
+      expect(index.hasDocument('doc1')).toBe(false);
+    });
+  });
+
+  describe('serialize/deserialize', () => {
+    test('serializes and deserializes correctly', () => {
+      const serialized = index.serialize();
+      const restored = BM25Index.deserialize(serialized);
+
+      expect(restored.size).toBe(index.size);
+
+      // Search should return same results
+      const originalResults = index.search('user');
+      const restoredResults = restored.search('user');
+
+      expect(restoredResults.length).toBe(originalResults.length);
+      expect(restoredResults[0].id).toBe(originalResults[0].id);
+      expect(restoredResults[0].score).toBeCloseTo(originalResults[0].score, 5);
+    });
+
+    test('deserialized index supports incremental operations', () => {
+      const serialized = index.serialize();
+      const restored = BM25Index.deserialize(serialized);
+
+      // Should be able to add new documents
+      restored.addDocument('doc4', ['new', 'document', 'content']);
+      expect(restored.size).toBe(4);
+
+      // Should be able to remove documents
+      restored.removeDocument('doc1');
+      expect(restored.size).toBe(3);
+    });
+  });
+});
+
 

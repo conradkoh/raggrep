@@ -190,25 +190,29 @@ export class JsonModule implements IndexModule {
   }
 
   /**
-   * Finalize indexing by building and saving the symbolic and literal indexes
+   * Finalize indexing by building and saving the symbolic and literal indexes.
+   * Uses incremental updates when possible to avoid full rebuilds.
    */
   async finalize(ctx: IndexContext): Promise<void> {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
 
-    // Initialize symbolic index
+    // Initialize symbolic index (loads existing data including BM25)
     this.symbolicIndex = new SymbolicIndex(indexDir, this.id);
     await this.symbolicIndex.initialize();
 
-    // Add all pending summaries
+    // Track which files were updated for incremental save
+    const updatedFilepaths: string[] = [];
+
+    // Add all pending summaries incrementally (updates BM25 as we go)
     for (const [filepath, summary] of this.pendingSummaries) {
-      this.symbolicIndex.addFile(summary);
+      this.symbolicIndex.addFileIncremental(summary);
+      updatedFilepaths.push(filepath);
     }
 
-    // Build BM25 index from summaries
-    this.symbolicIndex.buildBM25Index();
-
-    // Save to disk
-    await this.symbolicIndex.save();
+    // Save to disk (only saves updated files + serialized BM25)
+    if (updatedFilepaths.length > 0) {
+      await this.symbolicIndex.saveIncremental(updatedFilepaths);
+    }
 
     // Initialize and build literal index
     this.literalIndex = new LiteralIndex(indexDir, this.id);

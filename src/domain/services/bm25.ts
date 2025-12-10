@@ -178,6 +178,62 @@ export class BM25Index {
   }
 
   /**
+   * Remove a document from the index.
+   * Updates document frequencies and average document length.
+   *
+   * @param id - Document identifier to remove
+   * @returns true if document was removed, false if not found
+   */
+  removeDocument(id: string): boolean {
+    const doc = this.documents.get(id);
+    if (!doc) return false;
+
+    const tokens = doc.tokens;
+
+    // Update document frequencies
+    const uniqueTerms = new Set(tokens);
+    for (const term of uniqueTerms) {
+      const count = this.documentFrequencies.get(term) || 0;
+      if (count <= 1) {
+        this.documentFrequencies.delete(term);
+      } else {
+        this.documentFrequencies.set(term, count - 1);
+      }
+    }
+
+    // Update average document length
+    const totalLength = this.avgDocLength * this.totalDocs - tokens.length;
+    this.totalDocs--;
+    this.avgDocLength = this.totalDocs > 0 ? totalLength / this.totalDocs : 0;
+
+    // Remove the document
+    this.documents.delete(id);
+    return true;
+  }
+
+  /**
+   * Update a document in the index (remove + add).
+   * More efficient than separate remove/add as it batches the operations.
+   *
+   * @param id - Document identifier
+   * @param newTokens - New tokens for the document
+   */
+  updateDocument(id: string, newTokens: string[]): void {
+    this.removeDocument(id);
+    this.addDocument(id, newTokens);
+  }
+
+  /**
+   * Check if a document exists in the index.
+   *
+   * @param id - Document identifier
+   * @returns true if document exists
+   */
+  hasDocument(id: string): boolean {
+    return this.documents.has(id);
+  }
+
+  /**
    * Serialize the index to a JSON-compatible object.
    */
   serialize(): BM25SerializedData {
