@@ -13,7 +13,7 @@ import { watch, type FSWatcher } from 'chokidar';
 import * as path from 'path';
 import { loadConfig, getIndexLocation } from '../../infrastructure/config';
 import type { Config } from '../../domain/entities';
-import { indexDirectory, cleanupIndex, type IndexOptions, type IndexResult } from './index';
+import { indexDirectory, cleanupIndex, clearFreshnessCache, type IndexOptions, type IndexResult } from './index';
 
 /** Default debounce delay in milliseconds */
 const DEFAULT_DEBOUNCE_MS = 300;
@@ -103,6 +103,9 @@ export async function watchDirectory(
     isIndexing = true;
     const changes = new Map(pendingChanges);
     pendingChanges.clear();
+
+    // Clear freshness cache since files have changed
+    clearFreshnessCache();
 
     try {
       // Separate additions/changes from deletions

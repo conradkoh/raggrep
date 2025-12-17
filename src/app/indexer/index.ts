@@ -28,6 +28,35 @@ import { IntrospectionIndex } from "../../infrastructure/introspection";
 import { createLogger, createSilentLogger } from "../../infrastructure/logger";
 
 // ============================================================================
+// Freshness Check Caching
+// ============================================================================
+
+/**
+ * Cache for freshness check results.
+ * Avoids expensive filesystem scans when running multiple queries in succession.
+ */
+interface FreshnessCache {
+  rootDir: string;
+  result: EnsureFreshResult;
+  timestamp: number;
+  manifestMtime: number;
+}
+
+/** Cache TTL in milliseconds (5 seconds) */
+const FRESHNESS_CACHE_TTL_MS = 5000;
+
+/** In-memory freshness cache */
+let freshnessCache: FreshnessCache | null = null;
+
+/**
+ * Clear the freshness cache.
+ * Call this after explicit indexing operations.
+ */
+export function clearFreshnessCache(): void {
+  freshnessCache = null;
+}
+
+// ============================================================================
 // Content Hashing
 // ============================================================================
 
@@ -210,6 +239,9 @@ export async function indexDirectory(
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+
+  // Clear freshness cache since we're explicitly indexing
+  clearFreshnessCache();
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -413,6 +445,9 @@ export async function resetIndex(rootDir: string): Promise<ResetResult> {
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
 
+  // Clear freshness cache
+  clearFreshnessCache();
+
   // Check if index exists
   const status = await getIndexStatus(rootDir);
 
@@ -465,6 +500,7 @@ export async function ensureIndexFresh(
 
   if (!status.exists) {
     // No index exists - do full indexing
+    clearFreshnessCache();
     logger.info("No index found. Creating index...\n");
     const results = await indexDirectory(rootDir, { ...options, logger });
     const totalIndexed = results.reduce((sum, r) => sum + r.indexed, 0);
@@ -475,6 +511,7 @@ export async function ensureIndexFresh(
   const versionCompatible = await isIndexVersionCompatible(rootDir);
   if (!versionCompatible) {
     // Incompatible index version - delete and rebuild
+    clearFreshnessCache();
     logger.info("Index version incompatible. Rebuilding...\n");
     await deleteIndex(rootDir);
     const results = await indexDirectory(rootDir, { ...options, logger });
@@ -482,8 +519,32 @@ export async function ensureIndexFresh(
     return { indexed: totalIndexed, removed: 0, unchanged: 0 };
   }
 
-  // Index exists and is compatible - check for changes incrementally
+  // Load config early to get manifest path for cache check
   const config = await loadConfig(rootDir);
+
+  // Fast path: Check freshness cache
+  // If we recently checked this directory and the manifest hasn't changed,
+  // we can skip the expensive file-by-file scan
+  const globalManifestPath = getGlobalManifestPath(rootDir, config);
+  let currentManifestMtime = 0;
+  try {
+    const manifestStats = await fs.stat(globalManifestPath);
+    currentManifestMtime = manifestStats.mtimeMs;
+  } catch {
+    // Manifest doesn't exist - will be created during indexing
+  }
+
+  const now = Date.now();
+  if (
+    freshnessCache &&
+    freshnessCache.rootDir === rootDir &&
+    now - freshnessCache.timestamp < FRESHNESS_CACHE_TTL_MS &&
+    freshnessCache.manifestMtime === currentManifestMtime
+  ) {
+    // Cache hit - return cached result
+    logger.debug("Using cached freshness check result");
+    return freshnessCache.result;
+  }
 
   // Register built-in modules
   await registerBuiltInModules();
@@ -755,13 +816,34 @@ export async function ensureIndexFresh(
   // Update global manifest if needed
   if (totalIndexed > 0 || totalRemoved > 0) {
     await updateGlobalManifest(rootDir, enabledModules, config);
+    // Clear cache since manifest changed
+    clearFreshnessCache();
   }
 
-  return {
+  const result: EnsureFreshResult = {
     indexed: totalIndexed,
     removed: totalRemoved,
     unchanged: totalUnchanged,
   };
+
+  // Cache the result for subsequent queries
+  // Re-read manifest mtime in case it was updated during this run
+  let finalManifestMtime = currentManifestMtime;
+  try {
+    const manifestStats = await fs.stat(globalManifestPath);
+    finalManifestMtime = manifestStats.mtimeMs;
+  } catch {
+    // Ignore
+  }
+
+  freshnessCache = {
+    rootDir,
+    result,
+    timestamp: Date.now(),
+    manifestMtime: finalManifestMtime,
+  };
+
+  return result;
 }
 
 /**
