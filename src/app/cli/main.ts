@@ -62,6 +62,8 @@ interface ParsedFlags {
   watch: boolean;
   /** Number of files to process in parallel */
   concurrency?: number;
+  /** Show timing information for performance profiling */
+  timing: boolean;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -76,6 +78,7 @@ function parseFlags(args: string[]): ParsedFlags {
     help: false,
     verbose: false,
     watch: false,
+    timing: false,
     remaining: [],
   };
 
@@ -88,6 +91,8 @@ function parseFlags(args: string[]): ParsedFlags {
       flags.verbose = true;
     } else if (arg === "--watch" || arg === "-w") {
       flags.watch = true;
+    } else if (arg === "--timing" || arg === "-T") {
+      flags.timing = true;
     } else if (arg === "--model" || arg === "-m") {
       const modelName = args[++i];
       if (modelName && modelName in EMBEDDING_MODELS) {
@@ -269,6 +274,7 @@ Options:
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
   -f, --filter <path>  Filter by path or glob pattern (can be used multiple times)
+  -T, --timing         Show timing breakdown for performance profiling
   -h, --help           Show this help message
 
 Note:
@@ -329,6 +335,7 @@ Examples:
           model: flags.model,
           quiet: true, // Suppress detailed indexing output
           logger: silentLogger,
+          timing: flags.timing,
         });
 
         console.log("RAGgrep Search");
@@ -346,6 +353,24 @@ Examples:
           console.log(`Using updated index: ${parts.join(", ")}\n`);
         } else {
           console.log("Using cached index (no changes detected).\n");
+        }
+
+        // Show timing information if requested
+        if (flags.timing && freshStats.timing) {
+          const t = freshStats.timing;
+          console.log("┌─ Timing ─────────────────────────────────────┐");
+          if (t.fromCache) {
+            console.log(`│  Cache hit (TTL-based)                       │`);
+            console.log(`│  Total: ${t.totalMs.toFixed(0).padStart(6)}ms                              │`);
+          } else {
+            console.log(`│  File discovery: ${t.fileDiscoveryMs.toFixed(0).padStart(6)}ms (${t.filesDiscovered} files)`.padEnd(47) + "│");
+            console.log(`│  Stat checks:    ${t.statCheckMs.toFixed(0).padStart(6)}ms (${t.filesStatChecked} files)`.padEnd(47) + "│");
+            console.log(`│  Indexing:       ${t.indexingMs.toFixed(0).padStart(6)}ms (${t.filesIndexed} files)`.padEnd(47) + "│");
+            console.log(`│  Cleanup:        ${t.cleanupMs.toFixed(0).padStart(6)}ms`.padEnd(47) + "│");
+            console.log(`│  ─────────────────────────────────────────── │`);
+            console.log(`│  Total:          ${t.totalMs.toFixed(0).padStart(6)}ms`.padEnd(47) + "│");
+          }
+          console.log("└──────────────────────────────────────────────┘\n");
         }
 
         // Build file patterns if type filter specified

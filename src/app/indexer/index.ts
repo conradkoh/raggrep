@@ -197,6 +197,30 @@ export interface IndexOptions {
   logger?: Logger;
   /** Number of files to process in parallel (default: auto based on CPU cores) */
   concurrency?: number;
+  /** Show timing information for each stage */
+  timing?: boolean;
+}
+
+/** Timing information for performance profiling */
+export interface TimingInfo {
+  /** Total time in milliseconds */
+  totalMs: number;
+  /** Time spent on file discovery (glob) */
+  fileDiscoveryMs: number;
+  /** Time spent on stat checks */
+  statCheckMs: number;
+  /** Time spent on indexing changed files */
+  indexingMs: number;
+  /** Time spent on cleanup operations */
+  cleanupMs: number;
+  /** Number of files discovered */
+  filesDiscovered: number;
+  /** Number of files that needed stat check */
+  filesStatChecked: number;
+  /** Number of files that needed indexing */
+  filesIndexed: number;
+  /** Whether result was from cache */
+  fromCache: boolean;
 }
 
 export interface EnsureFreshResult {
@@ -206,6 +230,8 @@ export interface EnsureFreshResult {
   removed: number;
   /** Number of files unchanged (used cache) */
   unchanged: number;
+  /** Timing information (only present if timing option was enabled) */
+  timing?: TimingInfo;
 }
 
 export interface CleanupResult {
@@ -490,6 +516,17 @@ export async function ensureIndexFresh(
 ): Promise<EnsureFreshResult> {
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
+  const showTiming = options.timing ?? false;
+
+  // Timing tracking
+  const startTime = Date.now();
+  let fileDiscoveryMs = 0;
+  let statCheckMs = 0;
+  let indexingMs = 0;
+  let cleanupMs = 0;
+  let filesDiscovered = 0;
+  let filesStatChecked = 0;
+  let filesIndexed = 0;
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -547,9 +584,23 @@ export async function ensureIndexFresh(
     now - freshnessCache.timestamp < FRESHNESS_CACHE_TTL_MS &&
     freshnessCache.manifestMtime === currentManifestMtime
   ) {
-    // Cache hit - return cached result
+    // Cache hit - return cached result with timing info
     logger.debug("Using cached freshness check result");
-    return freshnessCache.result;
+    const cachedResult = { ...freshnessCache.result };
+    if (showTiming) {
+      cachedResult.timing = {
+        totalMs: Date.now() - startTime,
+        fileDiscoveryMs: 0,
+        statCheckMs: 0,
+        indexingMs: 0,
+        cleanupMs: 0,
+        filesDiscovered: 0,
+        filesStatChecked: 0,
+        filesIndexed: 0,
+        fromCache: true,
+      };
+    }
+    return cachedResult;
   }
 
   // Register built-in modules
@@ -563,11 +614,15 @@ export async function ensureIndexFresh(
   }
 
   // Initialize introspection and find files in parallel
+  const fileDiscoveryStart = Date.now();
   const introspection = new IntrospectionIndex(rootDir);
   const [, currentFiles] = await Promise.all([
     introspection.initialize(),
     findFiles(rootDir, config),
   ]);
+  fileDiscoveryMs = Date.now() - fileDiscoveryStart;
+  filesDiscovered = currentFiles.length;
+
   const currentFileSet = new Set(
     currentFiles.map((f) => path.relative(rootDir, f))
   );
@@ -609,6 +664,7 @@ export async function ensureIndexFresh(
 
     // Remove stale entries in parallel
     // Also need to track files removed for literal index cleanup
+    const cleanupStart = Date.now();
     const removedFilepaths: string[] = [];
     if (filesToRemove.length > 0) {
       await Promise.all(
@@ -653,6 +709,7 @@ export async function ensureIndexFresh(
         // Literal index may not exist yet
       }
     }
+    cleanupMs += Date.now() - cleanupStart;
 
     // Index new/modified files using two-phase approach:
     // Phase 1: Fast stat check with high I/O concurrency
@@ -713,7 +770,10 @@ export async function ensureIndexFresh(
     };
 
     // Run stat checks with high concurrency (I/O bound)
+    const statCheckStart = Date.now();
     const statResults = await parallelMap(currentFiles, statCheck, STAT_CONCURRENCY);
+    statCheckMs += Date.now() - statCheckStart;
+    filesStatChecked += currentFiles.length;
     
     // Separate files that need processing from unchanged files
     const filesToProcess: StatCheckResult[] = [];
@@ -799,8 +859,11 @@ export async function ensureIndexFresh(
     };
 
     // Run indexing with normal concurrency (CPU bound)
+    const indexingStart = Date.now();
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
     const results = await parallelMap(filesToProcess, processChangedFile, concurrency);
+    indexingMs += Date.now() - indexingStart;
+    filesIndexed += filesToProcess.length;
 
     // Add unchanged files to total
     totalUnchanged += unchangedCount;
@@ -885,6 +948,21 @@ export async function ensureIndexFresh(
     unchanged: totalUnchanged,
   };
 
+  // Add timing info if requested
+  if (showTiming) {
+    result.timing = {
+      totalMs: Date.now() - startTime,
+      fileDiscoveryMs,
+      statCheckMs,
+      indexingMs,
+      cleanupMs,
+      filesDiscovered,
+      filesStatChecked,
+      filesIndexed,
+      fromCache: false,
+    };
+  }
+
   // Cache the result for subsequent queries
   // Re-read manifest mtime in case it was updated during this run
   let finalManifestMtime = currentManifestMtime;
@@ -897,7 +975,7 @@ export async function ensureIndexFresh(
 
   freshnessCache = {
     rootDir,
-    result,
+    result: { indexed: totalIndexed, removed: totalRemoved, unchanged: totalUnchanged }, // Cache without timing
     timestamp: Date.now(),
     manifestMtime: finalManifestMtime,
   };
