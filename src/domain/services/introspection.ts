@@ -20,6 +20,18 @@ import { getConventionKeywords } from "./conventions";
 // ============================================================================
 
 /**
+ * README filenames to look for (in order of priority).
+ */
+const README_FILENAMES = [
+  "README.md",
+  "readme.md",
+  "Readme.md",
+  "README.MD",
+  "index.md",
+  "INDEX.md",
+];
+
+/**
  * Layer detection patterns.
  */
 const LAYER_PATTERNS: Record<string, string[]> = {
@@ -208,17 +220,35 @@ const PROJECT_PATTERNS: Array<{
 // ============================================================================
 
 /**
+ * Options for introspecting a file.
+ */
+export interface IntrospectFileOptions {
+  /** File content for framework detection */
+  fileContent?: string;
+
+  /**
+   * Function to check if a file exists.
+   * Used for README discovery without I/O in the domain layer.
+   */
+  fileExists?: (filepath: string) => boolean;
+}
+
+/**
  * Extract introspection metadata for a file.
  *
  * @param filepath - Relative file path
  * @param structure - Project structure (from detectProjectStructure)
- * @param fileContent - Optional file content for framework detection
+ * @param options - Optional configuration including file content and file existence checker
  */
 export function introspectFile(
   filepath: string,
   structure: ProjectStructure,
-  fileContent?: string
+  options?: IntrospectFileOptions | string
 ): FileIntrospection {
+  // Handle backward compatibility: if options is a string, it's fileContent
+  const opts: IntrospectFileOptions =
+    typeof options === "string" ? { fileContent: options } : options || {};
+
   const normalizedPath = filepath.replace(/\\/g, "/");
   const segments = normalizedPath.split("/").filter((s) => s.length > 0);
   const filename = segments[segments.length - 1] || "";
@@ -229,7 +259,14 @@ export function introspectFile(
   const layer = detectLayer(segments, filename);
   const domain = detectDomain(segments);
   const scope = detectScope(segments, project, layer);
-  const framework = fileContent ? detectFramework(fileContent) : undefined;
+  const framework = opts.fileContent
+    ? detectFramework(opts.fileContent)
+    : undefined;
+
+  // Find nearest README if file existence checker is provided
+  const nearestReadme = opts.fileExists
+    ? findNearestReadme(normalizedPath, opts.fileExists)
+    : undefined;
 
   return {
     filepath: normalizedPath,
@@ -241,7 +278,45 @@ export function introspectFile(
     framework,
     depth: segments.length - 1,
     pathSegments: segments.slice(0, -1),
+    nearestReadme,
   };
+}
+
+/**
+ * Find the nearest README file by traversing up the directory hierarchy.
+ *
+ * @param filepath - Relative file path (normalized with forward slashes)
+ * @param fileExists - Function to check if a file exists
+ * @returns Relative path to the nearest README, or undefined if none found
+ */
+export function findNearestReadme(
+  filepath: string,
+  fileExists: (filepath: string) => boolean
+): string | undefined {
+  const normalizedPath = filepath.replace(/\\/g, "/");
+  const segments = normalizedPath.split("/").filter((s) => s.length > 0);
+
+  // Start from the file's directory and traverse up
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const dirPath = segments.slice(0, i).join("/");
+
+    for (const readmeName of README_FILENAMES) {
+      const readmePath = dirPath ? `${dirPath}/${readmeName}` : readmeName;
+
+      if (fileExists(readmePath)) {
+        return readmePath;
+      }
+    }
+  }
+
+  // Check root directory
+  for (const readmeName of README_FILENAMES) {
+    if (fileExists(readmeName)) {
+      return readmeName;
+    }
+  }
+
+  return undefined;
 }
 
 /**

@@ -150,6 +150,27 @@ export function createDefaultConfig(): Config {
         },
       },
       {
+        id: "language/python",
+        enabled: true,
+        options: {
+          embeddingModel: "all-MiniLM-L6-v2",
+        },
+      },
+      {
+        id: "language/go",
+        enabled: true,
+        options: {
+          embeddingModel: "all-MiniLM-L6-v2",
+        },
+      },
+      {
+        id: "language/rust",
+        enabled: true,
+        options: {
+          embeddingModel: "all-MiniLM-L6-v2",
+        },
+      },
+      {
         id: "data/json",
         enabled: true,
         options: {

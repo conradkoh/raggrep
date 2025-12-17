@@ -10,6 +10,108 @@
 import type { Chunk } from "../entities/chunk";
 import type { ExtractedLiteral, LiteralType } from "../entities/literal";
 
+// ============================================================================
+// Vocabulary Extraction
+// ============================================================================
+
+/**
+ * Extract vocabulary words from a literal (identifier) name.
+ *
+ * Handles multiple naming conventions:
+ * - camelCase: getUserById → ["get", "user", "by", "id"]
+ * - PascalCase: AuthService → ["auth", "service"]
+ * - snake_case: get_user_by_id → ["get", "user", "by", "id"]
+ * - kebab-case: get-user-by-id → ["get", "user", "by", "id"]
+ * - SCREAMING_SNAKE_CASE: MAX_RETRY_COUNT → ["max", "retry", "count"]
+ *
+ * @param literal - The identifier name to extract vocabulary from
+ * @returns Array of unique vocabulary words (lowercase, length > 1)
+ */
+export function extractVocabulary(literal: string): string[] {
+  if (!literal || literal.length === 0) {
+    return [];
+  }
+
+  const words: string[] = [];
+
+  // Handle snake_case and kebab-case first by splitting on delimiters
+  const delimitedParts = literal.split(/[-_]/);
+
+  for (const part of delimitedParts) {
+    if (!part) continue;
+
+    // Handle camelCase / PascalCase by splitting on uppercase letters
+    // Keep sequences of uppercase letters together (e.g., "XMLParser" → "XML", "Parser")
+    const camelSplit = part.split(/(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);
+
+    for (const word of camelSplit) {
+      if (word) {
+        words.push(word.toLowerCase());
+      }
+    }
+  }
+
+  // Filter out single characters and deduplicate
+  const filtered = words.filter((w) => w.length > 1);
+  return [...new Set(filtered)];
+}
+
+/**
+ * Split a word by common abbreviations.
+ * (Reserved for future use with known abbreviations)
+ */
+const COMMON_ABBREVIATIONS = new Set([
+  "id",
+  "api",
+  "url",
+  "uri",
+  "db",
+  "sql",
+  "http",
+  "https",
+  "json",
+  "xml",
+  "html",
+  "css",
+  "js",
+  "ts",
+  "ui",
+  "io",
+  "os",
+]);
+
+/**
+ * Check if a word is a common stop word that should be filtered.
+ */
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "at",
+  "by",
+  "or",
+  "as",
+  "if",
+]);
+
 /**
  * Map from ChunkType to LiteralType for named chunks.
  */
@@ -29,6 +131,8 @@ const CHUNK_TYPE_TO_LITERAL_TYPE: Record<string, LiteralType> = {
  * as a "definition" literal. The name comes from proper AST parsing,
  * so it's accurate and reliable.
  *
+ * Also extracts vocabulary words from the literal for partial matching.
+ *
  * @param chunk - The code chunk to extract literals from
  * @returns Array of extracted literals (typically just the definition)
  */
@@ -39,11 +143,13 @@ export function extractLiterals(chunk: Chunk): ExtractedLiteral[] {
   // This name comes from TypeScript AST parsing, so it's accurate
   if (chunk.name) {
     const literalType = CHUNK_TYPE_TO_LITERAL_TYPE[chunk.type] || "identifier";
+    const vocabulary = extractVocabulary(chunk.name);
 
     literals.push({
       value: chunk.name,
       type: literalType,
       matchType: "definition",
+      vocabulary,
     });
   }
 
@@ -70,11 +176,13 @@ export function extractLiteralsWithReferences(
   // 1. Extract the chunk's own name as a definition
   if (chunk.name) {
     const literalType = CHUNK_TYPE_TO_LITERAL_TYPE[chunk.type] || "identifier";
+    const vocabulary = extractVocabulary(chunk.name);
 
     literals.push({
       value: chunk.name,
       type: literalType,
       matchType: "definition",
+      vocabulary,
     });
     seenValues.add(chunk.name.toLowerCase());
   }
@@ -131,6 +239,7 @@ function extractImportLiterals(content: string): ExtractedLiteral[] {
           value: name,
           type: "className",
           matchType: "import",
+          vocabulary: extractVocabulary(name),
         });
       }
     }
@@ -145,6 +254,7 @@ function extractImportLiterals(content: string): ExtractedLiteral[] {
         value: match[1],
         type: "className",
         matchType: "import",
+        vocabulary: extractVocabulary(match[1]),
       });
     }
   }
@@ -178,6 +288,7 @@ function extractTypeReferences(
         value,
         type: "className",
         matchType: "reference",
+        vocabulary: extractVocabulary(value),
       });
     }
   }

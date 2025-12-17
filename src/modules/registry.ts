@@ -36,6 +36,9 @@ export async function registerBuiltInModules(): Promise<void> {
   // Dynamic import to avoid circular dependencies
   const { CoreModule } = await import("./core");
   const { TypeScriptModule } = await import("./language/typescript");
+  const { PythonModule } = await import("./language/python");
+  const { GoModule } = await import("./language/go");
+  const { RustModule } = await import("./language/rust");
   const { JsonModule } = await import("./data/json");
   const { MarkdownModule } = await import("./docs/markdown");
 
@@ -44,6 +47,9 @@ export async function registerBuiltInModules(): Promise<void> {
 
   // Register language-specific modules
   registry.register(new TypeScriptModule());
+  registry.register(new PythonModule());
+  registry.register(new GoModule());
+  registry.register(new RustModule());
 
   // Register data format modules
   registry.register(new JsonModule());

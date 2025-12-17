@@ -206,9 +206,31 @@ export class TypeScriptModule implements IndexModule {
     const pathContext = parsePathContext(filepath);
     const pathPrefix = formatPathContextForEmbedding(pathContext);
 
+    // Check if we should include full file chunk
+    // Include when:
+    // 1. Config option is enabled (future: add to module config)
+    // 2. We have multiple semantic chunks (full file provides broad context)
+    const includeFullFileChunk = parsedChunks.length > 1;
+
+    // Prepare all chunks for embedding (including optional full file chunk)
+    const allParsedChunks = [...parsedChunks];
+
+    // Add full file chunk if requested
+    if (includeFullFileChunk) {
+      const lines = content.split("\n");
+      allParsedChunks.unshift({
+        content,
+        startLine: 1,
+        endLine: lines.length,
+        type: "file" as const,
+        name: path.basename(filepath),
+        isExported: false,
+      });
+    }
+
     // Generate embeddings for all chunks with path context
     // Prepending path context helps the embedding model understand file structure
-    const chunkContents = parsedChunks.map((c) => {
+    const chunkContents = allParsedChunks.map((c) => {
       // For named chunks, include the name for better embedding
       const namePrefix = c.name ? `${c.name}: ` : "";
       return `${pathPrefix} ${namePrefix}${c.content}`;
@@ -216,7 +238,7 @@ export class TypeScriptModule implements IndexModule {
     const embeddings = await getEmbeddings(chunkContents);
 
     // Create chunks with all metadata
-    const chunks: Chunk[] = parsedChunks.map((pc) => ({
+    const chunks: Chunk[] = allParsedChunks.map((pc) => ({
       id: generateChunkId(filepath, pc.startLine, pc.endLine),
       content: pc.content,
       startLine: pc.startLine,
@@ -239,6 +261,7 @@ export class TypeScriptModule implements IndexModule {
     };
 
     // Build Tier 1 summary for this file
+    // Use original parsedChunks (not allParsedChunks) to avoid counting file chunk
     const chunkTypes = [
       ...new Set(parsedChunks.map((pc) => pc.type)),
     ] as ChunkType[];
@@ -246,7 +269,8 @@ export class TypeScriptModule implements IndexModule {
       .filter((pc) => pc.isExported && pc.name)
       .map((pc) => pc.name!);
 
-    // Extract keywords from all chunks + path keywords
+    // Extract keywords from semantic chunks + path keywords
+    // (Skip full file chunk to avoid duplication)
     const allKeywords = new Set<string>();
     for (const pc of parsedChunks) {
       const keywords = extractKeywords(pc.content, pc.name);
