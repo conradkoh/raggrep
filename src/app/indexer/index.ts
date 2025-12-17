@@ -213,12 +213,14 @@ export interface TimingInfo {
   indexingMs: number;
   /** Time spent on cleanup operations */
   cleanupMs: number;
-  /** Number of files discovered */
+  /** Number of files discovered on disk */
   filesDiscovered: number;
-  /** Number of files that needed stat check */
+  /** Number of files that had stat checks performed (may be > filesDiscovered due to multiple modules) */
   filesStatChecked: number;
-  /** Number of files that needed indexing */
-  filesIndexed: number;
+  /** Number of files with detected changes (mtime or size changed) that went to Phase 2 */
+  filesWithChanges: number;
+  /** Number of files that were actually re-indexed (content changed) */
+  filesReindexed: number;
   /** Whether result was from cache */
   fromCache: boolean;
 }
@@ -526,7 +528,8 @@ export async function ensureIndexFresh(
   let cleanupMs = 0;
   let filesDiscovered = 0;
   let filesStatChecked = 0;
-  let filesIndexed = 0;
+  let filesWithChanges = 0; // Files that went to Phase 2 (mtime/size changed)
+  let filesReindexed = 0; // Files that were actually re-indexed (content changed)
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -596,7 +599,8 @@ export async function ensureIndexFresh(
         cleanupMs: 0,
         filesDiscovered: 0,
         filesStatChecked: 0,
-        filesIndexed: 0,
+        filesWithChanges: 0,
+        filesReindexed: 0,
         fromCache: true,
       };
     }
@@ -900,7 +904,7 @@ export async function ensureIndexFresh(
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
     const results = await parallelMap(filesToProcess, processChangedFile, concurrency);
     indexingMs += Date.now() - indexingStart;
-    filesIndexed += filesToProcess.length;
+    filesWithChanges += filesToProcess.length;
 
     // Add unchanged files to total
     totalUnchanged += unchangedCount;
@@ -997,7 +1001,8 @@ export async function ensureIndexFresh(
       cleanupMs,
       filesDiscovered,
       filesStatChecked,
-      filesIndexed,
+      filesWithChanges,
+      filesReindexed: totalIndexed, // Files that actually had content changes
       fromCache: false,
     };
   }

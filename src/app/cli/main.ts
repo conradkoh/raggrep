@@ -358,19 +358,19 @@ Examples:
         // Show timing information if requested
         if (flags.timing && freshStats.timing) {
           const t = freshStats.timing;
-          console.log("┌─ Timing ─────────────────────────────────────┐");
+          console.log("┌─ Timing ───────────────────────────────────────────────┐");
           if (t.fromCache) {
-            console.log(`│  Cache hit (TTL-based)                       │`);
-            console.log(`│  Total: ${t.totalMs.toFixed(0).padStart(6)}ms                              │`);
+            console.log(`│  Cache hit (TTL-based)                                 │`);
+            console.log(`│  Total: ${t.totalMs.toFixed(0).padStart(6)}ms                                        │`);
           } else {
-            console.log(`│  File discovery: ${t.fileDiscoveryMs.toFixed(0).padStart(6)}ms (${t.filesDiscovered} files)`.padEnd(47) + "│");
-            console.log(`│  Stat checks:    ${t.statCheckMs.toFixed(0).padStart(6)}ms (${t.filesStatChecked} files)`.padEnd(47) + "│");
-            console.log(`│  Indexing:       ${t.indexingMs.toFixed(0).padStart(6)}ms (${t.filesIndexed} files)`.padEnd(47) + "│");
-            console.log(`│  Cleanup:        ${t.cleanupMs.toFixed(0).padStart(6)}ms`.padEnd(47) + "│");
-            console.log(`│  ─────────────────────────────────────────── │`);
-            console.log(`│  Total:          ${t.totalMs.toFixed(0).padStart(6)}ms`.padEnd(47) + "│");
+            console.log(`│  File discovery: ${t.fileDiscoveryMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesDiscovered).padStart(6)} files found`.padEnd(57) + "│");
+            console.log(`│  Stat checks:    ${t.statCheckMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesStatChecked).padStart(6)} stats checked`.padEnd(57) + "│");
+            console.log(`│  Indexing:       ${t.indexingMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesWithChanges).padStart(6)} with changes → ${t.filesReindexed} reindexed`.padEnd(57) + "│");
+            console.log(`│  Cleanup:        ${t.cleanupMs.toFixed(0).padStart(6)}ms  │`.padEnd(57) + "│");
+            console.log(`│  ───────────────────────────────────────────────────── │`);
+            console.log(`│  Total:          ${t.totalMs.toFixed(0).padStart(6)}ms`.padEnd(57) + "│");
           }
-          console.log("└──────────────────────────────────────────────┘\n");
+          console.log("└────────────────────────────────────────────────────────┘\n");
         }
 
         // Build file patterns if type filter specified
