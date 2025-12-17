@@ -1,5 +1,5 @@
 // Main indexer - coordinates modules for indexing files
-import { glob } from "glob";
+import { fdir } from "fdir";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
@@ -1228,23 +1228,24 @@ async function indexWithModule(
 }
 
 async function findFiles(rootDir: string, config: Config): Promise<string[]> {
-  const patterns = config.extensions.map((ext) => `**/*${ext}`);
-  const ignorePatterns = config.ignorePaths.map((p) => `**/${p}/**`);
+  // Build a set of valid extensions for fast lookup
+  const validExtensions = new Set(config.extensions);
+  
+  // Build ignore patterns as directory names
+  const ignoreDirs = new Set(config.ignorePaths);
 
-  // Run all glob patterns in parallel for faster file discovery
-  const results = await Promise.all(
-    patterns.map((pattern) =>
-      glob(pattern, {
-        cwd: rootDir,
-        absolute: true,
-        ignore: ignorePatterns,
-      })
-    )
-  );
+  // Use fdir for fast directory traversal (10-100x faster than glob)
+  const crawler = new fdir()
+    .withFullPaths()
+    .exclude((dirName) => ignoreDirs.has(dirName))
+    .filter((filePath) => {
+      const ext = path.extname(filePath);
+      return validExtensions.has(ext);
+    })
+    .crawl(rootDir);
 
-  // Flatten and deduplicate
-  const allFiles = results.flat();
-  return [...new Set(allFiles)];
+  const files = await crawler.withPromise();
+  return files as string[];
 }
 
 async function loadModuleManifest(
