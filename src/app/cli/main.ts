@@ -363,23 +363,11 @@ Examples:
             console.log(`│  Cache hit (TTL-based)                                 │`);
             console.log(`│  Total: ${t.totalMs.toFixed(0).padStart(6)}ms                                        │`);
           } else {
-            console.log(`│  File discovery: ${t.fileDiscoveryMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesDiscovered).padStart(6)} files found`.padEnd(57) + "│");
-            console.log(`│  Stat checks:    ${t.statCheckMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesStatChecked).padStart(6)} stats checked`.padEnd(57) + "│");
-            console.log(`│  Indexing:       ${t.indexingMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesWithChanges).padStart(6)} with changes → ${t.filesReindexed} reindexed`.padEnd(57) + "│");
+            console.log(`│  File discovery: ${t.fileDiscoveryMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesDiscovered).padStart(6)} files, ${t.filesChanged} changed`.padEnd(57) + "│");
+            console.log(`│  Indexing:       ${t.indexingMs.toFixed(0).padStart(6)}ms  │  ${String(t.filesReindexed).padStart(6)} reindexed`.padEnd(57) + "│");
             console.log(`│  Cleanup:        ${t.cleanupMs.toFixed(0).padStart(6)}ms  │`.padEnd(57) + "│");
             console.log(`│  ───────────────────────────────────────────────────── │`);
             console.log(`│  Total:          ${t.totalMs.toFixed(0).padStart(6)}ms`.padEnd(57) + "│");
-            
-            // Show Phase 2 diagnostic breakdown if there were changes
-            if (t.phase2Reasons && t.filesWithChanges > 0) {
-              const r = t.phase2Reasons;
-              console.log(`│  ───────────────────────────────────────────────────── │`);
-              console.log(`│  Phase 2 breakdown (why files needed verification):    │`);
-              console.log(`│    New files:        ${String(r.newFiles).padStart(6)}`.padEnd(57) + "│");
-              console.log(`│    No cached size:   ${String(r.noFileSize).padStart(6)}`.padEnd(57) + "│");
-              console.log(`│    Size mismatch:    ${String(r.sizeMismatch).padStart(6)}`.padEnd(57) + "│");
-              console.log(`│    No cached hash:   ${String(r.noContentHash).padStart(6)}`.padEnd(57) + "│");
-            }
           }
           console.log("└────────────────────────────────────────────────────────┘\n");
         }

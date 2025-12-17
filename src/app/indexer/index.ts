@@ -180,12 +180,6 @@ function getOptimalConcurrency(): number {
 /** Default concurrency for parallel file processing (dynamic based on CPU) */
 const DEFAULT_CONCURRENCY = getOptimalConcurrency();
 
-/** 
- * Higher concurrency for I/O-bound operations like file stat.
- * Since stat is I/O-bound (not CPU-bound), we can run many more in parallel.
- */
-const STAT_CONCURRENCY = Math.max(32, getOptimalConcurrency() * 4);
-
 export interface IndexOptions {
   /** Override the embedding model (semantic module) */
   model?: EmbeddingModelName;
@@ -205,31 +199,20 @@ export interface IndexOptions {
 export interface TimingInfo {
   /** Total time in milliseconds */
   totalMs: number;
-  /** Time spent on file discovery (glob) */
+  /** Time spent on file discovery (with mtime filtering) */
   fileDiscoveryMs: number;
-  /** Time spent on stat checks */
-  statCheckMs: number;
   /** Time spent on indexing changed files */
   indexingMs: number;
   /** Time spent on cleanup operations */
   cleanupMs: number;
   /** Number of files discovered on disk */
   filesDiscovered: number;
-  /** Number of files that had stat checks performed (may be > filesDiscovered due to multiple modules) */
-  filesStatChecked: number;
-  /** Number of files with detected changes (mtime or size changed) that went to Phase 2 */
-  filesWithChanges: number;
+  /** Number of files modified since last index */
+  filesChanged: number;
   /** Number of files that were actually re-indexed (content changed) */
   filesReindexed: number;
   /** Whether result was from cache */
   fromCache: boolean;
-  /** Diagnostic: breakdown of why files went to Phase 2 */
-  phase2Reasons?: {
-    newFiles: number;
-    noFileSize: number;
-    sizeMismatch: number;
-    noContentHash: number;
-  };
 }
 
 export interface EnsureFreshResult {
@@ -277,6 +260,9 @@ export async function indexDirectory(
   rootDir: string,
   options: IndexOptions = {}
 ): Promise<IndexResult[]> {
+  // Capture the index start time FIRST - this becomes lastIndexStarted for next run
+  const indexStartTime = new Date().toISOString();
+  
   const verbose = options.verbose ?? false;
   const quiet = options.quiet ?? false;
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
@@ -426,8 +412,8 @@ export async function indexDirectory(
     `Total: ${totalIndexed} indexed, ${totalSkipped} skipped, ${totalErrors} errors`
   );
 
-  // Update global manifest
-  await updateGlobalManifest(rootDir, enabledModules, config);
+  // Update global manifest with the index start time
+  await updateGlobalManifest(rootDir, enabledModules, config, indexStartTime);
 
   return results;
 }
@@ -527,22 +513,17 @@ export async function ensureIndexFresh(
   const quiet = options.quiet ?? false;
   const showTiming = options.timing ?? false;
 
+  // Capture the index start time FIRST - this becomes lastIndexStarted for next run
+  const indexStartTime = new Date().toISOString();
+  
   // Timing tracking
   const startTime = Date.now();
   let fileDiscoveryMs = 0;
-  let statCheckMs = 0;
   let indexingMs = 0;
   let cleanupMs = 0;
   let filesDiscovered = 0;
-  let filesStatChecked = 0;
-  let filesWithChanges = 0; // Files that went to Phase 2 (mtime/size changed)
+  let filesChanged = 0; // Files modified since last index
   let filesReindexed = 0; // Files that were actually re-indexed (content changed)
-  
-  // Diagnostic counters: cumulative across all modules
-  let totalDiagNewFiles = 0;
-  let totalDiagNoFileSize = 0;
-  let totalDiagSizeMismatch = 0;
-  let totalDiagNoContentHash = 0;
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -607,12 +588,10 @@ export async function ensureIndexFresh(
       cachedResult.timing = {
         totalMs: Date.now() - startTime,
         fileDiscoveryMs: 0,
-        statCheckMs: 0,
         indexingMs: 0,
         cleanupMs: 0,
         filesDiscovered: 0,
-        filesStatChecked: 0,
-        filesWithChanges: 0,
+        filesChanged: 0,
         filesReindexed: 0,
         fromCache: true,
       };
@@ -630,19 +609,31 @@ export async function ensureIndexFresh(
     return { indexed: 0, removed: 0, unchanged: 0 };
   }
 
-  // Initialize introspection and find files in parallel
+  // Load global manifest to get lastIndexStarted for change detection
+  const globalManifest = await loadGlobalManifest(rootDir, config);
+  const lastIndexStarted = globalManifest?.lastIndexStarted 
+    ? new Date(globalManifest.lastIndexStarted)
+    : null;
+
+  // Initialize introspection and find files with mtime filtering in parallel
   const fileDiscoveryStart = Date.now();
   const introspection = new IntrospectionIndex(rootDir);
-  const [, currentFiles] = await Promise.all([
+  const [, discoveryResult] = await Promise.all([
     introspection.initialize(),
-    findFiles(rootDir, config),
+    findFilesWithStats(rootDir, config, lastIndexStarted),
   ]);
   fileDiscoveryMs = Date.now() - fileDiscoveryStart;
+  
+  const { allFiles: currentFiles, changedFiles, changedFileMtimes } = discoveryResult;
   filesDiscovered = currentFiles.length;
+  filesChanged = changedFiles.length;
 
   const currentFileSet = new Set(
     currentFiles.map((f) => path.relative(rootDir, f))
   );
+  
+  // Build set of changed file paths for quick lookup
+  const changedFileSet = new Set(changedFiles);
 
   let totalIndexed = 0;
   let totalRemoved = 0;
@@ -752,132 +743,50 @@ export async function ensureIndexFresh(
     };
 
     // ========================================================================
-    // PHASE 1: Fast stat check (high I/O concurrency)
+    // Identify files to process for this module
     // ========================================================================
-    interface StatCheckResult {
+    // Changed files are already identified during file discovery (mtime > lastIndexStarted)
+    // We only process files that:
+    // 1. This module supports
+    // 2. Have been modified since last index run
+    
+    interface FileToProcess {
       filepath: string;
       relativePath: string;
       lastModified: string;
-      fileSize: number;
-      needsCheck: boolean; // true if file needs content verification
-      isNew: boolean; // true if file not in manifest
-      existingContentHash?: string; // cached content hash from manifest
+      isNew: boolean;
+      existingContentHash?: string;
     }
 
-    const statCheck = async (filepath: string): Promise<StatCheckResult | null> => {
+    // Filter changed files to only those this module supports
+    const moduleChangedFiles = module.supportsFile 
+      ? changedFiles.filter((f) => module.supportsFile!(f))
+      : changedFiles;
+
+    // Build list of files to process
+    const filesToProcess: FileToProcess[] = moduleChangedFiles.map((filepath) => {
       const relativePath = path.relative(rootDir, filepath);
-      try {
-        const stats = await fs.stat(filepath);
-        const lastModified = stats.mtime.toISOString();
-        const fileSize = stats.size;
-        const existingEntry = manifest.files[relativePath];
+      const existingEntry = manifest.files[relativePath];
+      const lastModified = changedFileMtimes.get(filepath) || new Date().toISOString();
+      
+      return {
+        filepath,
+        relativePath,
+        lastModified,
+        isNew: !existingEntry,
+        existingContentHash: existingEntry?.contentHash,
+      };
+    });
 
-        if (!existingEntry) {
-          // New file - needs indexing
-          return { filepath, relativePath, lastModified, fileSize, needsCheck: true, isNew: true };
-        }
-
-        if (existingEntry.lastModified === lastModified) {
-          // Mtime unchanged - skip entirely
-          return { filepath, relativePath, lastModified, fileSize, needsCheck: false, isNew: false };
-        }
-
-        // Mtime changed - check if size also changed
-        if (existingEntry.fileSize !== undefined && existingEntry.fileSize === fileSize && existingEntry.contentHash) {
-          // Size unchanged and we have a content hash - very likely content is the same
-          // Skip content verification (trust size + existing hash)
-          return { filepath, relativePath, lastModified, fileSize, needsCheck: false, isNew: false, existingContentHash: existingEntry.contentHash };
-        }
-
-        // Mtime changed and (size changed OR no cached hash) - needs content check
-        return { filepath, relativePath, lastModified, fileSize, needsCheck: true, isNew: false, existingContentHash: existingEntry.contentHash };
-      } catch {
-        return null; // File inaccessible
-      }
-    };
-
-    // Filter files to only those this module supports
-    // If module doesn't have supportsFile, it processes all files (like core module)
-    const moduleFiles = module.supportsFile 
+    // Count unchanged files for this module
+    const moduleAllFiles = module.supportsFile 
       ? currentFiles.filter((f) => module.supportsFile!(f))
       : currentFiles;
+    const unchangedCount = moduleAllFiles.length - filesToProcess.length;
 
-    // Run stat checks with high concurrency (I/O bound)
-    const statCheckStart = Date.now();
-    const statResults = await parallelMap(moduleFiles, statCheck, STAT_CONCURRENCY);
-    statCheckMs += Date.now() - statCheckStart;
-    filesStatChecked += moduleFiles.length;
-    
-    // Separate files that need processing from unchanged files
-    const filesToProcess: StatCheckResult[] = [];
-    const filesWithMtimeOnlyChange: StatCheckResult[] = []; // Mtime changed but size same
-    let unchangedCount = 0;
-    
-    // Diagnostic counters: why files need Phase 2
-    let diagNewFiles = 0;
-    let diagNoFileSize = 0;
-    let diagSizeMismatch = 0;
-    let diagNoContentHash = 0;
-
-    for (const result of statResults) {
-      if (!result.success || !result.value) continue;
-      if (result.value.needsCheck) {
-        filesToProcess.push(result.value);
-        
-        // Track reason for Phase 2 (for diagnostics)
-        if (result.value.isNew) {
-          diagNewFiles++;
-        } else {
-          const existingEntry = manifest.files[result.value.relativePath];
-          if (existingEntry) {
-            if (existingEntry.fileSize === undefined) diagNoFileSize++;
-            else if (existingEntry.fileSize !== result.value.fileSize) diagSizeMismatch++;
-            else if (!existingEntry.contentHash) diagNoContentHash++;
-          }
-        }
-      } else {
-        unchangedCount++;
-        // Track files where mtime changed but we skipped due to size match
-        // These need their mtime updated in the manifest
-        const existingEntry = manifest.files[result.value.relativePath];
-        if (existingEntry && existingEntry.lastModified !== result.value.lastModified) {
-          filesWithMtimeOnlyChange.push(result.value);
-        }
-      }
-    }
-    
-    // Accumulate diagnostic counters
-    totalDiagNewFiles += diagNewFiles;
-    totalDiagNoFileSize += diagNoFileSize;
-    totalDiagSizeMismatch += diagSizeMismatch;
-    totalDiagNoContentHash += diagNoContentHash;
-    
-    // Log diagnostic info if there are many Phase 2 files
-    if (filesToProcess.length > 100 && verbose) {
-      logger.info(`  [Diagnostic] Phase 2 reasons: new=${diagNewFiles}, noSize=${diagNoFileSize}, sizeMismatch=${diagSizeMismatch}, noHash=${diagNoContentHash}`);
-    }
-
-    // Update manifest for files with mtime-only changes (size matched, so we trusted the hash)
-    let mtimeOnlyUpdates = 0;
-    for (const file of filesWithMtimeOnlyChange) {
-      const existingEntry = manifest.files[file.relativePath];
-      if (existingEntry) {
-        manifest.files[file.relativePath] = {
-          ...existingEntry,
-          lastModified: file.lastModified,
-          fileSize: file.fileSize,
-        };
-        mtimeOnlyUpdates++;
-      }
-    }
-
-    // If nothing needs processing, save manifest if there were mtime updates and continue
+    // If nothing needs processing, continue to next module
     if (filesToProcess.length === 0) {
       totalUnchanged += unchangedCount;
-      if (mtimeOnlyUpdates > 0) {
-        manifest.lastUpdated = new Date().toISOString();
-        await writeModuleManifest(rootDir, module.id, manifest, config);
-      }
       continue; // Move to next module
     }
 
@@ -888,25 +797,23 @@ export async function ensureIndexFresh(
     const totalToProcess = filesToProcess.length;
 
     const processChangedFile = async (
-      statResult: StatCheckResult
+      fileToProcess: FileToProcess
     ): Promise<IncrementalFileResult> => {
-      const { filepath, relativePath, lastModified, fileSize, isNew } = statResult;
+      const { filepath, relativePath, lastModified, isNew, existingContentHash } = fileToProcess;
 
       try {
         // Read file content
         const content = await fs.readFile(filepath, "utf-8");
         const contentHash = computeContentHash(content);
-        const existingEntry = manifest.files[relativePath];
 
         // Check if content actually changed (handles git branch switches)
-        if (!isNew && existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
+        if (!isNew && existingContentHash && existingContentHash === contentHash) {
           completedCount++;
           // Content unchanged, just mtime update
           return {
             relativePath,
             status: "mtime_updated",
             lastModified,
-            fileSize,
             contentHash,
           };
         }
@@ -922,7 +829,7 @@ export async function ensureIndexFresh(
         const fileIndex = await module.indexFile(relativePath, content, ctx);
 
         if (!fileIndex) {
-          return { relativePath, status: "unchanged", fileSize };
+          return { relativePath, status: "unchanged" };
         }
 
         await writeFileIndex(
@@ -937,7 +844,6 @@ export async function ensureIndexFresh(
           relativePath,
           status: "indexed",
           lastModified,
-          fileSize,
           chunkCount: fileIndex.chunks.length,
           contentHash,
         };
@@ -952,7 +858,6 @@ export async function ensureIndexFresh(
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
     const results = await parallelMap(filesToProcess, processChangedFile, concurrency);
     indexingMs += Date.now() - indexingStart;
-    filesWithChanges += filesToProcess.length;
 
     // Add unchanged files to total
     totalUnchanged += unchangedCount;
@@ -974,9 +879,9 @@ export async function ensureIndexFresh(
             lastModified: fileResult.lastModified!,
             chunkCount: fileResult.chunkCount!,
             contentHash: fileResult.contentHash,
-            fileSize: fileResult.fileSize,
           };
           totalIndexed++;
+          filesReindexed++;
           break;
         case "mtime_updated":
           // Update mtime without re-indexing
@@ -985,7 +890,6 @@ export async function ensureIndexFresh(
               ...manifest.files[fileResult.relativePath],
               lastModified: fileResult.lastModified!,
               contentHash: fileResult.contentHash,
-              fileSize: fileResult.fileSize,
             };
             mtimeUpdates++;
           }
@@ -1003,7 +907,7 @@ export async function ensureIndexFresh(
     }
 
     // Update manifest if there were any changes (including mtime-only updates)
-    const hasManifestChanges = totalIndexed > 0 || totalRemoved > 0 || mtimeUpdates > 0 || mtimeOnlyUpdates > 0;
+    const hasManifestChanges = totalIndexed > 0 || totalRemoved > 0 || mtimeUpdates > 0;
     if (hasManifestChanges) {
       manifest.lastUpdated = new Date().toISOString();
       await writeModuleManifest(rootDir, module.id, manifest, config);
@@ -1026,10 +930,12 @@ export async function ensureIndexFresh(
     await introspection.save(config);
   }
 
-  // Update global manifest if needed
+  // Always update global manifest to save the new lastIndexStarted
+  // This ensures next run can detect changes since this run started
+  await updateGlobalManifest(rootDir, enabledModules, config, indexStartTime);
+  
+  // Clear cache if there were actual changes
   if (totalIndexed > 0 || totalRemoved > 0) {
-    await updateGlobalManifest(rootDir, enabledModules, config);
-    // Clear cache since manifest changed
     clearFreshnessCache();
   }
 
@@ -1044,20 +950,12 @@ export async function ensureIndexFresh(
     result.timing = {
       totalMs: Date.now() - startTime,
       fileDiscoveryMs,
-      statCheckMs,
       indexingMs,
       cleanupMs,
       filesDiscovered,
-      filesStatChecked,
-      filesWithChanges,
-      filesReindexed: totalIndexed, // Files that actually had content changes
+      filesChanged,
+      filesReindexed,
       fromCache: false,
-      phase2Reasons: {
-        newFiles: totalDiagNewFiles,
-        noFileSize: totalDiagNoFileSize,
-        sizeMismatch: totalDiagSizeMismatch,
-        noContentHash: totalDiagNoContentHash,
-      },
     };
   }
 
@@ -1088,7 +986,6 @@ interface FileProcessResult {
   relativePath: string;
   status: "indexed" | "skipped" | "error";
   lastModified?: string;
-  fileSize?: number;
   chunkCount?: number;
   contentHash?: string;
   error?: unknown;
@@ -1101,7 +998,6 @@ interface IncrementalFileResult {
   relativePath: string;
   status: "indexed" | "unchanged" | "mtime_updated" | "error";
   lastModified?: string;
-  fileSize?: number;
   chunkCount?: number;
   contentHash?: string;
   error?: unknown;
@@ -1208,7 +1104,6 @@ async function indexWithModule(
     try {
       const stats = await fs.stat(filepath);
       const lastModified = stats.mtime.toISOString();
-      const fileSize = stats.size;
       const existingEntry = manifest.files[relativePath];
 
       // Fast path: if mtime unchanged, skip (no need to read file)
@@ -1235,7 +1130,6 @@ async function indexWithModule(
           relativePath,
           status: "skipped",
           lastModified,
-          fileSize,
           contentHash,
         };
       }
@@ -1255,7 +1149,7 @@ async function indexWithModule(
         logger.debug(
           `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (no chunks)`
         );
-        return { relativePath, status: "skipped", fileSize };
+        return { relativePath, status: "skipped" };
       }
 
       // Write index file
@@ -1265,7 +1159,6 @@ async function indexWithModule(
         relativePath,
         status: "indexed",
         lastModified,
-        fileSize,
         chunkCount: fileIndex.chunks.length,
         contentHash,
       };
@@ -1297,7 +1190,6 @@ async function indexWithModule(
           lastModified: fileResult.lastModified!,
           chunkCount: fileResult.chunkCount!,
           contentHash: fileResult.contentHash,
-          fileSize: fileResult.fileSize,
         };
         result.indexed++;
         break;
@@ -1310,7 +1202,6 @@ async function indexWithModule(
               ...existingEntry,
               lastModified: fileResult.lastModified,
               contentHash: fileResult.contentHash,
-              fileSize: fileResult.fileSize,
             };
           }
         }
@@ -1332,14 +1223,39 @@ async function indexWithModule(
   return result;
 }
 
-async function findFiles(rootDir: string, config: Config): Promise<string[]> {
+/**
+ * Result of file discovery with change detection.
+ */
+interface FileDiscoveryResult {
+  /** All files matching config extensions */
+  allFiles: string[];
+  /** Files that have been modified since lastIndexStarted */
+  changedFiles: string[];
+  /** Map of filepath to mtime (ISO string) for changed files */
+  changedFileMtimes: Map<string, string>;
+}
+
+/** Higher concurrency for I/O-bound stat operations */
+const STAT_CONCURRENCY = 64;
+
+/**
+ * Find all files and identify which ones have changed since the last index.
+ * Uses fdir for fast directory traversal, then batch stats to identify changes.
+ */
+async function findFilesWithStats(
+  rootDir: string,
+  config: Config,
+  lastIndexStarted: Date | null
+): Promise<FileDiscoveryResult> {
   // Build a set of valid extensions for fast lookup
   const validExtensions = new Set(config.extensions);
   
   // Build ignore patterns as directory names
   const ignoreDirs = new Set(config.ignorePaths);
+  
+  const lastIndexMs = lastIndexStarted?.getTime() ?? 0;
 
-  // Use fdir for fast directory traversal (10-100x faster than glob)
+  // Use fdir for fast directory traversal
   const crawler = new fdir()
     .withFullPaths()
     .exclude((dirName) => ignoreDirs.has(dirName))
@@ -1349,8 +1265,58 @@ async function findFiles(rootDir: string, config: Config): Promise<string[]> {
     })
     .crawl(rootDir);
 
-  const files = await crawler.withPromise();
-  return files as string[];
+  const allFiles = await crawler.withPromise() as string[];
+  
+  // If no lastIndexStarted, all files are "changed" (first run or rebuild)
+  if (!lastIndexStarted) {
+    const changedFileMtimes = new Map<string, string>();
+    // Batch stat all files with high concurrency
+    await parallelMap(allFiles, async (filePath) => {
+      try {
+        const stats = await fs.stat(filePath);
+        changedFileMtimes.set(filePath, stats.mtime.toISOString());
+      } catch {
+        // File inaccessible, skip
+      }
+    }, STAT_CONCURRENCY);
+    
+    return {
+      allFiles,
+      changedFiles: allFiles,
+      changedFileMtimes,
+    };
+  }
+
+  // Batch stat all files to find changed ones
+  const changedFiles: string[] = [];
+  const changedFileMtimes = new Map<string, string>();
+
+  await parallelMap(allFiles, async (filePath) => {
+    try {
+      const stats = await fs.stat(filePath);
+      // Check if modified since last index
+      if (stats.mtimeMs > lastIndexMs) {
+        changedFiles.push(filePath);
+        changedFileMtimes.set(filePath, stats.mtime.toISOString());
+      }
+    } catch {
+      // File inaccessible, skip
+    }
+  }, STAT_CONCURRENCY);
+
+  return {
+    allFiles,
+    changedFiles,
+    changedFileMtimes,
+  };
+}
+
+/**
+ * Find all files matching config (legacy function for compatibility).
+ */
+async function findFiles(rootDir: string, config: Config): Promise<string[]> {
+  const result = await findFilesWithStats(rootDir, config, null);
+  return result.allFiles;
 }
 
 async function loadModuleManifest(
@@ -1401,16 +1367,37 @@ async function writeFileIndex(
   await fs.writeFile(indexFilePath, JSON.stringify(fileIndex, null, 2));
 }
 
+/**
+ * Load the global manifest if it exists.
+ */
+async function loadGlobalManifest(
+  rootDir: string,
+  config: Config
+): Promise<GlobalManifest | null> {
+  const manifestPath = getGlobalManifestPath(rootDir, config);
+  try {
+    const content = await fs.readFile(manifestPath, "utf-8");
+    return JSON.parse(content) as GlobalManifest;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Update the global manifest with new index run information.
+ */
 async function updateGlobalManifest(
   rootDir: string,
   modules: IndexModule[],
-  config: Config
+  config: Config,
+  indexStartTime: string
 ): Promise<void> {
   const manifestPath = getGlobalManifestPath(rootDir, config);
 
   const manifest: GlobalManifest = {
     version: INDEX_SCHEMA_VERSION,
     lastUpdated: new Date().toISOString(),
+    lastIndexStarted: indexStartTime,
     modules: modules.map((m) => m.id),
   };
 

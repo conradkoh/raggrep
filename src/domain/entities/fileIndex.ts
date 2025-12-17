@@ -45,12 +45,6 @@ export interface FileManifestEntry {
    * This prevents false positives when git updates mtime on branch switches.
    */
   contentHash?: string;
-
-  /**
-   * File size in bytes. Used as a quick filter:
-   * If mtime changed but size is same, content is likely unchanged.
-   */
-  fileSize?: number;
 }
 
 /**
@@ -77,8 +71,15 @@ export interface GlobalManifest {
   /** RAGgrep version */
   version: string;
 
-  /** ISO timestamp of last update */
+  /** ISO timestamp of last update (when index files were written) */
   lastUpdated: string;
+
+  /**
+   * ISO timestamp of when the last index run started.
+   * Used to detect files modified since the last indexing pass.
+   * This is captured at the START of indexing, before any files are processed.
+   */
+  lastIndexStarted: string;
 
   /** List of active module IDs */
   modules: string[];
