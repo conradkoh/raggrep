@@ -152,7 +152,9 @@ export class TreeSitterParser implements IParser {
   private async initializeTreeSitter(): Promise<void> {
     try {
       const Parser = await import("web-tree-sitter");
+      // @ts-ignore - web-tree-sitter types are incomplete
       await Parser.default.init();
+      // @ts-ignore - web-tree-sitter types are incomplete
       this.parserInstance = new Parser.default();
     } catch (error) {
       console.error("Failed to initialize web-tree-sitter:", error);
