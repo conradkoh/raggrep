@@ -180,6 +180,12 @@ function getOptimalConcurrency(): number {
 /** Default concurrency for parallel file processing (dynamic based on CPU) */
 const DEFAULT_CONCURRENCY = getOptimalConcurrency();
 
+/** 
+ * Higher concurrency for I/O-bound operations like file stat.
+ * Since stat is I/O-bound (not CPU-bound), we can run many more in parallel.
+ */
+const STAT_CONCURRENCY = Math.max(32, getOptimalConcurrency() * 4);
+
 export interface IndexOptions {
   /** Override the embedding model (semantic module) */
   model?: EmbeddingModelName;
@@ -556,12 +562,12 @@ export async function ensureIndexFresh(
     return { indexed: 0, removed: 0, unchanged: 0 };
   }
 
-  // Initialize introspection
+  // Initialize introspection and find files in parallel
   const introspection = new IntrospectionIndex(rootDir);
-  await introspection.initialize();
-
-  // Get all current files
-  const currentFiles = await findFiles(rootDir, config);
+  const [, currentFiles] = await Promise.all([
+    introspection.initialize(),
+    findFiles(rootDir, config),
+  ]);
   const currentFileSet = new Set(
     currentFiles.map((f) => path.relative(rootDir, f))
   );
@@ -601,35 +607,32 @@ export async function ensureIndexFresh(
       }
     }
 
-    // Remove stale entries
+    // Remove stale entries in parallel
     // Also need to track files removed for literal index cleanup
     const removedFilepaths: string[] = [];
-    for (const filepath of filesToRemove) {
-      logger.debug(`  Removing stale: ${filepath}`);
-      // Remove main index file
-      const indexFilePath = path.join(
-        indexPath,
-        filepath.replace(/\.[^.]+$/, ".json")
+    if (filesToRemove.length > 0) {
+      await Promise.all(
+        filesToRemove.map(async (filepath) => {
+          logger.debug(`  Removing stale: ${filepath}`);
+          // Remove main index file and symbolic index file in parallel
+          const indexFilePath = path.join(
+            indexPath,
+            filepath.replace(/\.[^.]+$/, ".json")
+          );
+          const symbolicFilePath = path.join(
+            indexPath,
+            "symbolic",
+            filepath.replace(/\.[^.]+$/, ".json")
+          );
+          await Promise.all([
+            fs.unlink(indexFilePath).catch(() => {}), // Ignore errors
+            fs.unlink(symbolicFilePath).catch(() => {}), // Ignore errors
+          ]);
+          delete manifest.files[filepath];
+          removedFilepaths.push(filepath);
+        })
       );
-      try {
-        await fs.unlink(indexFilePath);
-      } catch {
-        // Index file may not exist
-      }
-      // Remove symbolic index file
-      const symbolicFilePath = path.join(
-        indexPath,
-        "symbolic",
-        filepath.replace(/\.[^.]+$/, ".json")
-      );
-      try {
-        await fs.unlink(symbolicFilePath);
-      } catch {
-        // Symbolic file may not exist
-      }
-      delete manifest.files[filepath];
-      removedFilepaths.push(filepath);
-      totalRemoved++;
+      totalRemoved += removedFilepaths.length;
     }
 
     // Clean up literal index for removed files
@@ -651,7 +654,10 @@ export async function ensureIndexFresh(
       }
     }
 
-    // Index new/modified files
+    // Index new/modified files using two-phase approach:
+    // Phase 1: Fast stat check with high I/O concurrency
+    // Phase 2: Only index files that actually need it
+
     const ctx: IndexContext = {
       rootDir,
       config,
@@ -671,34 +677,84 @@ export async function ensureIndexFresh(
       getIntrospection: (filepath: string) => introspection.getFile(filepath),
     };
 
-    const totalFiles = currentFiles.length;
-    let completedCount = 0;
+    // ========================================================================
+    // PHASE 1: Fast stat check (high I/O concurrency)
+    // ========================================================================
+    interface StatCheckResult {
+      filepath: string;
+      relativePath: string;
+      lastModified: string;
+      needsCheck: boolean; // true if mtime differs from manifest
+      isNew: boolean; // true if file not in manifest
+    }
 
-    // Process files in parallel with concurrency control
-    const processIncrementalFile = async (
-      filepath: string
-    ): Promise<IncrementalFileResult> => {
+    const statCheck = async (filepath: string): Promise<StatCheckResult | null> => {
       const relativePath = path.relative(rootDir, filepath);
-
       try {
         const stats = await fs.stat(filepath);
         const lastModified = stats.mtime.toISOString();
         const existingEntry = manifest.files[relativePath];
 
-        // Fast path: if mtime unchanged, skip (no need to read file)
-        if (existingEntry && existingEntry.lastModified === lastModified) {
-          completedCount++;
-          return { relativePath, status: "unchanged" };
+        if (!existingEntry) {
+          // New file - needs indexing
+          return { filepath, relativePath, lastModified, needsCheck: true, isNew: true };
         }
 
+        if (existingEntry.lastModified === lastModified) {
+          // Unchanged - skip
+          return { filepath, relativePath, lastModified, needsCheck: false, isNew: false };
+        }
+
+        // Mtime changed - needs content check
+        return { filepath, relativePath, lastModified, needsCheck: true, isNew: false };
+      } catch {
+        return null; // File inaccessible
+      }
+    };
+
+    // Run stat checks with high concurrency (I/O bound)
+    const statResults = await parallelMap(currentFiles, statCheck, STAT_CONCURRENCY);
+    
+    // Separate files that need processing from unchanged files
+    const filesToProcess: StatCheckResult[] = [];
+    let unchangedCount = 0;
+
+    for (const result of statResults) {
+      if (!result.success || !result.value) continue;
+      if (result.value.needsCheck) {
+        filesToProcess.push(result.value);
+      } else {
+        unchangedCount++;
+      }
+    }
+
+    // If nothing needs processing, return early
+    if (filesToProcess.length === 0) {
+      totalUnchanged += unchangedCount;
+      continue; // Move to next module
+    }
+
+    // ========================================================================
+    // PHASE 2: Process changed files (normal concurrency for CPU-bound work)
+    // ========================================================================
+    let completedCount = 0;
+    const totalToProcess = filesToProcess.length;
+
+    const processChangedFile = async (
+      statResult: StatCheckResult
+    ): Promise<IncrementalFileResult> => {
+      const { filepath, relativePath, lastModified, isNew } = statResult;
+
+      try {
         // Read file content
         const content = await fs.readFile(filepath, "utf-8");
         const contentHash = computeContentHash(content);
+        const existingEntry = manifest.files[relativePath];
 
         // Check if content actually changed (handles git branch switches)
-        if (existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
+        if (!isNew && existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
           completedCount++;
-          // Content unchanged, return with updated mtime
+          // Content unchanged, just mtime update
           return {
             relativePath,
             status: "mtime_updated",
@@ -710,7 +766,7 @@ export async function ensureIndexFresh(
         // File is new or content actually changed - index it
         completedCount++;
         logger.progress(
-          `  [${completedCount}/${totalFiles}] Indexing: ${relativePath}`
+          `  [${completedCount}/${totalToProcess}] Indexing: ${relativePath}`
         );
 
         introspection.addFile(relativePath, content);
@@ -742,9 +798,12 @@ export async function ensureIndexFresh(
       }
     };
 
-    // Run parallel processing
+    // Run indexing with normal concurrency (CPU bound)
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-    const results = await parallelMap(currentFiles, processIncrementalFile, concurrency);
+    const results = await parallelMap(filesToProcess, processChangedFile, concurrency);
+
+    // Add unchanged files to total
+    totalUnchanged += unchangedCount;
 
     // Clear progress line
     logger.clearProgress();
@@ -1094,17 +1153,20 @@ async function findFiles(rootDir: string, config: Config): Promise<string[]> {
   const patterns = config.extensions.map((ext) => `**/*${ext}`);
   const ignorePatterns = config.ignorePaths.map((p) => `**/${p}/**`);
 
-  const files: string[] = [];
-  for (const pattern of patterns) {
-    const matches = await glob(pattern, {
-      cwd: rootDir,
-      absolute: true,
-      ignore: ignorePatterns,
-    });
-    files.push(...matches);
-  }
+  // Run all glob patterns in parallel for faster file discovery
+  const results = await Promise.all(
+    patterns.map((pattern) =>
+      glob(pattern, {
+        cwd: rootDir,
+        absolute: true,
+        ignore: ignorePatterns,
+      })
+    )
+  );
 
-  return [...new Set(files)]; // Remove duplicates
+  // Flatten and deduplicate
+  const allFiles = results.flat();
+  return [...new Set(allFiles)];
 }
 
 async function loadModuleManifest(
