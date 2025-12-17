@@ -62,6 +62,7 @@ export { parseQueryLiterals } from "./queryLiteralParser";
 export {
   extractLiterals,
   extractLiteralsWithReferences,
+  extractVocabulary,
 } from "./literalExtractor";
 
 // Literal boosting - Scoring
@@ -69,10 +70,12 @@ export {
   calculateLiteralMultiplier,
   calculateMaxMultiplier,
   calculateLiteralContribution,
+  calculateVocabularyMatch,
   applyLiteralBoost,
   mergeWithLiteralBoost,
   LITERAL_SCORING_CONSTANTS,
   type LiteralScoreContribution,
+  type VocabularyMatchResult,
   type MergeInput,
   type MergeOutput,
 } from "./literalScorer";
@@ -88,3 +91,22 @@ export {
 
 // JSON path extraction for literal indexing
 export { extractJsonPaths, extractJsonKeywords } from "./jsonPathExtractor";
+
+// Introspection - File metadata extraction
+export {
+  introspectFile,
+  findNearestReadme,
+  introspectionToKeywords,
+  detectScopeFromName,
+  findProjectForFile,
+  calculateIntrospectionBoost,
+  type IntrospectFileOptions,
+} from "./introspection";
+
+// Configuration validation
+export {
+  validateConfig,
+  formatValidationIssues,
+  type ValidationIssue,
+  type ValidationResult,
+} from "./configValidator";

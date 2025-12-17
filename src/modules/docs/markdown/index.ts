@@ -55,6 +55,37 @@ const SEMANTIC_WEIGHT = 0.7;
 /** Weight for BM25 keyword matching in hybrid scoring (0-1) */
 const BM25_WEIGHT = 0.3;
 
+/**
+ * Calculate boost based on heading level.
+ * More specific sections (higher heading numbers) get a slight boost
+ * because they're more targeted matches.
+ */
+function calculateHeadingLevelBoost(chunk: Chunk): number {
+  const metadata = chunk.metadata as { headingLevel?: number } | undefined;
+  const level = metadata?.headingLevel ?? 0;
+
+  // Boost based on specificity:
+  // - H4/H5: +0.05 (most specific)
+  // - H3: +0.03
+  // - H2: +0.02
+  // - H1: +0.01 (least specific but valuable for overview)
+  // - Preamble/full: 0
+  switch (level) {
+    case 4:
+    case 5:
+    case 6:
+      return 0.05;
+    case 3:
+      return 0.03;
+    case 2:
+      return 0.02;
+    case 1:
+      return 0.01;
+    default:
+      return 0;
+  }
+}
+
 /** File extensions supported by this module */
 export const MARKDOWN_EXTENSIONS = [".md", ".txt"];
 
@@ -155,6 +186,125 @@ function parseMarkdownSections(content: string): MarkdownSection[] {
 }
 
 /**
+ * Represents a hierarchical chunk that includes nested content.
+ */
+interface HierarchicalChunk {
+  /** The heading text */
+  heading: string;
+  /** The heading level (1-6, 0 for preamble) */
+  level: number;
+  /** Full content including nested sections */
+  content: string;
+  /** 1-based start line */
+  startLine: number;
+  /** 1-based end line */
+  endLine: number;
+  /** Type identifier for the chunk (h1, h2, etc.) */
+  chunkType: string;
+}
+
+/**
+ * Parse Markdown content into hierarchical chunks.
+ *
+ * Creates chunks at multiple granularities:
+ * - H1 chunks: Contain all nested content (h2, h3, h4, etc.)
+ * - H2 chunks: Contain h2 and its nested h3, h4 content
+ * - H3 chunks: Contain h3 and its nested h4, h5 content
+ * - etc.
+ *
+ * This enables searching at different "zoom levels".
+ */
+function parseMarkdownHierarchical(
+  content: string,
+  maxDepth: number = 4
+): HierarchicalChunk[] {
+  const lines = content.split("\n");
+  const chunks: HierarchicalChunk[] = [];
+
+  // First pass: identify all heading positions
+  interface HeadingInfo {
+    level: number;
+    heading: string;
+    lineIndex: number; // 0-based
+  }
+
+  const headings: HeadingInfo[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(#{1,6})\s+(.+)$/);
+    if (match) {
+      headings.push({
+        level: match[1].length,
+        heading: match[2],
+        lineIndex: i,
+      });
+    }
+  }
+
+  // If no headings, return single chunk
+  if (headings.length === 0) {
+    chunks.push({
+      heading: "",
+      level: 0,
+      content: content,
+      startLine: 1,
+      endLine: lines.length,
+      chunkType: "full",
+    });
+    return chunks;
+  }
+
+  // Add preamble if there's content before first heading
+  if (headings[0].lineIndex > 0) {
+    const preambleContent = lines.slice(0, headings[0].lineIndex).join("\n").trim();
+    if (preambleContent) {
+      chunks.push({
+        heading: "",
+        level: 0,
+        content: preambleContent,
+        startLine: 1,
+        endLine: headings[0].lineIndex,
+        chunkType: "preamble",
+      });
+    }
+  }
+
+  // For each heading, find where its section ends
+  // A section ends when we hit a heading of the same or higher level
+  for (let i = 0; i < headings.length; i++) {
+    const current = headings[i];
+
+    // Only process headings up to maxDepth
+    if (current.level > maxDepth) continue;
+
+    // Find where this section ends
+    let endLineIndex = lines.length; // Default to end of file
+
+    for (let j = i + 1; j < headings.length; j++) {
+      // Section ends at next heading of same or higher level (lower number)
+      if (headings[j].level <= current.level) {
+        endLineIndex = headings[j].lineIndex;
+        break;
+      }
+    }
+
+    // Extract content from start of heading to end of section
+    const sectionContent = lines.slice(current.lineIndex, endLineIndex).join("\n");
+
+    chunks.push({
+      heading: current.heading,
+      level: current.level,
+      content: sectionContent,
+      startLine: current.lineIndex + 1,
+      endLine: endLineIndex,
+      chunkType: `h${current.level}`,
+    });
+  }
+
+  return chunks;
+}
+
+/**
  * Extract keywords from Markdown content.
  */
 function extractMarkdownKeywords(content: string): string[] {
@@ -250,35 +400,42 @@ export class MarkdownModule implements IndexModule {
 
     this.rootDir = ctx.rootDir;
 
-    // Parse Markdown into sections
-    const sections = parseMarkdownSections(content);
+    // Parse Markdown into hierarchical sections
+    // This creates chunks at multiple granularities (h1, h2, h3, h4)
+    const hierarchicalChunks = parseMarkdownHierarchical(content, 4);
 
-    if (sections.length === 0) {
+    if (hierarchicalChunks.length === 0) {
       return null;
     }
 
-    // Generate embeddings for sections
-    const chunkContents = sections.map((s) => {
+    // Generate embeddings for all chunks
+    const chunkContents = hierarchicalChunks.map((s) => {
       const filename = path.basename(filepath);
       const headingContext = s.heading ? `${s.heading}: ` : "";
       return `${filename} ${headingContext}${s.content}`;
     });
     const embeddings = await getEmbeddings(chunkContents);
 
-    // Create chunks from sections
-    const chunks: Chunk[] = sections.map((section, i) => ({
+    // Create chunks from hierarchical sections
+    const chunks: Chunk[] = hierarchicalChunks.map((section) => ({
       id: generateChunkId(filepath, section.startLine, section.endLine),
-      content: section.heading
-        ? `## ${section.heading}\n\n${section.content}`
-        : section.content,
+      content: section.content,
       startLine: section.startLine,
       endLine: section.endLine,
       type: "block" as ChunkType,
       name: section.heading || undefined,
+      // Store chunk type in metadata for scoring
+      metadata: {
+        headingLevel: section.level,
+        chunkType: section.chunkType,
+      },
     }));
 
-    // Extract headings for metadata
-    const headings = sections.filter((s) => s.heading).map((s) => s.heading);
+    // Extract headings for metadata (unique headings only)
+    const headings = hierarchicalChunks
+      .filter((s) => s.heading)
+      .map((s) => s.heading);
+    const uniqueHeadings = [...new Set(headings)];
 
     const stats = await ctx.getFileStats(filepath);
     const currentConfig = getEmbeddingConfig();
@@ -286,7 +443,7 @@ export class MarkdownModule implements IndexModule {
     const moduleData: MarkdownModuleData = {
       embeddings,
       embeddingModel: currentConfig.model,
-      headings,
+      headings: uniqueHeadings,
     };
 
     // Build file summary
@@ -297,7 +454,7 @@ export class MarkdownModule implements IndexModule {
       chunkCount: chunks.length,
       chunkTypes: ["block"],
       keywords,
-      exports: headings, // Use headings as "exports" for searchability
+      exports: uniqueHeadings, // Use headings as "exports" for searchability
       lastModified: stats.lastModified,
     };
 
@@ -436,8 +593,14 @@ export class MarkdownModule implements IndexModule {
         docBoost = 0.05;
       }
 
+      // Boost for more specific sections
+      const headingBoost = calculateHeadingLevelBoost(chunk);
+
       const hybridScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score + docBoost;
+        SEMANTIC_WEIGHT * semanticScore +
+        BM25_WEIGHT * bm25Score +
+        docBoost +
+        headingBoost;
 
       if (hybridScore >= minScore || bm25Score > 0.3) {
         results.push({
@@ -449,6 +612,8 @@ export class MarkdownModule implements IndexModule {
             semanticScore,
             bm25Score,
             docBoost,
+            headingBoost,
+            headingLevel: (chunk.metadata as any)?.headingLevel,
           },
         });
       }

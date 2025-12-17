@@ -9,6 +9,7 @@ import {
   detectScopeFromName,
   findProjectForFile,
   calculateIntrospectionBoost,
+  findNearestReadme,
 } from "./introspection";
 import type { ProjectStructure } from "../entities/introspection";
 
@@ -230,5 +231,122 @@ describe("calculateIntrospectionBoost", () => {
     );
     const boost = calculateIntrospectionBoost(intro, "payment processing");
     expect(boost).toBe(1.0);
+  });
+});
+
+describe("findNearestReadme", () => {
+  test("finds README in same directory", () => {
+    const existingFiles = new Set([
+      "src/auth/README.md",
+      "README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("src/auth/login.ts", fileExists);
+    expect(result).toBe("src/auth/README.md");
+  });
+
+  test("finds README in parent directory", () => {
+    const existingFiles = new Set([
+      "src/README.md",
+      "README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("src/auth/services/session.ts", fileExists);
+    expect(result).toBe("src/README.md");
+  });
+
+  test("finds README in root directory", () => {
+    const existingFiles = new Set([
+      "README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("src/deep/nested/path/file.ts", fileExists);
+    expect(result).toBe("README.md");
+  });
+
+  test("returns undefined when no README exists", () => {
+    const fileExists = (_path: string) => false;
+
+    const result = findNearestReadme("src/auth/login.ts", fileExists);
+    expect(result).toBeUndefined();
+  });
+
+  test("prefers README.md over index.md", () => {
+    const existingFiles = new Set([
+      "src/auth/index.md",
+      "src/auth/README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("src/auth/login.ts", fileExists);
+    expect(result).toBe("src/auth/README.md");
+  });
+
+  test("finds lowercase readme.md", () => {
+    const existingFiles = new Set([
+      "src/readme.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("src/auth/login.ts", fileExists);
+    expect(result).toBe("src/readme.md");
+  });
+
+  test("handles root-level files", () => {
+    const existingFiles = new Set([
+      "README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const result = findNearestReadme("package.json", fileExists);
+    expect(result).toBe("README.md");
+  });
+});
+
+describe("introspectFile with README context", () => {
+  test("includes nearestReadme when fileExists is provided", () => {
+    const existingFiles = new Set([
+      "src/auth/README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const intro = introspectFile(
+      "src/auth/login.ts",
+      singleProjectStructure,
+      { fileExists }
+    );
+
+    expect(intro.nearestReadme).toBe("src/auth/README.md");
+  });
+
+  test("nearestReadme is undefined when fileExists is not provided", () => {
+    const intro = introspectFile(
+      "src/auth/login.ts",
+      singleProjectStructure
+    );
+
+    expect(intro.nearestReadme).toBeUndefined();
+  });
+
+  test("supports both fileContent and fileExists", () => {
+    const existingFiles = new Set([
+      "README.md",
+    ]);
+    const fileExists = (path: string) => existingFiles.has(path);
+
+    const intro = introspectFile(
+      "src/server.ts",
+      singleProjectStructure,
+      {
+        fileContent: `import express from 'express';`,
+        fileExists,
+      }
+    );
+
+    expect(intro.framework).toBe("express");
+    expect(intro.nearestReadme).toBe("README.md");
   });
 });

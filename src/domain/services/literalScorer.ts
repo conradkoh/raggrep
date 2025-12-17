@@ -27,6 +27,18 @@ export const LITERAL_SCORING_CONSTANTS = {
     reference: { high: 2.0, medium: 1.5, low: 1.3 },
     import: { high: 1.5, medium: 1.3, low: 1.1 },
   } as Record<LiteralMatchType, Record<LiteralConfidence, number>>,
+
+  /** Vocabulary match scoring */
+  VOCABULARY: {
+    /** Base multiplier for vocabulary-only matches (no exact literal match) */
+    BASE_MULTIPLIER: 1.3,
+    /** Bonus per additional vocabulary word matched (up to a limit) */
+    PER_WORD_BONUS: 0.1,
+    /** Maximum vocabulary bonus */
+    MAX_VOCABULARY_BONUS: 0.5,
+    /** Minimum vocabulary words required for a match to count */
+    MIN_WORDS_FOR_MATCH: 2,
+  },
 };
 
 /**
@@ -64,6 +76,86 @@ export function calculateMaxMultiplier(matches: LiteralMatch[]): number {
       )
     )
   );
+}
+
+/**
+ * Result of vocabulary-based matching.
+ */
+export interface VocabularyMatchResult {
+  /** Number of vocabulary words that matched */
+  matchedWordCount: number;
+  /** The vocabulary words that matched */
+  matchedWords: string[];
+  /** Multiplier to apply based on vocabulary match */
+  multiplier: number;
+  /** Whether this is a meaningful match (above threshold) */
+  isSignificant: boolean;
+}
+
+/**
+ * Calculate vocabulary-based scoring for a chunk.
+ *
+ * This is used for partial matching when no exact literal match exists.
+ * E.g., query "user authentication" might match chunk with "getUserAuth" literal.
+ *
+ * @param queryVocabulary - Vocabulary words extracted from the query
+ * @param chunkVocabulary - Vocabulary words extracted from chunk literals
+ * @returns Vocabulary match result with multiplier
+ */
+export function calculateVocabularyMatch(
+  queryVocabulary: string[],
+  chunkVocabulary: string[]
+): VocabularyMatchResult {
+  if (
+    !queryVocabulary ||
+    queryVocabulary.length === 0 ||
+    !chunkVocabulary ||
+    chunkVocabulary.length === 0
+  ) {
+    return {
+      matchedWordCount: 0,
+      matchedWords: [],
+      multiplier: 1.0,
+      isSignificant: false,
+    };
+  }
+
+  // Find matching vocabulary words
+  const querySet = new Set(queryVocabulary.map((w) => w.toLowerCase()));
+  const matchedWords: string[] = [];
+
+  for (const word of chunkVocabulary) {
+    if (querySet.has(word.toLowerCase())) {
+      matchedWords.push(word);
+    }
+  }
+
+  const matchedWordCount = matchedWords.length;
+
+  // Check if match is significant
+  const isSignificant =
+    matchedWordCount >= LITERAL_SCORING_CONSTANTS.VOCABULARY.MIN_WORDS_FOR_MATCH;
+
+  // Calculate multiplier
+  let multiplier = 1.0;
+  if (isSignificant) {
+    multiplier = LITERAL_SCORING_CONSTANTS.VOCABULARY.BASE_MULTIPLIER;
+    // Add bonus for additional words (above minimum)
+    const extraWords =
+      matchedWordCount - LITERAL_SCORING_CONSTANTS.VOCABULARY.MIN_WORDS_FOR_MATCH;
+    const bonus = Math.min(
+      extraWords * LITERAL_SCORING_CONSTANTS.VOCABULARY.PER_WORD_BONUS,
+      LITERAL_SCORING_CONSTANTS.VOCABULARY.MAX_VOCABULARY_BONUS
+    );
+    multiplier += bonus;
+  }
+
+  return {
+    matchedWordCount,
+    matchedWords,
+    multiplier,
+    isSignificant,
+  };
 }
 
 /**

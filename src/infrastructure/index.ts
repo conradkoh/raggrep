@@ -42,3 +42,18 @@ export {
   createInlineLogger,
   createSilentLogger,
 } from "./logger";
+
+// Parsing
+export {
+  TypeScriptParser,
+  TreeSitterParser,
+  GrammarManager,
+  getGrammarManager,
+  createParserForFile,
+  createParserForLanguage,
+  detectLanguage,
+  detectLanguagesFromFiles,
+  isFileSupported,
+  getSupportedExtensions,
+  getSupportedLanguages,
+} from "./parsing";

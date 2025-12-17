@@ -26,6 +26,10 @@ import type {
  *
  * Manages the literal index for exact-match boosting.
  * Provides O(1) lookup for literal matches.
+ *
+ * Now also supports vocabulary-based search for partial matching:
+ * - Store vocabulary words extracted from literals
+ * - Search by vocabulary words to find partial matches
  */
 export class LiteralIndex {
   private indexPath: string;
@@ -37,9 +41,15 @@ export class LiteralIndex {
   private entries: Map<string, LiteralIndexEntry[]> = new Map();
 
   /**
+   * Vocabulary index: vocabulary word → literal values that contain it
+   * Used for partial matching (e.g., "user" → ["getUserById", "fetchUserData"])
+   */
+  private vocabularyIndex: Map<string, Set<string>> = new Map();
+
+  /**
    * Schema version for compatibility checking.
    */
-  private static readonly VERSION = "1.0.0";
+  private static readonly VERSION = "1.1.0"; // Updated for vocabulary support
 
   constructor(indexDir: string, moduleId: string) {
     this.indexPath = path.join(indexDir, "index", moduleId, "literals");
@@ -53,9 +63,32 @@ export class LiteralIndex {
   async initialize(): Promise<void> {
     try {
       await this.load();
+      this.rebuildVocabularyIndex();
     } catch {
       // Create empty index
       this.entries = new Map();
+      this.vocabularyIndex = new Map();
+    }
+  }
+
+  /**
+   * Rebuild the vocabulary index from entries.
+   * Called after loading from disk.
+   */
+  private rebuildVocabularyIndex(): void {
+    this.vocabularyIndex.clear();
+
+    for (const [literalKey, entries] of this.entries) {
+      for (const entry of entries) {
+        if (entry.vocabulary) {
+          for (const word of entry.vocabulary) {
+            const wordLower = word.toLowerCase();
+            const literals = this.vocabularyIndex.get(wordLower) || new Set();
+            literals.add(literalKey);
+            this.vocabularyIndex.set(wordLower, literals);
+          }
+        }
+      }
     }
   }
 
@@ -86,7 +119,18 @@ export class LiteralIndex {
         originalCasing: literal.value,
         type: literal.type,
         matchType: literal.matchType,
+        vocabulary: literal.vocabulary,
       };
+
+      // Update vocabulary index
+      if (literal.vocabulary) {
+        for (const word of literal.vocabulary) {
+          const wordLower = word.toLowerCase();
+          const literals = this.vocabularyIndex.get(wordLower) || new Set();
+          literals.add(key);
+          this.vocabularyIndex.set(wordLower, literals);
+        }
+      }
 
       if (existingIndex >= 0) {
         // Update existing entry (prefer definition over reference)
@@ -192,6 +236,78 @@ export class LiteralIndex {
   }
 
   /**
+   * Find literals that contain a specific vocabulary word.
+   *
+   * @param word - The vocabulary word to search for
+   * @returns Array of literal entries that contain this word
+   */
+  findByVocabulary(word: string): LiteralIndexEntry[] {
+    const wordLower = word.toLowerCase();
+    const literalKeys = this.vocabularyIndex.get(wordLower);
+
+    if (!literalKeys) {
+      return [];
+    }
+
+    const results: LiteralIndexEntry[] = [];
+    for (const key of literalKeys) {
+      const entries = this.entries.get(key);
+      if (entries) {
+        results.push(...entries);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Find matches for query by vocabulary words.
+   * Returns literals that contain any of the given vocabulary words.
+   *
+   * @param vocabularyWords - Words to search for
+   * @returns Array of matches with overlap information
+   */
+  findByVocabularyWords(
+    vocabularyWords: string[]
+  ): Array<{ entry: LiteralIndexEntry; matchedWords: string[] }> {
+    const matchesMap = new Map<
+      string,
+      { entry: LiteralIndexEntry; matchedWords: Set<string> }
+    >();
+
+    for (const word of vocabularyWords) {
+      const wordLower = word.toLowerCase();
+      const literalKeys = this.vocabularyIndex.get(wordLower);
+
+      if (!literalKeys) continue;
+
+      for (const key of literalKeys) {
+        const entries = this.entries.get(key);
+        if (!entries) continue;
+
+        for (const entry of entries) {
+          const matchKey = `${entry.chunkId}:${entry.originalCasing}`;
+          const existing = matchesMap.get(matchKey);
+
+          if (existing) {
+            existing.matchedWords.add(wordLower);
+          } else {
+            matchesMap.set(matchKey, {
+              entry,
+              matchedWords: new Set([wordLower]),
+            });
+          }
+        }
+      }
+    }
+
+    return Array.from(matchesMap.values()).map(({ entry, matchedWords }) => ({
+      entry,
+      matchedWords: Array.from(matchedWords),
+    }));
+  }
+
+  /**
    * Save the index to disk.
    */
   async save(): Promise<void> {
@@ -245,6 +361,7 @@ export class LiteralIndex {
    */
   clear(): void {
     this.entries.clear();
+    this.vocabularyIndex.clear();
   }
 
   /**

@@ -52,6 +52,9 @@ export interface ExtractedLiteral {
 
   /** How this chunk relates to the literal */
   matchType: LiteralMatchType;
+
+  /** Vocabulary words extracted from the literal (e.g., getUserById → ["get", "user", "by", "id"]) */
+  vocabulary?: string[];
 }
 
 /**
@@ -114,6 +117,8 @@ export interface LiteralIndexEntry {
   originalCasing: string;
   type: LiteralType;
   matchType: LiteralMatchType;
+  /** Vocabulary words for partial matching */
+  vocabulary?: string[];
 }
 
 /**

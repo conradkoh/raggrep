@@ -58,6 +58,9 @@ export interface FileIntrospection {
 
   /** Path segments for keyword matching */
   pathSegments: string[];
+
+  /** Relative path to nearest README in directory hierarchy */
+  nearestReadme?: string;
 }
 
 /**

@@ -7,6 +7,7 @@
 
 import * as path from "path";
 import * as fs from "fs/promises";
+import * as fsSync from "fs";
 import type {
   FileIntrospection,
   ProjectStructure,
@@ -57,13 +58,36 @@ export class IntrospectionIndex {
 
   /**
    * Introspect a file and add to index.
+   *
+   * @param filepath - Relative file path
+   * @param content - Optional file content for framework detection
+   * @param enableReadmeContext - Whether to look for README files (default: true)
    */
-  addFile(filepath: string, content?: string): FileIntrospection {
+  addFile(
+    filepath: string,
+    content?: string,
+    enableReadmeContext = true
+  ): FileIntrospection {
     if (!this.structure) {
       throw new Error("IntrospectionIndex not initialized");
     }
 
-    const intro = introspectFile(filepath, this.structure, content);
+    // Create a file existence checker for README discovery
+    const fileExists = enableReadmeContext
+      ? (relativePath: string) => {
+          try {
+            const absolutePath = path.join(this.rootDir, relativePath);
+            return fsSync.existsSync(absolutePath);
+          } catch {
+            return false;
+          }
+        }
+      : undefined;
+
+    const intro = introspectFile(filepath, this.structure, {
+      fileContent: content,
+      fileExists,
+    });
 
     // Apply config overrides
     this.applyOverrides(intro);
