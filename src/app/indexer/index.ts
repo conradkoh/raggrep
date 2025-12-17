@@ -97,8 +97,9 @@ async function parallelMap<T, R>(
  * History:
  * - 1.0.0: Initial version
  * - 1.1.0: Changed default embedding model to bge-small-en-v1.5, added nomic-embed-text-v1.5
+ * - 2.0.0: Tree-sitter integration, vocabulary extraction, README context, full file chunks, hierarchical markdown
  */
-const INDEX_SCHEMA_VERSION = "1.1.0";
+const INDEX_SCHEMA_VERSION = "2.0.0";
 
 export interface IndexResult {
   moduleId: string;
