@@ -741,8 +741,10 @@ export async function ensureIndexFresh(
       filepath: string;
       relativePath: string;
       lastModified: string;
-      needsCheck: boolean; // true if mtime differs from manifest
+      fileSize: number;
+      needsCheck: boolean; // true if file needs content verification
       isNew: boolean; // true if file not in manifest
+      existingContentHash?: string; // cached content hash from manifest
     }
 
     const statCheck = async (filepath: string): Promise<StatCheckResult | null> => {
@@ -750,20 +752,28 @@ export async function ensureIndexFresh(
       try {
         const stats = await fs.stat(filepath);
         const lastModified = stats.mtime.toISOString();
+        const fileSize = stats.size;
         const existingEntry = manifest.files[relativePath];
 
         if (!existingEntry) {
           // New file - needs indexing
-          return { filepath, relativePath, lastModified, needsCheck: true, isNew: true };
+          return { filepath, relativePath, lastModified, fileSize, needsCheck: true, isNew: true };
         }
 
         if (existingEntry.lastModified === lastModified) {
-          // Unchanged - skip
-          return { filepath, relativePath, lastModified, needsCheck: false, isNew: false };
+          // Mtime unchanged - skip entirely
+          return { filepath, relativePath, lastModified, fileSize, needsCheck: false, isNew: false };
         }
 
-        // Mtime changed - needs content check
-        return { filepath, relativePath, lastModified, needsCheck: true, isNew: false };
+        // Mtime changed - check if size also changed
+        if (existingEntry.fileSize !== undefined && existingEntry.fileSize === fileSize && existingEntry.contentHash) {
+          // Size unchanged and we have a content hash - very likely content is the same
+          // Skip content verification (trust size + existing hash)
+          return { filepath, relativePath, lastModified, fileSize, needsCheck: false, isNew: false, existingContentHash: existingEntry.contentHash };
+        }
+
+        // Mtime changed and (size changed OR no cached hash) - needs content check
+        return { filepath, relativePath, lastModified, fileSize, needsCheck: true, isNew: false, existingContentHash: existingEntry.contentHash };
       } catch {
         return null; // File inaccessible
       }
@@ -777,6 +787,7 @@ export async function ensureIndexFresh(
     
     // Separate files that need processing from unchanged files
     const filesToProcess: StatCheckResult[] = [];
+    const filesWithMtimeOnlyChange: StatCheckResult[] = []; // Mtime changed but size same
     let unchangedCount = 0;
 
     for (const result of statResults) {
@@ -785,12 +796,36 @@ export async function ensureIndexFresh(
         filesToProcess.push(result.value);
       } else {
         unchangedCount++;
+        // Track files where mtime changed but we skipped due to size match
+        // These need their mtime updated in the manifest
+        const existingEntry = manifest.files[result.value.relativePath];
+        if (existingEntry && existingEntry.lastModified !== result.value.lastModified) {
+          filesWithMtimeOnlyChange.push(result.value);
+        }
       }
     }
 
-    // If nothing needs processing, return early
+    // Update manifest for files with mtime-only changes (size matched, so we trusted the hash)
+    let mtimeOnlyUpdates = 0;
+    for (const file of filesWithMtimeOnlyChange) {
+      const existingEntry = manifest.files[file.relativePath];
+      if (existingEntry) {
+        manifest.files[file.relativePath] = {
+          ...existingEntry,
+          lastModified: file.lastModified,
+          fileSize: file.fileSize,
+        };
+        mtimeOnlyUpdates++;
+      }
+    }
+
+    // If nothing needs processing, save manifest if there were mtime updates and continue
     if (filesToProcess.length === 0) {
       totalUnchanged += unchangedCount;
+      if (mtimeOnlyUpdates > 0) {
+        manifest.lastUpdated = new Date().toISOString();
+        await writeModuleManifest(rootDir, module.id, manifest, config);
+      }
       continue; // Move to next module
     }
 
@@ -803,7 +838,7 @@ export async function ensureIndexFresh(
     const processChangedFile = async (
       statResult: StatCheckResult
     ): Promise<IncrementalFileResult> => {
-      const { filepath, relativePath, lastModified, isNew } = statResult;
+      const { filepath, relativePath, lastModified, fileSize, isNew } = statResult;
 
       try {
         // Read file content
@@ -819,6 +854,7 @@ export async function ensureIndexFresh(
             relativePath,
             status: "mtime_updated",
             lastModified,
+            fileSize,
             contentHash,
           };
         }
@@ -834,7 +870,7 @@ export async function ensureIndexFresh(
         const fileIndex = await module.indexFile(relativePath, content, ctx);
 
         if (!fileIndex) {
-          return { relativePath, status: "unchanged" };
+          return { relativePath, status: "unchanged", fileSize };
         }
 
         await writeFileIndex(
@@ -849,6 +885,7 @@ export async function ensureIndexFresh(
           relativePath,
           status: "indexed",
           lastModified,
+          fileSize,
           chunkCount: fileIndex.chunks.length,
           contentHash,
         };
@@ -885,6 +922,7 @@ export async function ensureIndexFresh(
             lastModified: fileResult.lastModified!,
             chunkCount: fileResult.chunkCount!,
             contentHash: fileResult.contentHash,
+            fileSize: fileResult.fileSize,
           };
           totalIndexed++;
           break;
@@ -895,6 +933,7 @@ export async function ensureIndexFresh(
               ...manifest.files[fileResult.relativePath],
               lastModified: fileResult.lastModified!,
               contentHash: fileResult.contentHash,
+              fileSize: fileResult.fileSize,
             };
             mtimeUpdates++;
           }
@@ -912,7 +951,7 @@ export async function ensureIndexFresh(
     }
 
     // Update manifest if there were any changes (including mtime-only updates)
-    const hasManifestChanges = totalIndexed > 0 || totalRemoved > 0 || mtimeUpdates > 0;
+    const hasManifestChanges = totalIndexed > 0 || totalRemoved > 0 || mtimeUpdates > 0 || mtimeOnlyUpdates > 0;
     if (hasManifestChanges) {
       manifest.lastUpdated = new Date().toISOString();
       await writeModuleManifest(rootDir, module.id, manifest, config);
@@ -990,6 +1029,7 @@ interface FileProcessResult {
   relativePath: string;
   status: "indexed" | "skipped" | "error";
   lastModified?: string;
+  fileSize?: number;
   chunkCount?: number;
   contentHash?: string;
   error?: unknown;
@@ -1002,6 +1042,7 @@ interface IncrementalFileResult {
   relativePath: string;
   status: "indexed" | "unchanged" | "mtime_updated" | "error";
   lastModified?: string;
+  fileSize?: number;
   chunkCount?: number;
   contentHash?: string;
   error?: unknown;
@@ -1108,6 +1149,7 @@ async function indexWithModule(
     try {
       const stats = await fs.stat(filepath);
       const lastModified = stats.mtime.toISOString();
+      const fileSize = stats.size;
       const existingEntry = manifest.files[relativePath];
 
       // Fast path: if mtime unchanged, skip (no need to read file)
@@ -1134,6 +1176,7 @@ async function indexWithModule(
           relativePath,
           status: "skipped",
           lastModified,
+          fileSize,
           contentHash,
         };
       }
@@ -1153,7 +1196,7 @@ async function indexWithModule(
         logger.debug(
           `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (no chunks)`
         );
-        return { relativePath, status: "skipped" };
+        return { relativePath, status: "skipped", fileSize };
       }
 
       // Write index file
@@ -1163,6 +1206,7 @@ async function indexWithModule(
         relativePath,
         status: "indexed",
         lastModified,
+        fileSize,
         chunkCount: fileIndex.chunks.length,
         contentHash,
       };
@@ -1194,6 +1238,7 @@ async function indexWithModule(
           lastModified: fileResult.lastModified!,
           chunkCount: fileResult.chunkCount!,
           contentHash: fileResult.contentHash,
+          fileSize: fileResult.fileSize,
         };
         result.indexed++;
         break;
@@ -1206,6 +1251,7 @@ async function indexWithModule(
               ...existingEntry,
               lastModified: fileResult.lastModified,
               contentHash: fileResult.contentHash,
+              fileSize: fileResult.fileSize,
             };
           }
         }

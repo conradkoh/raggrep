@@ -45,6 +45,12 @@ export interface FileManifestEntry {
    * This prevents false positives when git updates mtime on branch switches.
    */
   contentHash?: string;
+
+  /**
+   * File size in bytes. Used as a quick filter:
+   * If mtime changed but size is same, content is likely unchanged.
+   */
+  fileSize?: number;
 }
 
 /**
