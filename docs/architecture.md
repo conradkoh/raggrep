@@ -51,17 +51,20 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 │  │   FileIndex    │ │  │   ConfigLoader │ │  │   BM25 keyword index │
 │  │   Config       │ │  ├── filesystem/  │ │  │                      │
 │  │   FileSummary  │ │  │   NodeFS       │ │  └── language/          │
-│  │   Literal      │ │  ├── embeddings/  │ │      └── typescript/    │
-│  │                │ │  │   Transformers │ │         AST parsing     │
-│  ├── ports/       │ │  ├── storage/     │ │         Embeddings      │
-│  │   FileSystem   │ │  │   FileStorage  │ │         LiteralIndex    │
-│  │   Embedding    │ │  │   SymbolicIndex│ │                         │
-│  │   Storage      │ │  │   LiteralIndex │ │                         │
-│  │                │ │  └── introspection│ │                         │
-│  └── services/    │ │      ProjectDetect│ │                         │
-│      BM25Index    │ │      IntroIndex   │ │                         │
-│      Introspection│ │                   │ │                         │
+│  │   Literal      │ │  ├── embeddings/  │ │      ├── typescript/    │
+│  │   Introspection│ │  │   Transformers │ │      │   TS Compiler API│
+│  │                │ │  ├── parsing/     │ │      ├── python/        │
+│  ├── ports/       │ │  │   TreeSitter   │ │      │   Tree-sitter   │
+│  │   IParser      │ │  │   GrammarMgr   │ │      ├── go/            │
+│  │   FileSystem   │ │  ├── storage/     │ │      │   Tree-sitter   │
+│  │   Embedding    │ │  │   FileStorage  │ │      └── rust/          │
+│  │   Storage      │ │  │   SymbolicIndex│ │         Tree-sitter     │
+│  │                │ │  │   LiteralIndex │ │                         │
+│  └── services/    │ │  └── introspection│ │                         │
+│      BM25Index    │ │      ProjectDetect│ │                         │
+│      Introspection│ │      IntroIndex   │ │                         │
 │      LiteralScore │ │                   │ │                         │
+│      ConfigValid  │ │                   │ │                         │
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
@@ -94,9 +97,31 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 │              LITERAL INDEX (Exact Match Lookup)                 │
 │         Maps identifier names to chunk locations                │
 │            Enables O(1) exact-match retrieval                   │
+│          With vocabulary extraction for partial matching        │
 │                                                                 │
 │  literals/                                                      │
-│  └── _index.json (literal → chunkId + filepath mappings)       │
+│  └── _index.json (literal → chunkId + filepath + vocabulary)   │
+│                                                                 │
+│  Example:                                                       │
+│    "getUserById" → {                                            │
+│      chunkId: "...",                                            │
+│      vocabulary: ["get", "user", "by", "id"]                   │
+│    }                                                            │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│           INTROSPECTION INDEX (File Metadata)                   │
+│         Contextual information about file locations             │
+│            README hierarchy, path context, conventions          │
+│                                                                 │
+│  introspection/                                                 │
+│  └── files/                                                     │
+│      └── src/auth/session.json                                 │
+│          {                                                      │
+│            "nearestReadme": "src/auth/README.md",              │
+│            "pathContext": {...},                               │
+│            "conventions": [...]                                │
+│          }                                                      │
 └─────────────────────────────────────────────────────────────────┘
                         │
                         ▼
@@ -123,6 +148,85 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 | **+ Literal** | Precise identifier matching   | Requires AST parsing           |
 
 The 70/30 weighting favors semantic understanding while still boosting exact keyword matches. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
+
+## Multi-Language Support
+
+RAGgrep supports multiple languages with deep AST-aware parsing:
+
+### TypeScript/JavaScript
+
+- **Parser**: TypeScript Compiler API (primary)
+- **Features**: Full type information, JSDoc extraction, interface/type detection
+- **Chunks**: Functions, classes, interfaces, types, enums, full file chunks
+
+### Python
+
+- **Parser**: Tree-sitter (with regex fallback)
+- **Features**: Docstring extraction, decorator handling
+- **Chunks**: Functions, classes, methods, full file chunks
+
+### Go
+
+- **Parser**: Tree-sitter (with regex fallback)
+- **Features**: Doc comment extraction, exported symbol detection
+- **Chunks**: Functions, methods, structs, interfaces, full file chunks
+
+### Rust
+
+- **Parser**: Tree-sitter (with regex fallback)
+- **Features**: Doc comment extraction (`///`, `//!`), visibility detection
+- **Chunks**: Functions, structs, traits, impls, enums, full file chunks
+
+### Parser Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│           IParser Interface (Domain Port)        │
+│  - parse(content, filepath, config)              │
+│  - canParse(filepath)                            │
+└──────────────────────────────────────────────────┘
+                      │
+        ┌─────────────┴──────────────┐
+        ▼                            ▼
+┌──────────────────┐      ┌──────────────────────┐
+│ TypeScriptParser │      │  TreeSitterParser    │
+│  (TS Compiler)   │      │  (web-tree-sitter)   │
+│                  │      │                      │
+│  - Rich types    │      │  - Multi-language    │
+│  - JSDoc         │      │  - WASM-based        │
+│  - Proven        │      │  - Regex fallback    │
+└──────────────────┘      └──────────────────────┘
+```
+
+## Vocabulary-Based Search
+
+Vocabulary extraction enables partial matching of code identifiers:
+
+### How It Works
+
+1. **Extract vocabulary** from identifiers:
+
+   - `getUserById` → `["get", "user", "by", "id"]`
+   - `AuthService` → `["auth", "service"]`
+   - `validate_session` → `["validate", "session"]`
+
+2. **Index both** literal and vocabulary:
+
+   - Literal index: `"getUserById"` → chunk123
+   - Vocabulary index: `"get"`, `"user"`, `"by"`, `"id"` → chunk123
+
+3. **Match queries** against vocabulary:
+   - Query `"user"` matches `getUserById`, `UserService`, `fetchUserData`
+   - Query `"get user"` matches with higher score (2/4 words)
+
+### Scoring Tiers
+
+| Match Type               | Example             | Score | Multiplier |
+| ------------------------ | ------------------- | ----- | ---------- |
+| Exact literal            | `getUserById`       | 1.0   | 2.5×       |
+| High vocabulary (>75%)   | `get user by` (3/4) | 0.8   | 2.0×       |
+| Medium vocabulary (>50%) | `get user` (2/4)    | 0.5   | 1.5×       |
+| Low vocabulary (<50%)    | `user` (1/4)        | 0.3   | 1.2×       |
 
 ## Literal Boosting
 

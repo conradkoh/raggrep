@@ -7,6 +7,8 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 ## Features
 
 - **Zero-config search** — Just run `raggrep query` and it works. Index is created and updated automatically.
+- **Multi-language support** — Deep understanding of TypeScript, JavaScript, Python, Go, and Rust with AST-aware parsing.
+- **Vocabulary-based search** — Search `user` to find `getUserById`, `fetchUserData`, `UserService`, etc. Understands code naming conventions.
 - **Local-first** — All indexing and search happens on your machine. No cloud dependencies.
 - **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
 - **Watch mode** — Keep the index fresh in real-time as you code.
@@ -184,15 +186,42 @@ The index is stored in a system temp directory, keeping your project clean.
 
 ## What Gets Indexed
 
-**TypeScript/JavaScript:** `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` — AST-parsed for functions, classes, interfaces, types, enums
+### Supported Languages
 
-**Documentation:** `.md`, `.txt` — Section-aware parsing with heading extraction
+**TypeScript/JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`)
+- AST-parsed for functions, classes, interfaces, types, enums
+- Full file chunks for broad context
+- JSDoc and comment association
 
-**Data:** `.json` — Structure-aware with key/value extraction
+**Python** (`.py`)
+- AST-parsed for functions, classes, decorators
+- Docstring extraction and association
+- Fallback regex parsing for robustness
 
-**Other languages:** `.py`, `.go`, `.rs`, `.java`, `.yaml`, `.yml`, `.toml`, `.sql` — Symbol extraction and keyword search
+**Go** (`.go`)
+- AST-parsed for functions, methods, structs, interfaces
+- Doc comment extraction (`//` style)
+- Exported symbol detection
 
-**Automatically ignored:** `node_modules`, `dist`, `build`, `.git`, and other common directories
+**Rust** (`.rs`)
+- AST-parsed for functions, structs, traits, impls, enums
+- Doc comment extraction (`///` and `//!` style)
+- Visibility detection (`pub`)
+
+**Markdown** (`.md`)
+- Hierarchical chunking at multiple heading levels (H1-H5)
+- Each heading level creates separate searchable chunks
+- Nested content included for context
+
+**JSON** (`.json`)
+- Structure-aware with key/value extraction
+- Path-based indexing
+
+**Other formats:** `.yaml`, `.yml`, `.toml`, `.sql`, `.txt` — Keyword search and full-text indexing
+
+### Automatically Ignored
+
+`node_modules`, `dist`, `build`, `.git`, `.next`, `.cache`, `__pycache__`, `target`, and other common build/dependency directories
 
 ## Documentation
 
