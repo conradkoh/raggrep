@@ -369,6 +369,17 @@ Examples:
             console.log(`│  Cleanup:        ${t.cleanupMs.toFixed(0).padStart(6)}ms  │`.padEnd(57) + "│");
             console.log(`│  ───────────────────────────────────────────────────── │`);
             console.log(`│  Total:          ${t.totalMs.toFixed(0).padStart(6)}ms`.padEnd(57) + "│");
+            
+            // Show Phase 2 diagnostic breakdown if there were changes
+            if (t.phase2Reasons && t.filesWithChanges > 0) {
+              const r = t.phase2Reasons;
+              console.log(`│  ───────────────────────────────────────────────────── │`);
+              console.log(`│  Phase 2 breakdown (why files needed verification):    │`);
+              console.log(`│    New files:        ${String(r.newFiles).padStart(6)}`.padEnd(57) + "│");
+              console.log(`│    No cached size:   ${String(r.noFileSize).padStart(6)}`.padEnd(57) + "│");
+              console.log(`│    Size mismatch:    ${String(r.sizeMismatch).padStart(6)}`.padEnd(57) + "│");
+              console.log(`│    No cached hash:   ${String(r.noContentHash).padStart(6)}`.padEnd(57) + "│");
+            }
           }
           console.log("└────────────────────────────────────────────────────────┘\n");
         }

@@ -223,6 +223,13 @@ export interface TimingInfo {
   filesReindexed: number;
   /** Whether result was from cache */
   fromCache: boolean;
+  /** Diagnostic: breakdown of why files went to Phase 2 */
+  phase2Reasons?: {
+    newFiles: number;
+    noFileSize: number;
+    sizeMismatch: number;
+    noContentHash: number;
+  };
 }
 
 export interface EnsureFreshResult {
@@ -530,6 +537,12 @@ export async function ensureIndexFresh(
   let filesStatChecked = 0;
   let filesWithChanges = 0; // Files that went to Phase 2 (mtime/size changed)
   let filesReindexed = 0; // Files that were actually re-indexed (content changed)
+  
+  // Diagnostic counters: cumulative across all modules
+  let totalDiagNewFiles = 0;
+  let totalDiagNoFileSize = 0;
+  let totalDiagSizeMismatch = 0;
+  let totalDiagNoContentHash = 0;
 
   // Create logger based on options
   const logger: Logger = options.logger
@@ -783,21 +796,45 @@ export async function ensureIndexFresh(
       }
     };
 
+    // Filter files to only those this module supports
+    // If module doesn't have supportsFile, it processes all files (like core module)
+    const moduleFiles = module.supportsFile 
+      ? currentFiles.filter((f) => module.supportsFile!(f))
+      : currentFiles;
+
     // Run stat checks with high concurrency (I/O bound)
     const statCheckStart = Date.now();
-    const statResults = await parallelMap(currentFiles, statCheck, STAT_CONCURRENCY);
+    const statResults = await parallelMap(moduleFiles, statCheck, STAT_CONCURRENCY);
     statCheckMs += Date.now() - statCheckStart;
-    filesStatChecked += currentFiles.length;
+    filesStatChecked += moduleFiles.length;
     
     // Separate files that need processing from unchanged files
     const filesToProcess: StatCheckResult[] = [];
     const filesWithMtimeOnlyChange: StatCheckResult[] = []; // Mtime changed but size same
     let unchangedCount = 0;
+    
+    // Diagnostic counters: why files need Phase 2
+    let diagNewFiles = 0;
+    let diagNoFileSize = 0;
+    let diagSizeMismatch = 0;
+    let diagNoContentHash = 0;
 
     for (const result of statResults) {
       if (!result.success || !result.value) continue;
       if (result.value.needsCheck) {
         filesToProcess.push(result.value);
+        
+        // Track reason for Phase 2 (for diagnostics)
+        if (result.value.isNew) {
+          diagNewFiles++;
+        } else {
+          const existingEntry = manifest.files[result.value.relativePath];
+          if (existingEntry) {
+            if (existingEntry.fileSize === undefined) diagNoFileSize++;
+            else if (existingEntry.fileSize !== result.value.fileSize) diagSizeMismatch++;
+            else if (!existingEntry.contentHash) diagNoContentHash++;
+          }
+        }
       } else {
         unchangedCount++;
         // Track files where mtime changed but we skipped due to size match
@@ -807,6 +844,17 @@ export async function ensureIndexFresh(
           filesWithMtimeOnlyChange.push(result.value);
         }
       }
+    }
+    
+    // Accumulate diagnostic counters
+    totalDiagNewFiles += diagNewFiles;
+    totalDiagNoFileSize += diagNoFileSize;
+    totalDiagSizeMismatch += diagSizeMismatch;
+    totalDiagNoContentHash += diagNoContentHash;
+    
+    // Log diagnostic info if there are many Phase 2 files
+    if (filesToProcess.length > 100 && verbose) {
+      logger.info(`  [Diagnostic] Phase 2 reasons: new=${diagNewFiles}, noSize=${diagNoFileSize}, sizeMismatch=${diagSizeMismatch}, noHash=${diagNoContentHash}`);
     }
 
     // Update manifest for files with mtime-only changes (size matched, so we trusted the hash)
@@ -1004,6 +1052,12 @@ export async function ensureIndexFresh(
       filesWithChanges,
       filesReindexed: totalIndexed, // Files that actually had content changes
       fromCache: false,
+      phase2Reasons: {
+        newFiles: totalDiagNewFiles,
+        noFileSize: totalDiagNoFileSize,
+        sizeMismatch: totalDiagSizeMismatch,
+        noContentHash: totalDiagNoContentHash,
+      },
     };
   }
 
