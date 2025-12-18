@@ -1,8 +1,16 @@
 import { tool } from "@opencode-ai/plugin";
 
 export default tool({
-  description:
-    "Search the codebase using semantic RAG (Retrieval-Augmented Generation). Uses raggrep to find relevant code snippets based on natural language queries. The index is managed automatically - first query creates it, changed files are re-indexed, and unchanged files use cached index.",
+  description: `Search the codebase using semantic RAG (Retrieval-Augmented Generation). Uses raggrep to find relevant code snippets based on natural language queries. The index is managed automatically - first query creates it, changed files are re-indexed, and unchanged files use cached index.
+
+IMPORTANT: When you have context about where relevant code is likely to be located (or where it definitely ISN'T), always use the 'filter' parameter to narrow results. This improves search quality and performance significantly.
+
+Examples of good filter usage:
+- Searching for auth logic? Use filter: ["src/auth", "src/users"]
+- Looking for React components? Use filter: ["*.tsx", "src/components"]
+- Need documentation? Use filter: ["*.md", "docs/"]
+- Looking for tests? Use filter: ["*.test.ts", "*.spec.ts"]
+- Focused on source code? Use filter: ["src/"]`,
   args: {
     query: tool.schema
       .string()
@@ -20,12 +28,14 @@ export default tool({
     type: tool.schema
       .string()
       .optional()
-      .describe("Filter by file extension (e.g., ts, tsx, js)"),
+      .describe(
+        "Filter by file extension without dot (e.g., 'ts', 'tsx', 'js', 'md'). Use this for simple extension filtering."
+      ),
     filter: tool.schema
       .array(tool.schema.string())
       .optional()
       .describe(
-        "Filter by path prefix or glob pattern. Multiple filters use OR logic. Examples: 'src/auth', '*.ts', '*.md', 'src/**/*.test.ts'"
+        "RECOMMENDED: Filter by path prefix or glob pattern to narrow search scope. Multiple filters use OR logic. Always include a filter when you know (or can reasonably guess) where the code lives. Examples: 'src/auth' (path prefix), '*.ts' (extension glob), 'src/**/*.test.ts' (nested glob), 'docs/' (directory)"
       ),
   },
   async execute(args) {
