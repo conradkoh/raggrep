@@ -537,7 +537,7 @@ Examples:
 
 export default tool({
   description:
-    "Search the codebase using semantic RAG (Retrieval-Augmented Generation). Uses raggrep to find relevant code snippets based on natural language queries. The index is managed automatically - first query creates it, changed files are re-indexed, and unchanged files use cached index.",
+    "Semantic code search powered by RAG - understands INTENT, not just literal text. Parses code using AST (Abstract Syntax Tree) to extract functions, classes, and symbols with full context. Intelligently chunks markdown into logical sections. Finds relevant code even when exact keywords don't match. Superior to grep for exploratory searches like 'authentication logic', 'error handling patterns', or 'configuration loading'. Automatically indexes on first use and tracks file changes. Use this for conceptual searches; use grep only for exact string matching.",
   args: {
     query: tool.schema
       .string()
