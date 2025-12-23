@@ -223,6 +223,34 @@ The index is stored in a system temp directory, keeping your project clean.
 
 `node_modules`, `dist`, `build`, `.git`, `.next`, `.cache`, `__pycache__`, `target`, and other common build/dependency directories
 
+## Opencode Integration
+
+RAGgrep can be integrated with [opencode](https://opencode.ai) to provide semantic code search capabilities within the AI coding assistant.
+
+### Installation
+
+Install the raggrep tool for opencode:
+
+```bash
+raggrep opencode install
+```
+
+This creates the tool file at `~/.config/opencode/tool/raggrep.ts`.
+
+### Usage in Opencode
+
+Once installed, you can search your codebase directly within opencode:
+
+- Search for code using natural language: "user authentication flow"
+- Filter by file types and paths
+- Get context-aware results with scores and locations
+
+The tool supports all the same search options as the CLI:
+- Number of results (`top`)
+- Minimum similarity score (`minScore`)
+- File type filtering (`type`)
+- Path filtering (`filter`)
+
 ## Documentation
 
 - [Getting Started](./docs/getting-started.md) — Installation options and first steps
