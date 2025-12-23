@@ -582,7 +582,8 @@ export default tool({
       }
     }
 
-    const result = await Bun.$\`raggrep query \${cmdArgs}\`.text();
+    const proc = Bun.spawn(['raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
+    const result = await new Response(proc.stdout).text();
     return result.trim();
   },
 });
