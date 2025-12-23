@@ -535,6 +535,34 @@ Examples:
 
         const toolContent = `import { tool } from "@opencode-ai/plugin";
 
+/**
+ * Get the package executor command (pnpx if available, otherwise npx)
+ */
+async function getExecutor(): Promise<string> {
+  try {
+    // Try to find pnpm first (faster)
+    await Bun.spawn(['pnpm', '--version'], { stdout: 'pipe', stderr: 'pipe' }).exited;
+    return 'pnpx';
+  } catch {
+    // Fall back to npx
+    return 'npx';
+  }
+}
+
+/**
+ * Get the installed raggrep version
+ */
+async function getRagrepVersion(executor: string): Promise<string | null> {
+  try {
+    const proc = Bun.spawn([executor, 'raggrep', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+    const output = await new Response(proc.stdout).text();
+    const match = output.match(/v([\\d.]+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 export default tool({
   description:
     "Semantic code search powered by RAG - understands INTENT, not just literal text. Parses code using AST to extract functions, classes, and symbols with full context. Finds relevant code even when exact keywords don't match. Superior to grep for exploratory searches like 'authentication logic', 'error handling patterns', or 'configuration loading'.\\n\\n🎯 USE THIS TOOL FIRST when you need to:\\n• Find WHERE code is located (functions, components, services)\\n• Understand HOW code is structured\\n• Discover RELATED code across multiple files\\n• Get a QUICK overview of a topic\\n\\n❌ DON'T read multiple files manually when you can:\\n  raggrep(\\"user authentication\\", { filter: [\\"src/\\"] })\\n\\n✅ INSTEAD of reading files one-by-one, search semantically:\\n  • \\"Find the auth middleware\\" vs read: auth.ts, middleware.ts, index.ts...\\n  • \\"Where are React components?\\" vs read: App.tsx, components/*, pages/*...\\n  • \\"Database connection logic?\\" vs read: db.ts, config.ts, models/*...\\n  • \\"Error handling patterns\\" vs read: error.ts, middleware.ts, handlers/*...\\n\\nThis saves ~10x tool calls and provides BETTER context by showing related code across the entire codebase.",
@@ -565,6 +593,13 @@ export default tool({
       ),
   },
   async execute(args) {
+    const executor = await getExecutor();
+    const version = await getRagrepVersion(executor);
+
+    if (!version) {
+      return \`Error: raggrep not found. Install it with: \${executor} install -g raggrep\`;
+    }
+
     const cmdArgs = [args.query];
 
     if (args.top !== undefined) {
@@ -582,7 +617,7 @@ export default tool({
       }
     }
 
-    const proc = Bun.spawn(['raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
+    const proc = Bun.spawn([executor, 'raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
     const result = await new Response(proc.stdout).text();
     return result.trim();
   },
