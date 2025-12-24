@@ -13,6 +13,7 @@ export {
   createSilentLogger,
 } from "./loggers";
 export { ProgressManager } from "./progressManager";
+export { MultiModuleProgressManager } from "./multiModuleProgressManager";
 
 
 
