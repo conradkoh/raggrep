@@ -87,6 +87,31 @@ export const DEFAULT_IGNORE_PATHS = [
 
   // RAGgrep index
   ".raggrep",
+
+  // System files
+  ".DS_Store",
+  "Thumbs.db",
+
+  // Environment files
+  ".env",
+  ".env.local",
+  ".env.development.local",
+  ".env.test.local",
+  ".env.production.local",
+
+  // Lock files
+  "*.lock",
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "Cargo.lock",
+  "poetry.lock",
+  "Gemfile.lock",
+  "go.sum",
+
+  // Minified/compiled bundles
+  "*.min.js",
+  "*.min.css",
 ];
 
 /**

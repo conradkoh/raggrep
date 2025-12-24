@@ -805,6 +805,13 @@ export async function ensureIndexFresh(
     ): Promise<IncrementalFileResult> => {
       const { filepath, relativePath, lastModified, isNew, existingContentHash } = fileToProcess;
 
+      // Skip binary files early to avoid attempting to read them
+      if (isLikelyBinary(filepath)) {
+        completedCount++;
+        logger.debug(`  Skipping ${relativePath} (binary file)`);
+        return { relativePath, status: "unchanged" };
+      }
+
       try {
         // Read file content
         const content = await fs.readFile(filepath, "utf-8");
@@ -1108,6 +1115,15 @@ async function indexWithModule(
   ): Promise<FileProcessResult> => {
     const relativePath = path.relative(rootDir, filepath);
 
+    // Skip binary files early to avoid attempting to read them
+    if (isLikelyBinary(filepath)) {
+      completedCount++;
+      logger.debug(
+        `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (binary file)`
+      );
+      return { relativePath, status: "skipped" };
+    }
+
     try {
       const stats = await fs.stat(filepath);
       const lastModified = stats.mtime.toISOString();
@@ -1244,6 +1260,66 @@ interface FileDiscoveryResult {
 
 /** Higher concurrency for I/O-bound stat operations */
 const STAT_CONCURRENCY = 64;
+
+// ============================================================================
+// Binary File Detection
+// ============================================================================
+
+/**
+ * Check if a file is likely binary based on extension and filename patterns.
+ *
+ * This is a fast heuristic check that identifies files that should not be indexed
+ * without reading file content. It's used as an early filter to avoid attempting
+ * to read binary files as text.
+ *
+ * @param filepath - Path to the file to check
+ * @returns true if the file is likely binary, false otherwise
+ */
+function isLikelyBinary(filepath: string): boolean {
+  const ext = path.extname(filepath).toLowerCase();
+  const basename = path.basename(filepath).toLowerCase();
+
+  const binaryExtensions = new Set([
+    // Images
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".bmp", ".tiff",
+    // Documents
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    // Archives
+    ".zip", ".tar", ".gz", ".7z", ".rar", ".bz2",
+    // Binaries
+    ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".obj", ".o",
+    // Media
+    ".mp3", ".mp4", ".wav", ".avi", ".mov", ".flac", ".ogg",
+    // Fonts
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+  ]);
+
+  // Check extension
+  if (binaryExtensions.has(ext)) {
+    return true;
+  }
+
+  // Check filename patterns for minified/bundled files
+  const minifiedPatterns = [
+    ".min.js", ".min.css", ".bundle.js", ".bundle.css",
+    ".prod.js", ".prod.css", ".chunk.js", ".chunk.css",
+  ];
+  if (minifiedPatterns.some(pattern => filepath.includes(pattern))) {
+    return true;
+  }
+
+  // Check specific system files
+  const systemFiles = [
+    ".ds_store",
+    "thumbs.db",
+    "desktop.ini",
+  ];
+  if (systemFiles.includes(basename)) {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Find all files and identify which ones have changed since the last index.
