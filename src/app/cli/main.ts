@@ -628,26 +628,11 @@ export default tool({
           // Create directory if it doesn't exist
           await fs.mkdir(toolDir, { recursive: true });
 
-          // Check if file exists and backup if it does
-          let action = "Installed";
-          const backupPath = toolPath + ".backup";
-          try {
-            await fs.access(toolPath);
-            // File exists, create backup before updating
-            await fs.copyFile(toolPath, backupPath);
-            action = "Updated";
-          } catch {
-            // File doesn't exist, will be created
-          }
-
           // Write the tool file
           await fs.writeFile(toolPath, toolContent, "utf-8");
 
-          console.log(`${action} raggrep tool for opencode.`);
+          console.log(`Installed raggrep tool for opencode.`);
           console.log(`  Location: ${toolPath}`);
-          if (action === "Updated") {
-            console.log(`  Backup:   ${backupPath}`);
-          }
           console.log(`\nThe raggrep tool is now available in opencode.`);
         } catch (error) {
           console.error("Error installing opencode tool:", error);
