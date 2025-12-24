@@ -26,6 +26,7 @@ import { registry, registerBuiltInModules } from "../../modules/registry";
 import type { EmbeddingModelName, Logger } from "../../domain/ports";
 import { IntrospectionIndex } from "../../infrastructure/introspection";
 import { createLogger, createSilentLogger } from "../../infrastructure/logger";
+import { ProgressManager } from "../../infrastructure/logger/progressManager";
 
 // ============================================================================
 // Freshness Check Caching
@@ -796,6 +797,9 @@ export async function ensureIndexFresh(
     let completedCount = 0;
     const totalToProcess = filesToProcess.length;
 
+    const progressManager = new ProgressManager(logger);
+    progressManager.start();
+
     const processChangedFile = async (
       fileToProcess: FileToProcess
     ): Promise<IncrementalFileResult> => {
@@ -820,9 +824,7 @@ export async function ensureIndexFresh(
 
         // File is new or content actually changed - index it
         completedCount++;
-        logger.progress(
-          `  [${completedCount}/${totalToProcess}] Indexing: ${relativePath}`
-        );
+        progressManager.reportProgress(completedCount, totalToProcess, `Indexing: ${relativePath}`);
 
         introspection.addFile(relativePath, content);
 
@@ -858,6 +860,8 @@ export async function ensureIndexFresh(
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
     const results = await parallelMap(filesToProcess, processChangedFile, concurrency);
     indexingMs += Date.now() - indexingStart;
+
+    progressManager.stop();
 
     // Add unchanged files to total
     totalUnchanged += unchangedCount;
@@ -1091,6 +1095,9 @@ async function indexWithModule(
 
   const totalFiles = files.length;
 
+  const progressManager = new ProgressManager(logger);
+  progressManager.start();
+
   // Track progress across parallel operations
   let completedCount = 0;
 
@@ -1139,9 +1146,7 @@ async function indexWithModule(
 
       // Update progress
       completedCount++;
-      logger.progress(
-        `  [${completedCount}/${totalFiles}] Processing: ${relativePath}`
-      );
+      progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`);
 
       const fileIndex = await module.indexFile(relativePath, content, ctx);
 
@@ -1171,6 +1176,8 @@ async function indexWithModule(
   // Run parallel processing
   logger.debug(`  Using concurrency: ${concurrency}`);
   const results = await parallelMap(files, processFile, concurrency);
+
+  progressManager.stop();
 
   // Clear progress line
   logger.clearProgress();

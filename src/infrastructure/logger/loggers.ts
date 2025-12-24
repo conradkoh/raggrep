@@ -94,13 +94,14 @@ export class InlineProgressLogger implements Logger {
   }
 
   progress(message: string): void {
-    // Use carriage return to go back to beginning of line
-    process.stdout.write(`\r${message}`);
-    // Pad with spaces to clear any leftover characters from previous progress
-    const padding = Math.max(0, this.lastProgressLength - message.length);
+    const maxCols = 120;
+
+    process.stdout.write("\r" + message);
+    const padding = Math.max(0, maxCols - message.length);
     if (padding > 0) {
       process.stdout.write(" ".repeat(padding));
     }
+    process.stdout.write("\r");
     this.lastProgressLength = message.length;
     this.hasProgress = true;
   }
