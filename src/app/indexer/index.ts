@@ -327,6 +327,13 @@ export async function indexDirectory(
     const moduleStart = Date.now();
     logger.info(`\n[${module.name}] Starting indexing...`);
 
+    // Pre-filter files that this module supports
+    const moduleFiles = module.supportsFile
+      ? files.filter((f) => module.supportsFile!(f))
+      : files;
+
+    logger.info(`  Processing ${moduleFiles.length} files...`);
+
     // Initialize module if needed
     const moduleConfig = getModuleConfig(config, module.id);
     if (module.initialize && moduleConfig) {
@@ -345,13 +352,6 @@ export async function indexDirectory(
       };
       await module.initialize(configWithOverrides);
     }
-
-    // Pre-filter files that this module supports
-    const moduleFiles = module.supportsFile
-      ? files.filter((f) => module.supportsFile!(f))
-      : files;
-
-    logger.info(`  Processing ${moduleFiles.length} files...`);
 
     const result = await indexWithModule(
       rootDir,
@@ -800,6 +800,10 @@ export async function ensureIndexFresh(
     const progressManager = new ProgressManager(logger);
     progressManager.start();
 
+    // Track stats for progress reporting
+    let indexedCount = 0;
+    let mtimeUpdatedCount = 0;
+
     const processChangedFile = async (
       fileToProcess: FileToProcess
     ): Promise<IncrementalFileResult> => {
@@ -808,7 +812,6 @@ export async function ensureIndexFresh(
       // Skip binary files early to avoid attempting to read them
       if (isLikelyBinary(filepath)) {
         completedCount++;
-        logger.debug(`  Skipping ${relativePath} (binary file)`);
         return { relativePath, status: "unchanged" };
       }
 
@@ -820,7 +823,8 @@ export async function ensureIndexFresh(
         // Check if content actually changed (handles git branch switches)
         if (!isNew && existingContentHash && existingContentHash === contentHash) {
           completedCount++;
-          // Content unchanged, just mtime update
+          mtimeUpdatedCount++;
+          // Content unchanged, just mtime update - don't report progress for this fast case
           return {
             relativePath,
             status: "mtime_updated",
@@ -831,7 +835,8 @@ export async function ensureIndexFresh(
 
         // File is new or content actually changed - index it
         completedCount++;
-        progressManager.reportProgress(completedCount, totalToProcess, `Indexing: ${relativePath}`);
+        indexedCount++;
+        progressManager.reportProgress(completedCount, totalToProcess, `Indexing: ${relativePath}`, indexedCount, mtimeUpdatedCount);
 
         introspection.addFile(relativePath, content);
 
@@ -915,6 +920,21 @@ export async function ensureIndexFresh(
           );
           break;
       }
+    }
+
+    // Log module summary for incremental updates
+    if (totalIndexed > 0 || mtimeUpdates > 0) {
+      const parts: string[] = [];
+      if (totalIndexed > 0) {
+        parts.push(`${totalIndexed} indexed`);
+      }
+      if (mtimeUpdates > 0) {
+        parts.push(`${mtimeUpdates} mtime-only`);
+      }
+      if (totalRemoved > 0) {
+        parts.push(`${totalRemoved} removed`);
+      }
+      logger.info(`  [${module.name}] ${parts.join(', ')}`);
     }
 
     // Update manifest if there were any changes (including mtime-only updates)
@@ -1107,6 +1127,8 @@ async function indexWithModule(
 
   // Track progress across parallel operations
   let completedCount = 0;
+  let indexedCount = 0;
+  let skippedCount = 0;
 
   // Process files in parallel with concurrency control
   const processFile = async (
@@ -1114,15 +1136,6 @@ async function indexWithModule(
     _index: number
   ): Promise<FileProcessResult> => {
     const relativePath = path.relative(rootDir, filepath);
-
-    // Skip binary files early to avoid attempting to read them
-    if (isLikelyBinary(filepath)) {
-      completedCount++;
-      logger.debug(
-        `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (binary file)`
-      );
-      return { relativePath, status: "skipped" };
-    }
 
     try {
       const stats = await fs.stat(filepath);
@@ -1132,6 +1145,9 @@ async function indexWithModule(
       // Fast path: if mtime unchanged, skip (no need to read file)
       if (existingEntry && existingEntry.lastModified === lastModified) {
         completedCount++;
+        skippedCount++;
+        // Update progress with stats
+        progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`, indexedCount, skippedCount);
         logger.debug(
           `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (unchanged)`
         );
@@ -1145,6 +1161,8 @@ async function indexWithModule(
       // Check if content actually changed (handles git branch switches)
       if (existingEntry?.contentHash && existingEntry.contentHash === contentHash) {
         completedCount++;
+        skippedCount++;
+        progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`, indexedCount, skippedCount);
         logger.debug(
           `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (content unchanged)`
         );
@@ -1162,11 +1180,14 @@ async function indexWithModule(
 
       // Update progress
       completedCount++;
-      progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`);
+      indexedCount++;
+      progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`, indexedCount, skippedCount);
 
       const fileIndex = await module.indexFile(relativePath, content, ctx);
 
       if (!fileIndex) {
+        skippedCount++; // Count no-chunks as skipped
+        progressManager.reportProgress(completedCount, totalFiles, `Processing: ${relativePath}`, indexedCount, skippedCount);
         logger.debug(
           `  [${completedCount}/${totalFiles}] Skipped ${relativePath} (no chunks)`
         );
