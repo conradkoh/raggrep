@@ -16,19 +16,21 @@ import type { Logger } from "../../../domain/ports";
 
 export interface ToolInstallOptions {
   logger?: Logger;
+  checkForOldSkill?: boolean;
 }
 
 export interface ToolInstallResult {
   success: boolean;
   toolPath?: string;
   message: string;
+  removedOldSkill?: boolean;
 }
 
 /**
  * Install raggrep as an OpenCode tool for older versions
  */
 export async function installTool(options: ToolInstallOptions = {}): Promise<ToolInstallResult> {
-  const { logger } = options;
+  const { logger, checkForOldSkill = true } = options;
   const os = await import("os");
   const fs = await import("fs/promises");
   const path = await import("path");
@@ -36,6 +38,8 @@ export async function installTool(options: ToolInstallOptions = {}): Promise<Too
   const homeDir = os.homedir();
   const toolDir = path.join(homeDir, ".config", "opencode", "tool");
   const toolPath = path.join(toolDir, "raggrep.ts");
+
+  let removedOldSkill = false;
 
   const toolContent = `import { tool } from "@opencode-ai/plugin";
 
@@ -129,17 +133,97 @@ export default tool({
 `;
 
   try {
+    // Check for old skill file for mutual exclusivity
+    if (checkForOldSkill) {
+      const oldSkillDir = path.join(homeDir, ".opencode", "skill", "raggrep");
+      const oldSkillPath = path.join(oldSkillDir, "SKILL.md");
+      
+      let oldSkillExists = false;
+      try {
+        await fs.access(oldSkillPath);
+        oldSkillExists = true;
+      } catch {
+        // Old skill file doesn't exist
+      }
+
+      if (oldSkillExists) {
+        const message = "Found existing raggrep skill from previous installation.";
+        const locationMessage = `  Location: ${oldSkillPath}`;
+        
+        if (logger) {
+          logger.info(message);
+          logger.info(locationMessage);
+        } else {
+          console.log(message);
+          console.log(locationMessage);
+        }
+        
+        const readline = await import("readline");
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        const answer = await new Promise<string>((resolve) => {
+          rl.question("Remove the existing skill and install tool? (Y/n): ", resolve);
+        });
+        
+        rl.close();
+
+        const shouldDelete = answer.toLowerCase() !== 'n';
+        
+        if (shouldDelete) {
+          try {
+            await fs.unlink(oldSkillPath);
+            
+            // Try to remove empty parent directories
+            try {
+              await fs.rmdir(oldSkillDir);
+            } catch {
+              // Directory not empty or other error, that's fine
+            }
+            
+            removedOldSkill = true;
+            
+            const successMessage = "✓ Removed old skill file.";
+            if (logger) {
+              logger.info(successMessage);
+            } else {
+              console.log(successMessage);
+            }
+          } catch (error) {
+            const warnMessage = `Warning: Could not remove old skill file: ${error}`;
+            if (logger) {
+              logger.warn(warnMessage);
+            } else {
+              console.warn(warnMessage);
+            }
+          }
+        } else {
+          const keepMessage = "Keeping existing skill. Tool installation cancelled.";
+          if (logger) {
+            logger.info(keepMessage);
+          } else {
+            console.log(keepMessage);
+          }
+          return {
+            success: false,
+            message: keepMessage,
+          };
+        }
+      }
+    }
+
     // Create directory if it doesn't exist
     await fs.mkdir(toolDir, { recursive: true });
 
     // Write the tool file
     await fs.writeFile(toolPath, toolContent, "utf-8");
 
-    const message = `Installed raggrep tool for OpenCode (legacy version).
+    const message = `Installed raggrep tool for OpenCode.
   Location: ${toolPath}
 
-The raggrep tool is now available in OpenCode.
-Note: Consider upgrading to OpenCode v1.0.186+ for the newer skill-based approach.`;
+The raggrep tool is now available in OpenCode.`;
 
     if (logger) {
       logger.info(message);
@@ -151,6 +235,7 @@ Note: Consider upgrading to OpenCode v1.0.186+ for the newer skill-based approac
       success: true,
       toolPath,
       message,
+      removedOldSkill,
     };
   } catch (error) {
     const message = `Error installing OpenCode tool: ${error}`;

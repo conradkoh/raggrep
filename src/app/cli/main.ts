@@ -64,8 +64,10 @@ interface ParsedFlags {
   concurrency?: number;
   /** Show timing information for performance profiling */
   timing: boolean;
-  /** Force tool installation instead of automatic version detection */
+  /** Force tool installation (mutually exclusive with --skill) */
   forceTool: boolean;
+  /** Force skill installation (mutually exclusive with --tool) */
+  forceSkill: boolean;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -82,6 +84,7 @@ function parseFlags(args: string[]): ParsedFlags {
     watch: false,
     timing: false,
     forceTool: false,
+    forceSkill: false,
     remaining: [],
   };
 
@@ -156,6 +159,8 @@ function parseFlags(args: string[]): ParsedFlags {
       }
     } else if (arg === "--tool") {
       flags.forceTool = true;
+    } else if (arg === "--skill") {
+      flags.forceSkill = true;
     } else if (!arg.startsWith("-")) {
       flags.remaining.push(arg);
     }
@@ -520,22 +525,30 @@ Subcommands:
   install    Install or update raggrep for OpenCode
 
 Options:
-  --tool     Force tool-based installation instead of automatic version detection
+  --tool     Force tool-based installation (default)
+  --skill    Force skill-based installation
 
 Description:
-  Automatically detects your OpenCode version and installs the appropriate integration:
-  - OpenCode < v1.0.186: Installs as a legacy tool
-  - OpenCode >= v1.0.186: Installs as a modern skill
-  Use --tool flag to force legacy tool installation
+  Installs raggrep for OpenCode with mutual exclusivity:
+  - Tool installation (default): ~/.config/opencode/tool/raggrep.ts
+  - Skill installation: ~/.opencode/skill/raggrep/SKILL.md
+  Installing one will prompt to remove the other (default: yes)
 
 Examples:
-  raggrep opencode install
-  raggrep opencode install --tool
+  raggrep opencode install          # Install tool (default)
+  raggrep opencode install --tool   # Force tool installation
+  raggrep opencode install --skill  # Force skill installation
 `);
         process.exit(0);
       }
 
       if (subcommand === "install") {
+        // Validate mutual exclusivity
+        if (flags.forceTool && flags.forceSkill) {
+          console.error("Error: --tool and --skill flags are mutually exclusive");
+          process.exit(1);
+        }
+
         const {
           detectOpenCodeVersion,
           getInstallationMethod,
@@ -544,30 +557,35 @@ Examples:
         } = await import("./opencode");
 
         try {
-          // Detect OpenCode version
-          const openCodeVersion = await detectOpenCodeVersion();
-          
-          // Determine installation method based on version or --tool flag
-          const method = flags.forceTool ? 'tool' : getInstallationMethod(openCodeVersion || undefined);
+          // Determine installation method: default to tool, respect explicit flags
+          let method: 'tool' | 'skill';
+          if (flags.forceTool) {
+            method = 'tool';
+          } else if (flags.forceSkill) {
+            method = 'skill';
+          } else {
+            // Default to tool installation
+            method = 'tool';
+          }
 
           console.log("RAGgrep OpenCode Installer");
           console.log("==========================\n");
 
           if (flags.forceTool) {
             console.log("Forced tool-based installation (--tool flag)");
-          } else if (openCodeVersion) {
-            console.log(`Detected OpenCode version: v${openCodeVersion}`);
+          } else if (flags.forceSkill) {
+            console.log("Forced skill-based installation (--skill flag)");
           } else {
-            console.log("Could not detect OpenCode version");
+            console.log("Default tool-based installation");
           }
           
-          console.log(`Using ${method}-based installation\n`);
+          console.log(`Installing ${method}...\n`);
 
           let result;
           if (method === 'tool') {
-            result = await installTool();
+            result = await installTool({ checkForOldSkill: true });
           } else {
-            result = await installSkill();
+            result = await installSkill({ checkForOldTool: true });
           }
 
           if (!result.success) {

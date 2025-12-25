@@ -38,11 +38,11 @@ export async function installSkill(options: SkillInstallOptions = {}): Promise<S
   const path = await import("path");
 
   const homeDir = os.homedir();
-  const skillDir = path.join(homeDir, ".opencode", "skill", "code-search");
+  const skillDir = path.join(homeDir, ".opencode", "skill", "raggrep");
   const skillPath = path.join(skillDir, "SKILL.md");
 
   const skillContent = `---
-name: code-search
+name: raggrep
 description: AST-powered semantic code search that understands intent, not just text. Superior to grep/rg - finds functions, classes, and logic even when keywords differ. Saves 10x tool calls by searching the actual code structure.
 license: MIT
 compatibility: opencode
@@ -105,7 +105,7 @@ raggrep query "error handling" --top 15
 
 Load this skill in your agent conversation:
 \`\`\`
-skill({ name: "code-search" })
+skill({ name: "raggrep" })
 \`\`\`
 
 Then the agent can use raggrep commands to search your codebase efficiently.
@@ -236,15 +236,15 @@ Instead of using grep/rg or manually reading files:
     // Write the skill file
     await fs.writeFile(skillPath, skillContent, "utf-8");
 
-    const message = `Installed raggrep skill for OpenCode (modern version).
+    const message = `Installed raggrep skill for OpenCode.
   Location: ${skillPath}
 
-The code-search skill is now available to OpenCode agents.
+The raggrep skill is now available to OpenCode agents.
 
 To use this skill:
 1. Install raggrep: npm install -g raggrep
 2. Index your codebase: raggrep index
-3. In OpenCode, load the skill: skill({ name: "code-search" })`;
+3. In OpenCode, load the skill: skill({ name: "raggrep" })`;
 
     if (logger) {
       logger.info(message);
