@@ -196,11 +196,17 @@ Instead of using grep/rg or manually reading files:
           try {
             await fs.unlink(oldToolPath);
             
-            // Try to remove empty parent directories
-            try {
-              await fs.rmdir(oldToolDir);
-            } catch {
-              // Directory not empty or other error, that's fine
+            // Explicitly check if directory is empty before attempting removal
+            const toolDirContents = await fs.readdir(oldToolDir);
+            if (toolDirContents.length === 0) {
+              try {
+                await fs.rmdir(oldToolDir);
+                console.log("✓ Removed old tool directory.");
+              } catch (rmdirError) {
+                console.log("✓ Removed old tool file. (Directory not empty or other error)");
+              }
+            } else {
+              console.log("✓ Removed old tool file. (Directory not empty, keeping structure)");
             }
             
             removedOldTool = true;

@@ -176,11 +176,17 @@ export default tool({
           try {
             await fs.unlink(oldSkillPath);
             
-            // Try to remove empty parent directories
-            try {
-              await fs.rmdir(oldSkillDir);
-            } catch {
-              // Directory not empty or other error, that's fine
+            // Explicitly check if directory is empty before attempting removal
+            const skillDirContents = await fs.readdir(oldSkillDir);
+            if (skillDirContents.length === 0) {
+              try {
+                await fs.rmdir(oldSkillDir);
+                console.log("✓ Removed old skill directory.");
+              } catch (rmdirError) {
+                console.log("✓ Removed old skill file. (Directory not empty or other error)");
+              }
+            } else {
+              console.log("✓ Removed old skill file. (Directory not empty, keeping structure)");
             }
             
             removedOldSkill = true;
