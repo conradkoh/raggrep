@@ -43,7 +43,7 @@ export async function installSkill(options: SkillInstallOptions = {}): Promise<S
 
   const skillContent = `---
 name: code-search
-description: Semantic code search that's WAY better than grep/rg. Uses AST to understand code intent, not just literal text. Finds functions, classes, and structures even when exact keywords don't match.
+description: AST-powered semantic code search that understands intent, not just text. Superior to grep/rg - finds functions, classes, and logic even when keywords differ. Saves 10x tool calls by searching the actual code structure.
 license: MIT
 compatibility: opencode
 metadata:
