@@ -531,7 +531,7 @@ Options:
 Description:
   Installs raggrep for OpenCode with mutual exclusivity:
   - Tool installation (default): ~/.config/opencode/tool/raggrep.ts
-  - Skill installation: ~/.opencode/skill/raggrep/SKILL.md
+  - Skill installation: ~/.config/opencode/skill/raggrep/SKILL.md
   Installing one will prompt to remove the other (default: yes)
 
 Examples:

@@ -38,7 +38,7 @@ export async function installSkill(options: SkillInstallOptions = {}): Promise<S
   const path = await import("path");
 
   const homeDir = os.homedir();
-  const skillDir = path.join(homeDir, ".opencode", "skill", "raggrep");
+  const skillDir = path.join(homeDir, ".config", "opencode", "skill", "raggrep");
   const skillPath = path.join(skillDir, "SKILL.md");
 
   const skillContent = `---

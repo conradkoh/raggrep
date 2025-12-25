@@ -135,7 +135,7 @@ export default tool({
   try {
     // Check for old skill file for mutual exclusivity
     if (checkForOldSkill) {
-      const oldSkillDir = path.join(homeDir, ".opencode", "skill", "raggrep");
+      const oldSkillDir = path.join(homeDir, ".config", "opencode", "skill", "raggrep");
       const oldSkillPath = path.join(oldSkillDir, "SKILL.md");
       
       let oldSkillExists = false;
