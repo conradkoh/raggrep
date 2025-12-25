@@ -64,6 +64,8 @@ interface ParsedFlags {
   concurrency?: number;
   /** Show timing information for performance profiling */
   timing: boolean;
+  /** Force tool installation instead of automatic version detection */
+  forceTool: boolean;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -79,6 +81,7 @@ function parseFlags(args: string[]): ParsedFlags {
     verbose: false,
     watch: false,
     timing: false,
+    forceTool: false,
     remaining: [],
   };
 
@@ -151,6 +154,8 @@ function parseFlags(args: string[]): ParsedFlags {
         );
         process.exit(1);
       }
+    } else if (arg === "--tool") {
+      flags.forceTool = true;
     } else if (!arg.startsWith("-")) {
       flags.remaining.push(arg);
     }
@@ -509,18 +514,23 @@ Examples:
 raggrep opencode - Manage OpenCode integration
 
 Usage:
-  raggrep opencode <subcommand>
+  raggrep opencode <subcommand> [options]
 
 Subcommands:
   install    Install or update raggrep for OpenCode
+
+Options:
+  --tool     Force tool-based installation instead of automatic version detection
 
 Description:
   Automatically detects your OpenCode version and installs the appropriate integration:
   - OpenCode < v1.0.186: Installs as a legacy tool
   - OpenCode >= v1.0.186: Installs as a modern skill
+  Use --tool flag to force legacy tool installation
 
 Examples:
   raggrep opencode install
+  raggrep opencode install --tool
 `);
         process.exit(0);
       }
@@ -537,19 +547,21 @@ Examples:
           // Detect OpenCode version
           const openCodeVersion = await detectOpenCodeVersion();
           
-          // Determine installation method based on version
-          const method = getInstallationMethod(openCodeVersion || undefined);
+          // Determine installation method based on version or --tool flag
+          const method = flags.forceTool ? 'tool' : getInstallationMethod(openCodeVersion || undefined);
 
           console.log("RAGgrep OpenCode Installer");
           console.log("==========================\n");
 
-          if (openCodeVersion) {
+          if (flags.forceTool) {
+            console.log("Forced tool-based installation (--tool flag)");
+          } else if (openCodeVersion) {
             console.log(`Detected OpenCode version: v${openCodeVersion}`);
-            console.log(`Using ${method}-based installation\n`);
           } else {
             console.log("Could not detect OpenCode version");
-            console.log(`Using ${method}-based installation (recommended)\n`);
           }
+          
+          console.log(`Using ${method}-based installation\n`);
 
           let result;
           if (method === 'tool') {
