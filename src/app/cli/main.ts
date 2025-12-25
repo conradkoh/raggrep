@@ -506,17 +506,18 @@ Examples:
 
       if (flags.help || !subcommand) {
         console.log(`
-raggrep opencode - Manage opencode integration
+raggrep opencode - Manage OpenCode integration
 
 Usage:
   raggrep opencode <subcommand>
 
 Subcommands:
-  install    Install or update the raggrep tool for opencode
+  install    Install or update raggrep for OpenCode
 
 Description:
-  Installs the raggrep tool to ~/.config/opencode/tool/raggrep.ts
-  This allows opencode to use raggrep for semantic code search.
+  Automatically detects your OpenCode version and installs the appropriate integration:
+  - OpenCode < v1.0.186: Installs as a legacy tool
+  - OpenCode >= v1.0.186: Installs as a modern skill
 
 Examples:
   raggrep opencode install
@@ -525,117 +526,45 @@ Examples:
       }
 
       if (subcommand === "install") {
-        const os = await import("os");
-        const fs = await import("fs/promises");
-        const path = await import("path");
-
-        const homeDir = os.homedir();
-        const toolDir = path.join(homeDir, ".config", "opencode", "tool");
-        const toolPath = path.join(toolDir, "raggrep.ts");
-
-        const toolContent = `import { tool } from "@opencode-ai/plugin";
-
-/**
- * Get the package executor command (pnpx if available, otherwise npx)
- */
-async function getExecutor(): Promise<string> {
-  try {
-    // Try to find pnpm first (faster)
-    await Bun.spawn(['pnpm', '--version'], { stdout: 'pipe', stderr: 'pipe' }).exited;
-    return 'pnpx';
-  } catch {
-    // Fall back to npx
-    return 'npx';
-  }
-}
-
-/**
- * Get the installed raggrep version
- */
-async function getRagrepVersion(executor: string): Promise<string | null> {
-  try {
-    const proc = Bun.spawn([executor, 'raggrep', '--version'], { stdout: 'pipe', stderr: 'pipe' });
-    const output = await new Response(proc.stdout).text();
-    const match = output.match(/v([\\d.]+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
-
-export default tool({
-  description:
-    "Semantic code search powered by RAG - understands INTENT, not just literal text. Parses code using AST to extract functions, classes, and symbols with full context. Finds relevant code even when exact keywords don't match. Superior to grep for exploratory searches like 'authentication logic', 'error handling patterns', or 'configuration loading'.\\n\\n🎯 USE THIS TOOL FIRST when you need to:\\n• Find WHERE code is located (functions, components, services)\\n• Understand HOW code is structured\\n• Discover RELATED code across multiple files\\n• Get a QUICK overview of a topic\\n\\n❌ DON'T read multiple files manually when you can:\\n  raggrep(\\"user authentication\\", { filter: [\\"src/\\"] })\\n\\n✅ INSTEAD of reading files one-by-one, search semantically:\\n  • \\"Find the auth middleware\\" vs read: auth.ts, middleware.ts, index.ts...\\n  • \\"Where are React components?\\" vs read: App.tsx, components/*, pages/*...\\n  • \\"Database connection logic?\\" vs read: db.ts, config.ts, models/*...\\n  • \\"Error handling patterns\\" vs read: error.ts, middleware.ts, handlers/*...\\n\\nThis saves ~10x tool calls and provides BETTER context by showing related code across the entire codebase.",
-  args: {
-    query: tool.schema
-      .string()
-      .describe(
-        "Natural language search query describing what you want to find. Be specific: 'auth middleware that checks JWT', 'React hooks for data fetching', 'database connection pool config'. This is MUCH faster than reading files manually."
-      ),
-    filter: tool.schema
-      .array(tool.schema.string())
-      .describe(
-        "Array of path prefixes or glob patterns to narrow search scope (OR logic). If user mentions a directory, use it. Otherwise infer from context. Common patterns: ['src/auth'], ['*.tsx', 'components/'], ['api/', 'routes/'], ['docs/', '*.md'], ['*.test.ts']. For broad search use ['src/'] or ['**/*']."
-      ),
-    top: tool.schema
-      .number()
-      .optional()
-      .describe("Number of results to return (default: 10)"),
-    minScore: tool.schema
-      .number()
-      .optional()
-      .describe("Minimum similarity score 0-1 (default: 0.15)"),
-    type: tool.schema
-      .string()
-      .optional()
-      .describe(
-        "Filter by single file extension without dot (e.g., 'ts', 'tsx', 'js', 'md'). Prefer using 'filter' with glob patterns like '*.ts' for more flexibility."
-      ),
-  },
-  async execute(args) {
-    const executor = await getExecutor();
-    const version = await getRagrepVersion(executor);
-
-    if (!version) {
-      return \`Error: raggrep not found. Install it with: \${executor} install -g raggrep\`;
-    }
-
-    const cmdArgs = [args.query];
-
-    if (args.top !== undefined) {
-      cmdArgs.push("--top", String(args.top));
-    }
-    if (args.minScore !== undefined) {
-      cmdArgs.push("--min-score", String(args.minScore));
-    }
-    if (args.type !== undefined) {
-      cmdArgs.push("--type", args.type);
-    }
-    if (args.filter !== undefined && args.filter.length > 0) {
-      for (const f of args.filter) {
-        cmdArgs.push("--filter", f);
-      }
-    }
-
-    const proc = Bun.spawn([executor, 'raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
-    const result = await new Response(proc.stdout).text();
-    return result.trim();
-  },
-});
-`;
+        const {
+          detectOpenCodeVersion,
+          getInstallationMethod,
+          installTool,
+          installSkill,
+        } = await import("./opencode");
 
         try {
-          // Create directory if it doesn't exist
-          await fs.mkdir(toolDir, { recursive: true });
+          // Detect OpenCode version
+          const openCodeVersion = await detectOpenCodeVersion();
+          
+          // Determine installation method based on version
+          const method = getInstallationMethod(openCodeVersion || undefined);
 
-          // Write the tool file
-          await fs.writeFile(toolPath, toolContent, "utf-8");
+          console.log("RAGgrep OpenCode Installer");
+          console.log("==========================\n");
 
-          console.log(`Installed raggrep tool for opencode.`);
-          console.log(`  Location: ${toolPath}`);
-          console.log(`\nThe raggrep tool is now available in opencode.`);
+          if (openCodeVersion) {
+            console.log(`Detected OpenCode version: v${openCodeVersion}`);
+            console.log(`Using ${method}-based installation\n`);
+          } else {
+            console.log("Could not detect OpenCode version");
+            console.log(`Using ${method}-based installation (recommended)\n`);
+          }
+
+          let result;
+          if (method === 'tool') {
+            result = await installTool();
+          } else {
+            result = await installSkill();
+          }
+
+          if (!result.success) {
+            process.exit(1);
+          }
+
+          console.log("\nInstallation completed successfully!");
         } catch (error) {
-          console.error("Error installing opencode tool:", error);
+          console.error("Error during installation:", error);
           process.exit(1);
         }
       } else {
