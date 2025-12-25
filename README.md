@@ -223,33 +223,77 @@ The index is stored in a system temp directory, keeping your project clean.
 
 `node_modules`, `dist`, `build`, `.git`, `.next`, `.cache`, `__pycache__`, `target`, and other common build/dependency directories
 
-## Opencode Integration
+## OpenCode Integration
 
-RAGgrep can be integrated with [opencode](https://opencode.ai) to provide semantic code search capabilities within the AI coding assistant.
+RAGgrep can be integrated with [OpenCode](https://opencode.ai) to provide semantic code search capabilities within the AI coding assistant.
 
 ### Installation
 
-Install the raggrep tool for opencode:
+RAGgrep supports two installation types for OpenCode:
 
+#### Default Installation (Recommended)
 ```bash
 raggrep opencode install
 ```
 
-This creates the tool file at `~/.config/opencode/tool/raggrep.ts`.
+This installs RAGgrep as a **tool** by default, which provides the best activation rates in OpenCode.
 
-### Usage in Opencode
+#### Explicit Installation Types
 
-Once installed, you can search your codebase directly within opencode:
+**Force Tool Installation:**
+```bash
+raggrep opencode install --tool
+```
+- Installs to: `~/.config/opencode/tool/raggrep.ts`
+- Direct tool execution with full raggrep functionality
 
-- Search for code using natural language: "user authentication flow"
-- Filter by file types and paths
-- Get context-aware results with scores and locations
+**Force Skill Installation:**
+```bash
+raggrep opencode install --skill
+```
+- Installs to: `~/.config/opencode/skill/raggrep/SKILL.md`
+- Skill-based integration for modern OpenCode versions
 
-The tool supports all the same search options as the CLI:
-- Number of results (`top`)
-- Minimum similarity score (`minScore`)
-- File type filtering (`type`)
-- Path filtering (`filter`)
+#### Mutual Exclusivity
+
+Installing one type will prompt to remove the other (default: yes):
+
+```bash
+# Installing skill will prompt to remove existing tool
+raggrep opencode install --skill
+
+# Installing tool will prompt to remove existing skill  
+raggrep opencode install --tool
+```
+
+### Usage in OpenCode
+
+#### Tool Usage
+Once installed as a tool, RAGgrep provides direct search functionality:
+- Natural language queries: "user authentication flow"
+- All CLI options: `--top`, `--min-score`, `--type`, `--filter`
+- Context-aware results with scores and file locations
+
+#### Skill Usage
+Load the skill in your OpenCode conversation:
+```bash
+skill({ name: "raggrep" })
+```
+
+Then follow the skill's guidance to:
+1. Install RAGgrep: `npm install -g raggrep`
+2. Index your codebase: `raggrep index`
+3. Use semantic search: `raggrep query "your search term"`
+
+### Why Tool by Default?
+
+The tool installation is the default because it:
+- Has higher activation rates in OpenCode agents
+- Provides immediate search capabilities
+- Works consistently across all OpenCode versions
+- Offers direct integration without skill loading steps
+
+The skill installation is available for users who prefer the modern skill-based approach or need specific skill integration features.
 
 ## Documentation
 
