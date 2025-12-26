@@ -44,25 +44,24 @@ export async function installTool(options: ToolInstallOptions = {}): Promise<Too
   const toolContent = `import { tool } from "@opencode-ai/plugin";
 
 /**
- * Get the package executor command (pnpx if available, otherwise npx)
+ * Check if raggrep is installed globally
  */
-async function getExecutor(): Promise<string> {
+async function isRagrepInstalled(): Promise<boolean> {
   try {
-    // Try to find pnpm first (faster)
-    await Bun.spawn(['pnpm', '--version'], { stdout: 'pipe', stderr: 'pipe' }).exited;
-    return 'pnpx';
+    const proc = Bun.spawn(['raggrep', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+    await proc.exited;
+    return proc.exitCode === 0;
   } catch {
-    // Fall back to npx
-    return 'npx';
+    return false;
   }
 }
 
 /**
  * Get the installed raggrep version
  */
-async function getRagrepVersion(executor: string): Promise<string | null> {
+async function getRagrepVersion(): Promise<string | null> {
   try {
-    const proc = Bun.spawn([executor, 'raggrep', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+    const proc = Bun.spawn(['raggrep', '--version'], { stdout: 'pipe', stderr: 'pipe' });
     const output = await new Response(proc.stdout).text();
     const match = output.match(/v([\\\\d.]+)/);
     return match ? match[1] : null;
@@ -101,11 +100,16 @@ export default tool({
       ),
   },
   async execute(args) {
-    const executor = await getExecutor();
-    const version = await getRagrepVersion(executor);
+    const installed = await isRagrepInstalled();
 
-    if (!version) {
-      return \`Error: raggrep not found. Install it with: \${executor} install -g raggrep\`;
+    if (!installed) {
+      return \`Error: raggrep is not installed globally.
+
+Please install raggrep using one of the following commands:
+  npm install -g raggrep@latest
+  pnpm install -g raggrep@latest
+
+After installation, raggrep will be available for use.\`;
     }
 
     const cmdArgs = [args.query];
@@ -125,7 +129,7 @@ export default tool({
       }
     }
 
-    const proc = Bun.spawn([executor, 'raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
+    const proc = Bun.spawn(['raggrep', 'query', ...cmdArgs], { stdout: 'pipe' });
     const result = await new Response(proc.stdout).text();
     return result.trim();
   },
