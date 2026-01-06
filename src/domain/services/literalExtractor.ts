@@ -113,6 +113,106 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
+ * Extended stop words for query vocabulary extraction.
+ * Includes question words and common query patterns.
+ */
+const QUERY_STOP_WORDS = new Set([
+  ...STOP_WORDS,
+  // Question words
+  "what",
+  "where",
+  "when",
+  "how",
+  "why",
+  "which",
+  "who",
+  // Query patterns
+  "find",
+  "show",
+  "get",
+  "list",
+  "search",
+  // Common connectors
+  "and",
+  "but",
+  "with",
+  "from",
+  "that",
+  "this",
+  "these",
+  "those",
+  "it",
+  "its",
+  // Code-related generic words (too common)
+  "code",
+  "file",
+  "function",
+  "class",
+  "method",
+  "variable",
+]);
+
+/**
+ * Extract vocabulary words from a natural language query.
+ *
+ * Unlike extractVocabulary (for identifiers), this:
+ * 1. Tokenizes the query into words
+ * 2. Filters out stop words
+ * 3. Handles both natural language and embedded identifiers
+ * 4. Returns unique, normalized vocabulary words
+ *
+ * @param query - The search query string
+ * @returns Array of unique vocabulary words (lowercase, length > 1)
+ *
+ * @example
+ * extractQueryVocabulary("where is user session validated")
+ * // → ["user", "session", "validated"]
+ *
+ * extractQueryVocabulary("find the authenticateUser function")
+ * // → ["authenticate", "user"] (identifier decomposed)
+ */
+export function extractQueryVocabulary(query: string): string[] {
+  if (!query || query.trim() === "") {
+    return [];
+  }
+
+  const vocabularySet = new Set<string>();
+
+  // Tokenize query into words
+  const tokens = query
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ") // Replace punctuation with spaces
+    .split(/\s+/)
+    .filter((t) => t.length > 1);
+
+  for (const token of tokens) {
+    // Skip stop words
+    if (QUERY_STOP_WORDS.has(token)) {
+      continue;
+    }
+
+    // Check if token looks like an identifier (has internal capitals or underscores)
+    const looksLikeIdentifier =
+      /[A-Z]/.test(token) || token.includes("_") || token.includes("-");
+
+    if (looksLikeIdentifier) {
+      // Decompose identifier into vocabulary words
+      const vocabWords = extractVocabulary(token);
+      for (const word of vocabWords) {
+        if (!QUERY_STOP_WORDS.has(word)) {
+          vocabularySet.add(word);
+        }
+      }
+    } else {
+      // Add as-is (already lowercase)
+      vocabularySet.add(token);
+    }
+  }
+
+  return Array.from(vocabularySet);
+}
+
+/**
  * Map from ChunkType to LiteralType for named chunks.
  */
 const CHUNK_TYPE_TO_LITERAL_TYPE: Record<string, LiteralType> = {

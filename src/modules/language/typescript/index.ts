@@ -44,6 +44,9 @@ import {
   calculateLiteralContribution,
   applyLiteralBoost,
   LITERAL_SCORING_CONSTANTS,
+  // Vocabulary extraction for query
+  extractQueryVocabulary,
+  calculateVocabularyMatch,
   // Structured Semantic Expansion
   expandQuery,
 } from "../../../domain/services";
@@ -67,10 +70,16 @@ export const DEFAULT_MIN_SCORE = 0.15;
 export const DEFAULT_TOP_K = 10;
 
 /** Weight for semantic similarity in hybrid scoring (0-1) */
-const SEMANTIC_WEIGHT = 0.7;
+const SEMANTIC_WEIGHT = 0.6;
 
 /** Weight for BM25 keyword matching in hybrid scoring (0-1) */
-const BM25_WEIGHT = 0.3;
+const BM25_WEIGHT = 0.25;
+
+/** Weight for vocabulary matching in hybrid scoring (0-1) */
+const VOCAB_WEIGHT = 0.15;
+
+/** Minimum vocabulary overlap score to bypass minScore filter */
+const VOCAB_THRESHOLD = 0.4;
 
 /** File extensions supported by this module */
 export const TYPESCRIPT_EXTENSIONS = [
@@ -410,13 +419,34 @@ export class TypeScriptModule implements IndexModule {
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
     const symbolicIndex = new SymbolicIndex(indexDir, this.id);
 
-    // Load literal index for exact-match boosting
+    // Load literal index for exact-match boosting and vocabulary matching
     const literalIndex = new LiteralIndex(indexDir, this.id);
     let literalMatchMap = new Map<string, LiteralMatch[]>();
+    let vocabularyScoreMap = new Map<string, number>();
 
     try {
       await literalIndex.initialize();
       literalMatchMap = literalIndex.buildMatchMap(queryLiterals);
+
+      // Extract vocabulary from query for partial matching
+      const queryVocabulary = extractQueryVocabulary(query);
+
+      if (queryVocabulary.length > 0) {
+        // Query vocabulary index for chunks with overlapping vocabulary
+        const vocabMatches = literalIndex.findByVocabularyWords(queryVocabulary);
+
+        // Calculate vocabulary score for each matched chunk
+        for (const { entry, matchedWords } of vocabMatches) {
+          // Score is the proportion of query vocabulary that matched
+          const vocabScore = matchedWords.length / queryVocabulary.length;
+
+          // Keep the best score if chunk already has a score
+          const existingScore = vocabularyScoreMap.get(entry.chunkId) || 0;
+          if (vocabScore > existingScore) {
+            vocabularyScoreMap.set(entry.chunkId, vocabScore);
+          }
+        }
+      }
     } catch {
       // Literal index doesn't exist yet, continue without it
     }
@@ -559,6 +589,7 @@ export class TypeScriptModule implements IndexModule {
     for (const { filepath, chunk, embedding } of allChunksData) {
       const semanticScore = cosineSimilarity(queryEmbedding, embedding);
       const bm25Score = bm25Scores.get(chunk.id) || 0;
+      const vocabScore = vocabularyScoreMap.get(chunk.id) || 0;
       const pathBoost = pathBoosts.get(filepath) || 0;
 
       // Additional boosts for ranking improvement
@@ -568,9 +599,11 @@ export class TypeScriptModule implements IndexModule {
       const additiveBoost =
         pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
 
-      // Base hybrid score: weighted combination of semantic and BM25
+      // Base hybrid score: weighted combination of semantic, BM25, and vocabulary
       const baseScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score;
+        SEMANTIC_WEIGHT * semanticScore +
+        BM25_WEIGHT * bm25Score +
+        VOCAB_WEIGHT * vocabScore;
 
       // Apply literal boosting (multiplicative)
       const literalMatches = literalMatchMap.get(chunk.id) || [];
@@ -588,7 +621,8 @@ export class TypeScriptModule implements IndexModule {
       if (
         finalScore >= minScore ||
         bm25Score > 0.3 ||
-        literalMatches.length > 0
+        literalMatches.length > 0 ||
+        vocabScore > VOCAB_THRESHOLD // Include chunks with significant vocabulary overlap
       ) {
         results.push({
           filepath,
@@ -598,6 +632,7 @@ export class TypeScriptModule implements IndexModule {
           context: {
             semanticScore,
             bm25Score,
+            vocabScore,
             pathBoost,
             fileTypeBoost,
             chunkTypeBoost,
@@ -671,6 +706,9 @@ export class TypeScriptModule implements IndexModule {
         // BM25 score (chunk wasn't in our search, so typically 0)
         const bm25Score = bm25Scores.get(chunkId) || 0;
 
+        // Vocabulary score
+        const vocabScore = vocabularyScoreMap.get(chunkId) || 0;
+
         // Additional boosts
         const pathBoost = pathBoosts.get(filepath) || 0;
         const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
@@ -688,7 +726,9 @@ export class TypeScriptModule implements IndexModule {
         // Use LITERAL_SCORING_CONSTANTS.BASE_SCORE as base for literal-only
         const baseScore =
           semanticScore > 0
-            ? SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score
+            ? SEMANTIC_WEIGHT * semanticScore +
+              BM25_WEIGHT * bm25Score +
+              VOCAB_WEIGHT * vocabScore
             : LITERAL_SCORING_CONSTANTS.BASE_SCORE;
 
         const boostedScore = applyLiteralBoost(
@@ -708,6 +748,7 @@ export class TypeScriptModule implements IndexModule {
           context: {
             semanticScore,
             bm25Score,
+            vocabScore,
             pathBoost,
             fileTypeBoost,
             chunkTypeBoost,

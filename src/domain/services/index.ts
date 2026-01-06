@@ -63,6 +63,7 @@ export {
   extractLiterals,
   extractLiteralsWithReferences,
   extractVocabulary,
+  extractQueryVocabulary,
 } from "./literalExtractor";
 
 // Literal boosting - Scoring

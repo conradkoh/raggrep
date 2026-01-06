@@ -8,7 +8,7 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 
 - **Zero-config search** — Just run `raggrep query` and it works. Index is created and updated automatically.
 - **Multi-language support** — Deep understanding of TypeScript, JavaScript, Python, Go, and Rust with AST-aware parsing.
-- **Vocabulary-based search** — Search `user` to find `getUserById`, `fetchUserData`, `UserService`, etc. Understands code naming conventions.
+- **Vocabulary-based search** — Search `user` to find `getUserById`, `fetchUserData`, `UserService`, etc. Natural language queries like "where is user session validated" find `validateUserSession()`.
 - **Local-first** — All indexing and search happens on your machine. No cloud dependencies.
 - **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
 - **Watch mode** — Keep the index fresh in real-time as you code.

@@ -128,11 +128,12 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 ┌─────────────────────────────────────────────────────────────────┐
 │                    HYBRID SCORING                               │
 │                                                                 │
-│  Base Score = 0.7 × Semantic + 0.3 × BM25                      │
+│  Base Score = 0.6 × Semantic + 0.25 × BM25 + 0.15 × Vocab      │
 │  Final Score = Base × LiteralMultiplier + Boosts               │
 │                                                                 │
 │  • Semantic: Cosine similarity of query vs chunk embeddings    │
 │  • BM25: Keyword matching score                                 │
+│  • Vocab: Vocabulary overlap between query and identifiers     │
 │  • Literal: Multiplicative boost for exact identifier matches  │
 │  • Boosts: Path context, file type, chunk type, exports        │
 └─────────────────────────────────────────────────────────────────┘
@@ -147,7 +148,7 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 | **Hybrid**    | Best of both worlds           | Slightly more computation      |
 | **+ Literal** | Precise identifier matching   | Requires AST parsing           |
 
-The 70/30 weighting favors semantic understanding while still boosting exact keyword matches. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
+The 60/25/15 weighting favors semantic understanding while still boosting keyword and vocabulary matches. Vocabulary scoring enables natural language queries like "where is user session validated" to find `validateUserSession()` by matching vocabulary overlap. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 
 ## Multi-Language Support
 
@@ -200,11 +201,11 @@ RAGgrep supports multiple languages with deep AST-aware parsing:
 
 ## Vocabulary-Based Search
 
-Vocabulary extraction enables partial matching of code identifiers:
+Vocabulary extraction enables partial matching of code identifiers and natural language queries:
 
 ### How It Works
 
-1. **Extract vocabulary** from identifiers:
+1. **Extract vocabulary** from identifiers at index time:
 
    - `getUserById` → `["get", "user", "by", "id"]`
    - `AuthService` → `["auth", "service"]`
@@ -215,9 +216,15 @@ Vocabulary extraction enables partial matching of code identifiers:
    - Literal index: `"getUserById"` → chunk123
    - Vocabulary index: `"get"`, `"user"`, `"by"`, `"id"` → chunk123
 
-3. **Match queries** against vocabulary:
+3. **Extract vocabulary** from queries at search time:
+
+   - Query: `"where is user session validated"` → `["user", "session", "validated"]`
+   - Stop words (`where`, `is`, `the`, etc.) are filtered out
+
+4. **Match queries** against vocabulary:
    - Query `"user"` matches `getUserById`, `UserService`, `fetchUserData`
-   - Query `"get user"` matches with higher score (2/4 words)
+   - Query `"where is user session validated"` matches `validateUserSession` (overlap: `user`, `session`, `validate*`)
+   - Score = matched words / query vocabulary words
 
 ### Scoring Tiers
 
@@ -325,27 +332,30 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
 
 ```
 1. Parse query for literals (explicit backticks, implicit patterns)
-2. Load symbolic index (for path context and metadata)
-3. Load literal index (for exact-match lookup)
-4. Get list of all indexed files
-5. Apply file pattern filters if specified (e.g., --type ts)
-6. Generate query embedding (using remaining query after literal extraction)
-7. Build literal match map from query literals
-8. For each indexed file:
-   a. Load file index (chunks + embeddings)
-   b. Build BM25 index from chunk contents
-9. Compute BM25 scores for query
-10. For each chunk:
+2. Extract vocabulary from query (filter stop words)
+3. Load symbolic index (for path context and metadata)
+4. Load literal index (for exact-match and vocabulary lookup)
+5. Get list of all indexed files
+6. Apply file pattern filters if specified (e.g., --type ts)
+7. Generate query embedding (using remaining query after literal extraction)
+8. Build literal match map from query literals
+9. Query vocabulary index for chunks with overlapping vocabulary
+10. For each indexed file:
+    a. Load file index (chunks + embeddings)
+    b. Build BM25 index from chunk contents
+11. Compute BM25 scores for query
+12. For each chunk:
     - Compute cosine similarity (semantic score)
     - Look up BM25 score (keyword score)
+    - Look up vocabulary overlap score
     - Look up literal matches for chunk
-    - Calculate base score = 0.7 × semantic + 0.3 × BM25
+    - Calculate base score = 0.6 × semantic + 0.25 × BM25 + 0.15 × vocab
     - Apply literal multiplier if matched
     - Add boosts (path, file type, chunk type, export)
-11. Add literal-only results (chunks found only via literal index)
-12. Filter by minimum score threshold
-13. Sort by final score
-14. Return top K results
+13. Add literal-only results (chunks found only via literal index)
+14. Filter by minimum score threshold (or high vocabulary overlap)
+15. Sort by final score
+16. Return top K results
 ```
 
 > **Note:** The current implementation loads all embeddings before scoring.
@@ -523,13 +533,13 @@ Pure business logic with **no external dependencies**.
 | `ports/`    | Interfaces for external dependencies                          |
 | `services/` | Pure algorithms (BM25, keywords, literal parsing/scoring)     |
 
-**Literal Boosting Services:**
+**Literal Boosting & Vocabulary Services:**
 
-| Service                 | Description                                    |
-| ----------------------- | ---------------------------------------------- |
-| `queryLiteralParser.ts` | Detect literals in queries (backticks, casing) |
-| `literalExtractor.ts`   | Extract literals from AST-parsed chunks        |
-| `literalScorer.ts`      | Calculate multipliers and merge results        |
+| Service                 | Description                                             |
+| ----------------------- | ------------------------------------------------------- |
+| `queryLiteralParser.ts` | Detect literals in queries (backticks, casing)          |
+| `literalExtractor.ts`   | Extract literals and vocabulary from chunks and queries |
+| `literalScorer.ts`      | Calculate multipliers, vocabulary scores, merge results |
 
 ### Infrastructure Layer (`src/infrastructure/`)
 
@@ -728,6 +738,7 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 ### Recently Completed (v0.8.0)
 
 - [x] **Structured Semantic Expansion**: Synonym-based query expansion for improved recall
+- [x] **Vocabulary-based Query Scoring**: Natural language queries match code identifiers via vocabulary overlap (e.g., "where is user session validated" → `validateUserSession`)
 
 ### Possible Extensions
 
