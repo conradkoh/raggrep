@@ -235,6 +235,46 @@ Vocabulary extraction enables partial matching of code identifiers and natural l
 | Medium vocabulary (>50%) | `get user` (2/4)    | 0.5   | 1.5×       |
 | Low vocabulary (<50%)    | `user` (1/4)        | 0.3   | 1.2×       |
 
+## Content Phrase Matching
+
+Content phrase matching ensures that searches for exact phrases find results even when semantic and BM25 scores are low.
+
+### The Problem
+
+When searching for "authentication flow for new users", semantic search may produce low similarity scores because the embedding doesn't capture the exact phrase. BM25 tokenizes into separate words, losing phrase ordering. The result: exact matches in documentation are missed.
+
+### The Solution
+
+RAGgrep checks each chunk's content for:
+
+1. **Exact phrase match**: Does `chunk.content` contain the query as a substring?
+2. **Token coverage**: What percentage of query tokens appear in the content?
+
+```
+Query: "authentication flow for new users"
+        │
+        ▼
+┌──────────────────────────────────────────────────┐
+│           calculatePhraseMatch()                  │
+│                                                   │
+│  content.includes(query)?  →  exactMatch: true   │
+│                               boost: +0.5        │
+│                                                   │
+│  80%+ tokens found?  →  highCoverage: true       │
+│                        boost: +0.2               │
+└──────────────────────────────────────────────────┘
+```
+
+### Scoring Impact
+
+| Match Type | Boost | Filter Bypass |
+|------------|-------|---------------|
+| Exact phrase | +0.5 | Yes |
+| 80%+ token coverage | +0.2 | Yes |
+| 60%+ token coverage | +0.1 | No |
+
+Chunks with exact phrase matches or high token coverage bypass the minimum score filter, ensuring they always appear in results.
+
 ## Literal Boosting
 
 Literal boosting ensures that searches for specific code identifiers (class names, function names, etc.) return precise matches rather than semantically similar but incorrect results.
@@ -739,6 +779,7 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 
 - [x] **Structured Semantic Expansion**: Synonym-based query expansion for improved recall
 - [x] **Vocabulary-based Query Scoring**: Natural language queries match code identifiers via vocabulary overlap (e.g., "where is user session validated" → `validateUserSession`)
+- [x] **Content Phrase Matching**: Exact phrases in documentation are found even when semantic/BM25 scores are low (e.g., "authentication flow for new users" finds markdown containing that exact phrase)
 
 ### Possible Extensions
 

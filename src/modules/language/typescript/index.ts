@@ -49,6 +49,9 @@ import {
   calculateVocabularyMatch,
   // Structured Semantic Expansion
   expandQuery,
+  // Content phrase matching
+  calculatePhraseMatch,
+  PHRASE_MATCH_CONSTANTS,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -592,12 +595,15 @@ export class TypeScriptModule implements IndexModule {
       const vocabScore = vocabularyScoreMap.get(chunk.id) || 0;
       const pathBoost = pathBoosts.get(filepath) || 0;
 
+      // Content phrase matching
+      const phraseMatch = calculatePhraseMatch(chunk.content, query);
+
       // Additional boosts for ranking improvement
       const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
       const chunkTypeBoost = calculateChunkTypeBoost(chunk);
       const exportBoost = calculateExportBoost(chunk);
       const additiveBoost =
-        pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
+        pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost + phraseMatch.boost;
 
       // Base hybrid score: weighted combination of semantic, BM25, and vocabulary
       const baseScore =
@@ -622,7 +628,8 @@ export class TypeScriptModule implements IndexModule {
         finalScore >= minScore ||
         bm25Score > 0.3 ||
         literalMatches.length > 0 ||
-        vocabScore > VOCAB_THRESHOLD // Include chunks with significant vocabulary overlap
+        vocabScore > VOCAB_THRESHOLD || // Include chunks with significant vocabulary overlap
+        phraseMatch.isSignificant // Include chunks with exact phrase or high token coverage
       ) {
         results.push({
           filepath,
@@ -633,6 +640,8 @@ export class TypeScriptModule implements IndexModule {
             semanticScore,
             bm25Score,
             vocabScore,
+            phraseMatch: phraseMatch.exactMatch,
+            phraseCoverage: phraseMatch.coverage,
             pathBoost,
             fileTypeBoost,
             chunkTypeBoost,
@@ -709,13 +718,16 @@ export class TypeScriptModule implements IndexModule {
         // Vocabulary score
         const vocabScore = vocabularyScoreMap.get(chunkId) || 0;
 
+        // Content phrase matching
+        const phraseMatch = calculatePhraseMatch(chunk.content, query);
+
         // Additional boosts
         const pathBoost = pathBoosts.get(filepath) || 0;
         const fileTypeBoost = calculateFileTypeBoost(filepath, queryTerms);
         const chunkTypeBoost = calculateChunkTypeBoost(chunk);
         const exportBoost = calculateExportBoost(chunk);
         const additiveBoost =
-          pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
+          pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost + phraseMatch.boost;
 
         // For literal-only results, use literal scoring
         const literalContribution = calculateLiteralContribution(
@@ -749,6 +761,8 @@ export class TypeScriptModule implements IndexModule {
             semanticScore,
             bm25Score,
             vocabScore,
+            phraseMatch: phraseMatch.exactMatch,
+            phraseCoverage: phraseMatch.coverage,
             pathBoost,
             fileTypeBoost,
             chunkTypeBoost,

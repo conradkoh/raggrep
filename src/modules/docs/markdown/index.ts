@@ -34,6 +34,9 @@ import {
   normalizeScore,
   extractQueryTerms,
   generateChunkId,
+  // Content phrase matching
+  calculatePhraseMatch,
+  PHRASE_MATCH_CONSTANTS,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -575,6 +578,9 @@ export class MarkdownModule implements IndexModule {
       const semanticScore = cosineSimilarity(queryEmbedding, embedding);
       const bm25Score = bm25Scores.get(chunk.id) || 0;
 
+      // Content phrase matching - critical for Markdown documentation
+      const phraseMatch = calculatePhraseMatch(chunk.content, query);
+
       // Documentation files get a small boost for documentation-intent queries
       let docBoost = 0;
       if (
@@ -600,9 +606,14 @@ export class MarkdownModule implements IndexModule {
         SEMANTIC_WEIGHT * semanticScore +
         BM25_WEIGHT * bm25Score +
         docBoost +
-        headingBoost;
+        headingBoost +
+        phraseMatch.boost; // Add phrase match boost
 
-      if (hybridScore >= minScore || bm25Score > 0.3) {
+      if (
+        hybridScore >= minScore ||
+        bm25Score > 0.3 ||
+        phraseMatch.isSignificant // Include chunks with exact phrase or high token coverage
+      ) {
         results.push({
           filepath,
           chunk,
@@ -611,6 +622,8 @@ export class MarkdownModule implements IndexModule {
           context: {
             semanticScore,
             bm25Score,
+            phraseMatch: phraseMatch.exactMatch,
+            phraseCoverage: phraseMatch.coverage,
             docBoost,
             headingBoost,
             headingLevel: (chunk.metadata as any)?.headingLevel,

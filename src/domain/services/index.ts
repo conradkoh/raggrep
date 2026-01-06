@@ -111,3 +111,13 @@ export {
   type ValidationIssue,
   type ValidationResult,
 } from "./configValidator";
+
+// Content phrase matching
+export {
+  calculatePhraseMatch,
+  hasExactPhrase,
+  calculateTokenCoverage,
+  tokenizeForMatching,
+  PHRASE_MATCH_CONSTANTS,
+  type PhraseMatchResult,
+} from "./phraseMatch";
