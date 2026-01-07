@@ -91,13 +91,10 @@ export default tool({
     if (!installed) {
       return \`Error: raggrep is not installed globally.
 
-Please install raggrep globally using your preferred package manager:
+Please install raggrep globally:
   npm install -g raggrep@latest
-  pnpm install -g raggrep@latest
-  yarn global add raggrep@latest
-  bun install -g raggrep@latest
 
-After installation, raggrep will be available for use.\`;
+(Adapt the command for your preferred package manager)\`;
     }
 
     const cmdArgs = [args.query];
