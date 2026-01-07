@@ -333,9 +333,11 @@ describe("Ranking Quality Tests", () => {
       // "password requirements" is ambiguous - could mean:
       // - What are the requirements? (docs)
       // - How are they validated? (code)
-      // Both should appear in results (in top 10)
-      expect(isInTopN(results, "docs/authentication.md", 10)).toBe(true);
-      expect(isInTopN(results, "src/utils/validation.ts", 10)).toBe(true);
+      // Both should appear in results
+      // Note: validation.ts may be ranked near but not exactly in top 5 due to
+      // other password-related results (crypto.ts, login.ts) having similar scores
+      expect(isInTopN(results, "docs/authentication.md", 5)).toBe(true);
+      expect(isInTopN(results, "src/utils/validation.ts", 7)).toBe(true);
     });
   });
 

@@ -22,7 +22,7 @@
   "scripts": {
     "build": "bun run build:clean && bun run build:bundle && bun run build:types && bun run build:shebang",
     "build:clean": "rm -rf dist",
-    "build:bundle": "bun build src/index.ts --outdir dist --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript' --external 'chokidar' && bun build src/app/cli/main.ts --outdir dist/cli --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript' --external 'chokidar'",
+    "build:bundle": "bun build src/index.ts --outdir dist --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript' --external 'chokidar' --external 'web-tree-sitter' && bun build src/app/cli/main.ts --outdir dist/cli --target node --sourcemap=external --external '@xenova/transformers' --external 'glob' --external 'typescript' --external 'chokidar' --external 'web-tree-sitter'",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
     "build:shebang": "echo '#!/usr/bin/env node' | cat - dist/cli/main.js > temp && mv temp dist/cli/main.js && chmod +x dist/cli/main.js",
     "prepublishOnly": "bun run build",

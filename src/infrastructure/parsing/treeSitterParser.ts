@@ -152,12 +152,72 @@ export class TreeSitterParser implements IParser {
   private async initializeTreeSitter(): Promise<void> {
     try {
       const { Parser } = await import("web-tree-sitter");
-      await Parser.init();
+
+      // Locate the web-tree-sitter.wasm file relative to the web-tree-sitter package
+      // This is needed because when installed globally or in different environments,
+      // the default path resolution fails to find the WASM file
+      const wasmPath = await this.resolveWasmPath();
+
+      await Parser.init({
+        locateFile: (scriptName: string) => {
+          // Return the correct path to the WASM file
+          if (scriptName.endsWith(".wasm")) {
+            return wasmPath;
+          }
+          return scriptName;
+        },
+      });
       this.parserInstance = new Parser();
     } catch (error) {
       console.error("Failed to initialize web-tree-sitter:", error);
       throw error;
     }
+  }
+
+  /**
+   * Resolve the path to the web-tree-sitter.wasm file.
+   * Tries multiple strategies to find the file.
+   */
+  private async resolveWasmPath(): Promise<string> {
+    // Strategy 1: Try to find it via require.resolve (works in Node.js/Bun)
+    try {
+      const webTreeSitterPath = require.resolve("web-tree-sitter");
+      const wasmPath = path.join(
+        path.dirname(webTreeSitterPath),
+        "web-tree-sitter.wasm"
+      );
+      if (fs.existsSync(wasmPath)) {
+        return wasmPath;
+      }
+    } catch {
+      // require.resolve not available or failed
+    }
+
+    // Strategy 2: Try relative to __dirname (for bundled scenarios)
+    try {
+      const possiblePaths = [
+        // Relative to this file in node_modules
+        path.join(__dirname, "../../../node_modules/web-tree-sitter/web-tree-sitter.wasm"),
+        // Relative to dist folder
+        path.join(__dirname, "../../node_modules/web-tree-sitter/web-tree-sitter.wasm"),
+        // Relative to package root
+        path.join(__dirname, "../../../../node_modules/web-tree-sitter/web-tree-sitter.wasm"),
+        // In the same directory (if copied during build)
+        path.join(__dirname, "web-tree-sitter.wasm"),
+      ];
+
+      for (const wasmPath of possiblePaths) {
+        if (fs.existsSync(wasmPath)) {
+          return wasmPath;
+        }
+      }
+    } catch {
+      // __dirname not available
+    }
+
+    // Strategy 3: Return the default name and let Emscripten try to find it
+    // This might work in browser environments
+    return "web-tree-sitter.wasm";
   }
 
   /**
