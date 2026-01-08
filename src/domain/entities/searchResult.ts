@@ -127,3 +127,77 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   pathFilter: [],
   ensureFresh: true,
 };
+
+// ============================================================================
+// Exact Match Results (Literal Search Track)
+// ============================================================================
+
+/**
+ * A single exact match occurrence in a file.
+ * Represents a grep-like match with surrounding context.
+ */
+export interface ExactMatchOccurrence {
+  /** Line number where the match was found (1-indexed) */
+  line: number;
+
+  /** Column where the match starts (0-indexed) */
+  column: number;
+
+  /** The full line containing the match */
+  lineContent: string;
+
+  /** Line before the match (if available) */
+  contextBefore?: string;
+
+  /** Line after the match (if available) */
+  contextAfter?: string;
+}
+
+/**
+ * Exact matches found in a single file.
+ */
+export interface ExactMatchFile {
+  /** Path to the file */
+  filepath: string;
+
+  /** All occurrences of the literal in this file */
+  occurrences: ExactMatchOccurrence[];
+
+  /** Total number of matches in this file */
+  matchCount: number;
+}
+
+/**
+ * Result of exact/literal search across the codebase.
+ * This is separate from semantic search results.
+ */
+export interface ExactMatchResults {
+  /** The literal that was searched for */
+  query: string;
+
+  /** Files containing exact matches, sorted by match count */
+  files: ExactMatchFile[];
+
+  /** Total number of matches across all files */
+  totalMatches: number;
+
+  /** Total number of files with matches */
+  totalFiles: number;
+
+  /** Whether results were truncated (more matches exist) */
+  truncated: boolean;
+}
+
+/**
+ * Combined search results with both semantic and exact match tracks.
+ */
+export interface HybridSearchResults {
+  /** Semantic/BM25 search results (existing behavior) */
+  results: SearchResult[];
+
+  /** Exact match results for literal queries (optional) */
+  exactMatches?: ExactMatchResults;
+
+  /** Whether exact matches influenced the semantic result ranking */
+  fusionApplied: boolean;
+}

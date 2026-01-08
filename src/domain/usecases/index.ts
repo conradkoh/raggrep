@@ -29,3 +29,9 @@ export {
   type CleanupIndexDependencies 
 } from './cleanupIndex';
 
+// Exact Search
+export {
+  executeExactSearch,
+  matchesPathFilter,
+  type ExactSearchOptions,
+} from './exactSearch';

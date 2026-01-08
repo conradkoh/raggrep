@@ -12,14 +12,25 @@ import {
   GlobalManifest,
   DEFAULT_SEARCH_OPTIONS,
 } from "../../types";
+import type {
+  ExactMatchResults,
+  HybridSearchResults,
+} from "../../domain/entities";
 import {
   loadConfig,
   getModuleIndexPath,
   getGlobalManifestPath,
   getModuleConfig,
+  getRaggrepDir,
 } from "../../infrastructure/config";
 import { registry, registerBuiltInModules } from "../../modules/registry";
 import { ensureIndexFresh } from "../indexer";
+import {
+  isIdentifierQuery,
+  extractSearchLiteral,
+} from "../../domain/services";
+import { executeExactSearch } from "../../domain/usecases";
+import { NodeFileSystem } from "../../infrastructure/filesystem";
 
 /**
  * Search across all enabled modules
@@ -29,6 +40,22 @@ export async function search(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResult[]> {
+  const hybridResults = await hybridSearch(rootDir, query, options);
+  return hybridResults.results;
+}
+
+/**
+ * Hybrid search with both semantic and exact match tracks.
+ *
+ * Returns:
+ * - results: Semantic/BM25 results (existing behavior), with fusion boosting if applicable
+ * - exactMatches: Exact match results for identifier queries (optional)
+ */
+export async function hybridSearch(
+  rootDir: string,
+  query: string,
+  options: SearchOptions = {}
+): Promise<HybridSearchResults> {
   // Ensure absolute path
   rootDir = path.resolve(rootDir);
 
@@ -51,7 +78,7 @@ export async function search(
 
   if (!globalManifest || globalManifest.modules.length === 0) {
     console.log('No index found. Run "raggrep index" first.');
-    return [];
+    return { results: [], fusionApplied: false };
   }
 
   // Get modules that are both enabled and have indexes
@@ -72,7 +99,7 @@ export async function search(
 
   if (modulesToSearch.length === 0) {
     console.log("No enabled modules with indexes found.");
-    return [];
+    return { results: [], fusionApplied: false };
   }
 
   // Search with each module and aggregate results
@@ -114,12 +141,77 @@ export async function search(
     });
   }
 
-  // Sort all results by score
+  // Check if we should run simple search (identifier query)
+  let exactMatches: ExactMatchResults | undefined;
+  let fusionApplied = false;
+
+  if (isIdentifierQuery(query)) {
+    const literal = extractSearchLiteral(query);
+
+    // Run exact match search
+    exactMatches = await performExactSearch(rootDir, literal, config, options);
+
+    // Apply fusion boosting: boost semantic results that also have exact matches
+    if (exactMatches && exactMatches.totalMatches > 0) {
+      const exactMatchFilepaths = new Set(
+        exactMatches.files.map((f) => f.filepath)
+      );
+
+      for (const result of filteredResults) {
+        // Check if this result's file has exact matches
+        if (exactMatchFilepaths.has(result.filepath)) {
+          // Apply fusion boost (1.5x for files with exact matches)
+          result.score *= 1.5;
+
+          // Mark in context
+          if (!result.context) result.context = {};
+          result.context.exactMatchFusion = true;
+
+          fusionApplied = true;
+        }
+      }
+    }
+  }
+
+  // Sort all results by score (re-sort after fusion boost)
   filteredResults.sort((a, b) => b.score - a.score);
 
   // Return top K
   const topK = options.topK ?? 10;
-  return filteredResults.slice(0, topK);
+
+  return {
+    results: filteredResults.slice(0, topK),
+    exactMatches,
+    fusionApplied,
+  };
+}
+
+/**
+ * Perform exact/literal search across all indexed files.
+ *
+ * This delegates to the domain use case which handles filesystem access
+ * and search logic.
+ */
+async function performExactSearch(
+  rootDir: string,
+  literal: string,
+  config: Config,
+  options: SearchOptions
+): Promise<ExactMatchResults> {
+  const fs = new NodeFileSystem();
+
+  return executeExactSearch(
+    fs,
+    {
+      rootDir,
+      literal,
+      pathFilter: options.pathFilter,
+      maxFiles: 20,
+      maxOccurrencesPerFile: 5,
+      caseInsensitive: false,
+    },
+    (path: string, pattern: string) => minimatch(path, pattern, { matchBase: true })
+  );
 }
 
 /**
@@ -255,6 +347,11 @@ export function formatSearchResults(results: SearchResult[]): string {
     if (chunk.isExported) {
       output += " | exported";
     }
+
+    // Add fusion indicator
+    if (result.context?.exactMatchFusion) {
+      output += " | exact match";
+    }
     output += "\n";
 
     // Show preview (first 3 lines)
@@ -265,6 +362,91 @@ export function formatSearchResults(results: SearchResult[]): string {
     }
 
     output += "\n";
+  }
+
+  return output;
+}
+
+/**
+ * Format hybrid search results including exact matches.
+ *
+ * @param hybridResults - Results from hybridSearch
+ * @returns Formatted string for console output
+ */
+export function formatHybridSearchResults(
+  hybridResults: HybridSearchResults
+): string {
+  let output = "";
+
+  // Show exact matches first if present
+  if (
+    hybridResults.exactMatches &&
+    hybridResults.exactMatches.totalMatches > 0
+  ) {
+    const em = hybridResults.exactMatches;
+    const showingCount = Math.min(em.files.length, 10);
+
+    output += `┌─ Exact Matches `;
+    if (em.truncated || em.files.length < em.totalFiles) {
+      output += `(showing ${showingCount} of ${em.totalFiles} files, ${em.totalMatches} total matches)`;
+    } else {
+      output += `(${em.totalFiles} files, ${em.totalMatches} matches)`;
+    }
+    output += ` ─┐\n`;
+    output += `│  Query: "${em.query}"\n`;
+    output += `└─────────────────────────────────────────────────────────────────────┘\n\n`;
+
+    for (let i = 0; i < Math.min(em.files.length, 10); i++) {
+      const file = em.files[i];
+      output += `  ${i + 1}. ${file.filepath}`;
+      if (file.matchCount > 1) {
+        output += ` (${file.matchCount} matches)`;
+      }
+      output += "\n";
+
+      // Show first occurrence with context
+      const firstOcc = file.occurrences[0];
+      if (firstOcc) {
+        // Show context before if available
+        if (firstOcc.contextBefore) {
+          const beforeLine = firstOcc.contextBefore.substring(0, 76);
+          output += `     ${(firstOcc.line - 1).toString().padStart(4)} │ ${beforeLine}${firstOcc.contextBefore.length > 76 ? "..." : ""}\n`;
+        }
+
+        // Show the matching line with highlighting marker
+        const matchLine = firstOcc.lineContent.substring(0, 76);
+        output += `   ► ${firstOcc.line.toString().padStart(4)} │ ${matchLine}${firstOcc.lineContent.length > 76 ? "..." : ""}\n`;
+
+        // Show context after if available
+        if (firstOcc.contextAfter) {
+          const afterLine = firstOcc.contextAfter.substring(0, 76);
+          output += `     ${(firstOcc.line + 1).toString().padStart(4)} │ ${afterLine}${firstOcc.contextAfter.length > 76 ? "..." : ""}\n`;
+        }
+      }
+
+      output += "\n";
+    }
+
+    // Separator between exact and semantic results
+    if (hybridResults.results.length > 0) {
+      output += "\n";
+    }
+  }
+
+  // Show semantic results
+  if (hybridResults.results.length > 0) {
+    if (hybridResults.exactMatches?.totalMatches) {
+      output += `┌─ Semantic Results `;
+      if (hybridResults.fusionApplied) {
+        output += `(boosted by exact matches) `;
+      }
+      output += `─┐\n`;
+      output += `└─────────────────────────────────────────────────────────────────────┘\n\n`;
+    }
+
+    output += formatSearchResults(hybridResults.results);
+  } else if (!hybridResults.exactMatches?.totalMatches) {
+    output += "No results found.\n";
   }
 
   return output;

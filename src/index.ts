@@ -39,8 +39,13 @@ import type {
   CleanupOptions,
   ResetResult,
 } from "./app/indexer";
-import { search as searchIndex, formatSearchResults } from "./app/search";
-import type { SearchOptions, SearchResult } from "./types";
+import {
+  search as searchIndex,
+  hybridSearch as hybridSearchIndex,
+  formatSearchResults,
+  formatHybridSearchResults,
+} from "./app/search";
+import type { SearchOptions, SearchResult, HybridSearchResults } from "./types";
 import type { Logger, LoggerFactory } from "./domain/ports";
 import {
   ConsoleLogger,
@@ -59,7 +64,13 @@ export type {
   CleanupOptions,
   ResetResult,
 } from "./app/indexer";
-export type { SearchOptions, SearchResult, Chunk, FileIndex } from "./types";
+export type {
+  SearchOptions,
+  SearchResult,
+  HybridSearchResults,
+  Chunk,
+  FileIndex,
+} from "./types";
 export type { Logger, LoggerFactory } from "./domain/ports";
 
 // Re-export logger implementations and factories
@@ -175,6 +186,39 @@ export async function reset(directory: string): Promise<ResetResult> {
 }
 
 /**
+ * Hybrid search with both semantic and exact match tracks.
+ *
+ * Returns semantic results with optional exact match results for identifier queries.
+ * Exact matches are found using grep-like text search and are displayed separately.
+ *
+ * @param directory - Path to the indexed directory
+ * @param query - Natural language or identifier search query
+ * @param options - Search options
+ * @returns Hybrid search results with both tracks
+ *
+ * @example
+ * ```ts
+ * // Search for an identifier (triggers exact match)
+ * const results = await raggrep.hybridSearch('./my-project', 'AUTH_SERVICE_URL');
+ *
+ * // Check for exact matches
+ * if (results.exactMatches) {
+ *   console.log(`Found ${results.exactMatches.totalMatches} exact matches`);
+ * }
+ *
+ * // Semantic results (with fusion boost if exact matches found)
+ * console.log(`${results.results.length} semantic results`);
+ * ```
+ */
+export async function hybridSearch(
+  directory: string,
+  query: string,
+  options: SearchOptions = {}
+): Promise<HybridSearchResults> {
+  return hybridSearchIndex(directory, query, options);
+}
+
+/**
  * Format search results for display.
  *
  * @param results - Array of search results
@@ -182,13 +226,23 @@ export async function reset(directory: string): Promise<ResetResult> {
  */
 export { formatSearchResults };
 
+/**
+ * Format hybrid search results including exact matches.
+ *
+ * @param results - Hybrid search results
+ * @returns Formatted string for console output
+ */
+export { formatHybridSearchResults };
+
 // Default export for convenient importing
 const raggrep = {
   index,
   search,
+  hybridSearch,
   cleanup,
   reset,
   formatSearchResults,
+  formatHybridSearchResults,
 };
 
 export default raggrep;

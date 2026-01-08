@@ -37,7 +37,8 @@ export class NodeFileSystem implements FileSystem {
     const stats = await fs.stat(filepath);
     return {
       lastModified: stats.mtime.toISOString(),
-      size: stats.size,
+      size: stats.isDirectory() ? undefined : stats.size,
+      isDirectory: stats.isDirectory(),
     };
   }
   

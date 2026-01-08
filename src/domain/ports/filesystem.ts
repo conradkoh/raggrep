@@ -11,8 +11,10 @@
 export interface FileStats {
   /** ISO timestamp of last modification */
   lastModified: string;
-  /** File size in bytes */
+  /** File size in bytes (undefined for directories) */
   size?: number;
+  /** Whether this is a directory */
+  isDirectory?: boolean;
 }
 
 /**

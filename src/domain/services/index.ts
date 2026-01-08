@@ -121,3 +121,13 @@ export {
   PHRASE_MATCH_CONSTANTS,
   type PhraseMatchResult,
 } from "./phraseMatch";
+
+// Simple search (grep-like exact matching)
+export {
+  isIdentifierQuery,
+  extractSearchLiteral,
+  findOccurrences,
+  searchFiles,
+  extractIdentifiersFromContent,
+  isSearchableContent,
+} from "./simpleSearch";

@@ -23,6 +23,11 @@ export type {
   IntrospectionContribution,
   Config,
   ModuleConfig,
+  // Exact match types
+  ExactMatchOccurrence,
+  ExactMatchFile,
+  ExactMatchResults,
+  HybridSearchResults,
 } from "./domain/entities";
 
 export {

@@ -326,7 +326,6 @@ Examples:
         process.exit(0);
       }
 
-      const { search, formatSearchResults } = await import("../search");
       const { ensureIndexFresh } = await import("../indexer");
       const query = flags.remaining[0];
 
@@ -387,7 +386,10 @@ Examples:
           ? [`*.${flags.fileType}`]
           : undefined;
 
-        const results = await search(process.cwd(), query, {
+        // Use hybrid search to get both semantic and exact match results
+        const { hybridSearch, formatHybridSearchResults } = await import("../search");
+
+        const hybridResults = await hybridSearch(process.cwd(), query, {
           topK: flags.topK ?? 10,
           minScore: flags.minScore,
           filePatterns,
@@ -395,7 +397,7 @@ Examples:
           // Skip automatic freshness check since we already called ensureIndexFresh above
           ensureFresh: false,
         });
-        console.log(formatSearchResults(results));
+        console.log(formatHybridSearchResults(hybridResults));
       } catch (error) {
         console.error("Error during search:", error);
         process.exit(1);

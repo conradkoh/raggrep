@@ -1,6 +1,6 @@
 {
   "name": "raggrep",
-  "version": "0.14.2",
+  "version": "0.15.0",
   "description": "Local filesystem-based RAG system for codebases - semantic search using local embeddings",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,6 +59,7 @@
     "chokidar": "^5.0.0",
     "fdir": "^6.5.0",
     "glob": "^10.0.0",
+    "minimatch": "^10.1.1",
     "typescript": "^5.0.0",
     "web-tree-sitter": "^0.26.3"
   },

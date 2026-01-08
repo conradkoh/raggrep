@@ -32,6 +32,11 @@ export type {
   CoreContribution,
   LanguageContribution,
   IntrospectionContribution,
+  // Exact match types
+  ExactMatchOccurrence,
+  ExactMatchFile,
+  ExactMatchResults,
+  HybridSearchResults,
 } from "./searchResult";
 export { DEFAULT_SEARCH_OPTIONS } from "./searchResult";
 
