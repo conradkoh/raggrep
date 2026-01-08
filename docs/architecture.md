@@ -64,15 +64,27 @@ RAGgrep follows Clean Architecture principles with clear separation between:
 │      BM25Index    │ │      ProjectDetect│ │                         │
 │      Introspection│ │      IntroIndex   │ │                         │
 │      LiteralScore │ │                   │ │                         │
+│      SimpleSearch │ │                   │ │ Grep-like exact matching |
 │      ConfigValid  │ │                   │ │                         │
 └───────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
 ## Hybrid Search System
 
-RAGgrep uses a hybrid scoring approach that combines semantic similarity, keyword matching, and literal boosting:
+RAGgrep uses a dual-track hybrid search approach combining semantic similarity, keyword matching, literal boosting, and exact text matching:
 
 ```
+┌─────────────────────────────────────────────────────────────────┐
+│             EXACT MATCH TRACK (Simple Search)                   │
+│            Grep-like search across all file types               │
+│          Finds identifiers in YAML, .env, config, etc.          │
+│                                                                 │
+│  Runtime filesystem walk (no index, pure search)                │
+│  ├── Filters: node_modules, .git, dist, build, etc.            │
+│  ├── Content detection: binary check, size limit (1MB)         │
+│  └── Pattern matching: identifier detection (SCREAMING_SNAKE)  │
+└─────────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────────┐
 │              SYMBOLIC INDEX (Metadata & Keywords)               │
 │         Per-file summaries with extracted keywords              │
@@ -123,30 +135,49 @@ RAGgrep uses a hybrid scoring approach that combines semantic similarity, keywor
 │            "conventions": [...]                                │
 │          }                                                      │
 └─────────────────────────────────────────────────────────────────┘
-                        │
-                        ▼
+                         │
+                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    HYBRID SCORING                               │
+│                   HYBRID SCORING (DUAL TRACK)                   │
 │                                                                 │
-│  Base Score = 0.6 × Semantic + 0.25 × BM25 + 0.15 × Vocab      │
-│  Final Score = Base × LiteralMultiplier + Boosts               │
+│  SEMANTIC TRACK:                                                │
+│    Base Score = 0.6 × Semantic + 0.25 × BM25 + 0.15 × Vocab    │
+│    Final Score = Base × LiteralMultiplier + Boosts             │
 │                                                                 │
-│  • Semantic: Cosine similarity of query vs chunk embeddings    │
-│  • BM25: Keyword matching score                                 │
-│  • Vocab: Vocabulary overlap between query and identifiers     │
-│  • Literal: Multiplicative boost for exact identifier matches  │
-│  • Boosts: Path context, file type, chunk type, exports        │
+│  EXACT MATCH TRACK:                                             │
+│    • Grep-like search across all files (no index required)     │
+│    • Returns: file paths, line numbers, context lines          │
+│    • Sorted by: match count (most occurrences first)           │
+│                                                                 │
+│  FUSION BOOSTING:                                               │
+│    • If exact matches found, boost semantic results            │
+│    • Fusion multiplier: 1.5x for files with exact matches      │
+│    • Context mark: results.exactMatchFusion = true             │
+│                                                                 │
+│  SCORING COMPONENTS:                                            │
+│    • Semantic: Cosine similarity of query vs chunk embeddings  │
+│    • BM25: Keyword matching score                              │
+│    • Vocab: Vocabulary overlap between query and identifiers   │
+│    • Literal: Multiplicative boost for exact identifier match  │
+│    • Boosts: Path context, file type, chunk type, exports      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Hybrid Scoring?
+### Why Dual-Track Hybrid Scoring?
 
 | Approach      | Strength                      | Weakness                       |
 | ------------- | ----------------------------- | ------------------------------ |
 | Semantic only | Understands meaning, synonyms | May miss exact keyword matches |
 | BM25 only     | Fast, exact matches           | No understanding of meaning    |
+| Grep only     | Finds text in ANY file        | No relevance ranking, slow    |
 | **Hybrid**    | Best of both worlds           | Slightly more computation      |
-| **+ Literal** | Precise identifier matching   | Requires AST parsing           |
+| **+ Exact**   | Finds configs, YAML, .env   | Requires filesystem walk      |
+
+The dual-track approach (semantic + exact match) ensures:
+1. **Code**: Semantic search finds by meaning in AST-parsed code
+2. **Config files**: Exact match track finds identifiers in YAML, .env, docker-compose.yml
+3. **Fusion boosting**: Files with exact matches get 1.5x semantic score boost
+4. **Precision**: Exact matches shown separately with line numbers and context
 
 The 60/25/15 weighting favors semantic understanding while still boosting keyword and vocabulary matches. Vocabulary scoring enables natural language queries like "where is user session validated" to find `validateUserSession()` by matching vocabulary overlap. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 
@@ -371,31 +402,52 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
 ### Search Flow
 
 ```
-1. Parse query for literals (explicit backticks, implicit patterns)
-2. Extract vocabulary from query (filter stop words)
-3. Load symbolic index (for path context and metadata)
-4. Load literal index (for exact-match and vocabulary lookup)
-5. Get list of all indexed files
-6. Apply file pattern filters if specified (e.g., --type ts)
-7. Generate query embedding (using remaining query after literal extraction)
-8. Build literal match map from query literals
-9. Query vocabulary index for chunks with overlapping vocabulary
-10. For each indexed file:
-    a. Load file index (chunks + embeddings)
-    b. Build BM25 index from chunk contents
-11. Compute BM25 scores for query
-12. For each chunk:
-    - Compute cosine similarity (semantic score)
-    - Look up BM25 score (keyword score)
-    - Look up vocabulary overlap score
-    - Look up literal matches for chunk
-    - Calculate base score = 0.6 × semantic + 0.25 × BM25 + 0.15 × vocab
-    - Apply literal multiplier if matched
-    - Add boosts (path, file type, chunk type, export)
-13. Add literal-only results (chunks found only via literal index)
-14. Filter by minimum score threshold (or high vocabulary overlap)
-15. Sort by final score
-16. Return top K results
+1. Parse query for identifier patterns (SCREAMING_SNAKE, camelCase, PascalCase, backticks)
+2. If identifier detected, run DUAL SEARCH:
+   ├─ SEMANTIC TRACK (steps 3-16):
+   │  3. Extract vocabulary from query (filter stop words)
+   │  4. Load symbolic index (for path context and metadata)
+   │  5. Load literal index (for exact-match and vocabulary lookup)
+   │  6. Get list of all indexed files
+   │  7. Apply file pattern filters if specified (e.g., --type ts)
+   │  8. Generate query embedding (using remaining query after literal extraction)
+   │  9. Build literal match map from query literals
+   │  10. Query vocabulary index for chunks with overlapping vocabulary
+   │  11. For each indexed file:
+   │      a. Load file index (chunks + embeddings)
+   │      b. Build BM25 index from chunk contents
+   │  12. Compute BM25 scores for query
+   │  13. For each chunk:
+   │      - Compute cosine similarity (semantic score)
+   │      - Look up BM25 score (keyword score)
+   │      - Look up vocabulary overlap score
+   │      - Look up literal matches for chunk
+   │      - Calculate base score = 0.6 × semantic + 0.25 × BM25 + 0.15 × vocab
+   │      - Apply literal multiplier if matched
+   │      - Add boosts (path, file type, chunk type, export)
+   │  14. Filter by minimum score threshold (or high vocabulary overlap)
+   │  15. Sort by final score
+   │
+   └─ EXACT MATCH TRACK (steps 17-22):
+   │  17. Walk filesystem (respecting ignore patterns)
+   │  18. Apply path filters (--filter options)
+   │  19. For each file:
+   │      a. Read content (skip binary, >1MB files)
+   │      b. Find all occurrences of literal
+   │      c. Capture line numbers and context lines (±1)
+   │  20. Collect top 20 files by match count
+   │  21. Sort by match count (highest first)
+   │  22. Return ExactMatchResults
+   │
+   23. FUSION (if exact matches found):
+   │      - Identify files with exact matches
+   │      - Boost semantic results in those files (1.5x multiplier)
+   │      - Mark with exactMatchFusion flag
+   │
+   24. Return HybridSearchResults:
+   │      - results[] (semantic track with fusion boost)
+   │      - exactMatches (grep-like results)
+   │      - fusionApplied (boolean)
 ```
 
 > **Note:** The current implementation loads all embeddings before scoring.
@@ -534,6 +586,96 @@ RAGgrep extracts structural information from file paths to improve search releva
 
 The literal index enables O(1) lookup for exact identifier matches. Keys are lowercase for case-insensitive matching, but original casing is preserved for display.
 
+### Exact Match Track
+
+The exact match track provides grep-like search capabilities across ALL file types (not just AST-parsed code):
+
+**When It Runs:**
+- Query contains identifier patterns:
+  - `SCREAMING_SNAKE_CASE`: `AUTH_SERVICE_URL`
+  - `camelCase`: `getUserById`
+  - `PascalCase`: `AuthService`
+  - `snake_case`: `get_user_by_id`
+  - `kebab-case`: `get-service-url`
+- Query uses explicit quoting: `` `literal` `` or `"literal"`
+
+**What It Does:**
+
+| Step | Description |
+| ----- | ----------- |
+| 1. **Filesystem Walk** | Recursively walk directory (no index) |
+| 2. **Filter Ignored** | Skip `node_modules`, `.git`, `dist`, etc. |
+| 3. **Apply Path Filter** | Respect `--filter` options |
+| 4. **Read Files** | Read content (skip binary, >1MB files) |
+| 5. **Find Occurrences** | Search for literal, capture line numbers |
+| 6. **Extract Context** | Get ±1 lines around each match |
+| 7. **Sort by Count** | Most occurrences first |
+
+**Domain Service: `simpleSearch.ts`**
+
+Pure functions (no I/O):
+- `isIdentifierQuery()`: Detects identifier patterns
+- `extractSearchLiteral()`: Strips quotes, trims whitespace
+- `findOccurrences()`: Finds all matches with context
+- `searchFiles()`: Searches multiple files
+- `extractIdentifiersFromContent()`: Identifies identifiers for indexing
+- `isSearchableContent()`: Filters binary/large files
+
+**Use Case: `exactSearch.ts`**
+
+Orchestrates filesystem access and domain service:
+- Accepts injected `FileSystem` dependency
+- Implements directory walking logic
+- Applies path filters with glob pattern matching
+- Delegates to `searchFiles()` for actual searching
+
+**Results Structure:**
+
+```typescript
+interface ExactMatchResults {
+  query: string;                    // The literal searched for
+  files: ExactMatchFile[];           // Files with matches
+  totalMatches: number;               // Total matches across all files
+  totalFiles: number;                // Files containing matches
+  truncated: boolean;                // More matches exist beyond limit
+}
+
+interface ExactMatchFile {
+  filepath: string;                 // Relative path
+  occurrences: ExactMatchOccurrence[];  // Match locations
+  matchCount: number;               // Total matches in this file
+}
+
+interface ExactMatchOccurrence {
+  line: number;                    // Line number (1-indexed)
+  column: number;                  // Column (0-indexed)
+  lineContent: string;             // The full matching line
+  contextBefore?: string;           // Line before match
+  contextAfter?: string;            // Line after match
+}
+```
+
+**Fusion Boosting:**
+
+When exact matches are found:
+1. Identify all files with exact matches
+2. For each semantic result in those files:
+   - Apply 1.5x score multiplier
+   - Set `result.context.exactMatchFusion = true`
+3. Re-sort semantic results after fusion
+
+This ensures files with exact identifiers rank higher in semantic results.
+
+**Performance:**
+
+| Metric | Value |
+| ------- | ------ |
+| Max files searched | 20 |
+| Max occurrences/file | 5 |
+| Max file size | 1MB |
+| Binary detection | Null byte check |
+| Ignored dirs | 12 (node_modules, .git, etc.) |
+
 ### Embedding Index Format
 
 **Per-file index** (e.g., `src/auth/authService.json`):
@@ -572,6 +714,7 @@ Pure business logic with **no external dependencies**.
 | `entities/` | Core data structures (Chunk, FileIndex, Config, Literal, etc) |
 | `ports/`    | Interfaces for external dependencies                          |
 | `services/` | Pure algorithms (BM25, keywords, literal parsing/scoring)     |
+| `usecases/`  | Business logic orchestration with injected dependencies          |
 
 **Literal Boosting & Vocabulary Services:**
 
@@ -768,6 +911,9 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 - [x] **Improved embedding model**: Changed default to `bge-small-en-v1.5`
 - [x] **Higher-quality model option**: Added `nomic-embed-text-v1.5` (768 dimensions)
 - [x] **Literal boosting**: Exact identifier matching with multiplicative score boost (v0.7.0)
+- [x] **Exact match track**: Grep-like search across all file types (YAML, .env, config) (v0.15.0)
+- [x] **Fusion boosting**: Semantic results with exact matches get 1.5x boost (v0.15.0)
+- [x] **Dual search output**: Shows both exact matches and semantic results separately (v0.15.0)
 
 ### Planned
 

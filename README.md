@@ -12,7 +12,9 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 - **Local-first** — All indexing and search happens on your machine. No cloud dependencies.
 - **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
 - **Watch mode** — Keep the index fresh in real-time as you code.
-- **Hybrid search** — Combines semantic similarity with keyword matching for best results.
+- **Hybrid search** — Combines semantic similarity, keyword matching, and exact text matching for best results.
+- **Exact match track** — Finds identifiers in ANY file type (YAML, .env, config, not just code) with grep-like precision.
+- **Fusion boosting** — Semantic results containing exact matches get boosted (1.5x) for better ranking.
 - **Literal boosting** — Exact identifier matches get priority. Use backticks for precise matching: `` `AuthService` ``.
 - **Phrase matching** — Exact phrases in documentation are found even when semantic similarity is low.
 - **Semantic expansion** — Domain-specific synonyms improve recall (function ↔ method, auth ↔ authentication).
@@ -40,6 +42,59 @@ That's it. The first query creates the index automatically. Subsequent queries a
 
 ### Example Output
 
+**Natural Language Query:**
+```
+Index updated: 42 indexed
+
+RAGgrep Search
+=============
+
+Searching for: "user authentication"
+
+Found 3 results:
+
+1. src/auth/authService.ts:24-55 (login)
+   Score: 34.4% | Type: function | via TypeScript | exported
+      export async function login(credentials: LoginCredentials): Promise<AuthResult> {
+        const { email, password } = credentials;
+
+2. src/auth/session.ts:10-25 (createSession)
+   Score: 28.2% | Type: function | via TypeScript | exported
+      export function createSession(user: User): Session {
+
+3. src/users/types.ts:3-12 (User)
+   Score: 26.0% | Type: interface | via TypeScript | exported
+      export interface User {
+        id: string;
+```
+
+**Exact Identifier Query (shows both tracks):**
+```
+Index updated: 42 indexed
+
+Searching for: "AUTH_SERVICE_URL"
+
+┌─ Exact Matches (4 files, 6 matches) ─┐
+│  Query: "AUTH_SERVICE_URL"
+└─────────────────────────────────────────────────────────────────────┘
+
+  1. config.yaml (2 matches)
+     8 │   auth:
+     9 │     url: AUTH_SERVICE_URL
+  ► 10 │     grpc_url: AUTH_SERVICE_GRPC_URL
+     11 │     timeout: 5000
+
+  2. .env.example (1 match)
+     2 │ AUTH_SERVICE_URL=https://auth.example.com
+  ►  3 │ AUTH_SERVICE_GRPC_URL=grpc://auth.example.com:9000
+
+┌─ Semantic Results (boosted by exact matches) ─┐
+└─────────────────────────────────────────────────────────────────────┘
+
+1. src/auth/authService.ts:2-10 (AuthService)
+   Score: 45.2% | Type: class | via TypeScript | exported | exact match
+      export class AuthService {
+        private baseUrl = AUTH_SERVICE_URL;
 ```
 Index updated: 42 indexed
 
@@ -97,13 +152,14 @@ raggrep reset            # Clear the index
 ### Query Options
 
 ```bash
-raggrep query "user login"                    # Basic search
+raggrep query "user login"                    # Natural language query
+raggrep query "AUTH_SERVICE_URL"             # Exact identifier (auto-triggers exact match)
+raggrep query "\`AuthService\`"              # Backticks force exact match
 raggrep query "error handling" --top 5        # Limit results
 raggrep query "database" --min-score 0.2      # Set minimum score threshold
 raggrep query "interface" --type ts           # Filter by file extension
 raggrep query "auth" --filter src/auth        # Filter by path
 raggrep query "api" -f src/api -f src/routes  # Multiple path filters
-raggrep query "\`AuthService\` class"         # Exact identifier match (backticks)
 ```
 
 | Flag              | Short | Description                                                |
@@ -149,6 +205,30 @@ raggrep query "config" --filter "*.json" --filter "*.yaml" --filter config/
 ```
 
 This is useful when you know whether you're looking for code or documentation.
+
+### Exact Match Search
+
+For identifier-like queries (SCREAMING_SNAKE_CASE, camelCase, PascalCase), RAGgrep automatically runs exact match search:
+
+```bash
+# Finds AUTH_SERVICE_URL in ALL file types (YAML, .env, config, etc.)
+raggrep query "AUTH_SERVICE_URL"
+
+# Finds the function by exact name
+raggrep query "getUserById"
+
+# Use backticks for explicit exact matching (even natural words)
+raggrep query "`configuration`"
+```
+
+**What Gets Searched:**
+- **Source code**: `.ts`, `.js`, `.py`, `.go`, `.rs`
+- **Config files**: `.yaml`, `.yml`, `.json`, `.toml`, `.env`
+- **Documentation**: `.md`, `.txt`
+
+**Ignored:** `node_modules`, `.git`, `dist`, `build`, `.cache`, etc.
+
+Exact matches are shown in a separate section with line numbers and context. Semantic results containing the same identifier get boosted (1.5x score multiplier).
 
 ### Index Options
 
