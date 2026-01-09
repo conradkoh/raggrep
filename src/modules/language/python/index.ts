@@ -34,8 +34,6 @@ import {
   BM25Index,
   normalizeScore,
   extractKeywords,
-  parsePathContext,
-  formatPathContextForEmbedding,
   calculateFileTypeBoost,
   extractQueryTerms,
   parseQueryLiterals,
@@ -44,6 +42,10 @@ import {
   applyLiteralBoost,
   LITERAL_SCORING_CONSTANTS,
   expandQuery,
+  // Path context injection (unified utility)
+  prepareChunkForEmbedding,
+  extractPathKeywordsForFileSummary,
+  getPathContextForFileSummary,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -322,15 +324,15 @@ export class PythonModule implements IndexModule {
     parsedChunks: ParsedChunk[],
     ctx: IndexContext
   ): Promise<FileIndex | null> {
-    // Parse path context for structural awareness
-    const pathContext = parsePathContext(filepath);
-    const pathPrefix = formatPathContextForEmbedding(pathContext);
-
-    // Generate embeddings for all chunks
+    // Generate embeddings for all chunks with path context
+    // Using the unified prepareChunkForEmbedding utility for consistent path injection
     const chunkContents = parsedChunks.map((c) => {
-      const namePrefix = c.name ? `${c.name}: ` : "";
-      const docPrefix = c.docComment ? `${c.docComment} ` : "";
-      return `${pathPrefix} ${namePrefix}${docPrefix}${c.content}`;
+      return prepareChunkForEmbedding({
+        filepath,
+        content: c.content,
+        name: c.name,
+        docComment: c.docComment,
+      });
     });
     const embeddings = await getEmbeddings(chunkContents);
 
@@ -354,7 +356,7 @@ export class PythonModule implements IndexModule {
       embeddingModel: currentConfig.model,
     };
 
-    // Build file summary
+    // Build file summary with path keywords
     const chunkTypes = [
       ...new Set(parsedChunks.map((pc) => pc.type as ChunkType)),
     ];
@@ -362,26 +364,22 @@ export class PythonModule implements IndexModule {
       .filter((pc) => pc.isExported && pc.name)
       .map((pc) => pc.name!);
 
-    const allKeywords = new Set<string>();
+    const contentKeywords = new Set<string>();
     for (const pc of parsedChunks) {
       const keywords = extractKeywords(pc.content, pc.name);
-      keywords.forEach((k) => allKeywords.add(k));
+      keywords.forEach((k) => contentKeywords.add(k));
     }
-    pathContext.keywords.forEach((k) => allKeywords.add(k));
+    const pathKeywords = extractPathKeywordsForFileSummary(filepath);
+    const allKeywords = [...contentKeywords, ...pathKeywords];
 
     const fileSummary: FileSummary = {
       filepath,
       chunkCount: chunks.length,
       chunkTypes,
-      keywords: Array.from(allKeywords),
+      keywords: [...new Set(allKeywords)],
       exports,
       lastModified: stats.lastModified,
-      pathContext: {
-        segments: pathContext.segments,
-        layer: pathContext.layer,
-        domain: pathContext.domain,
-        depth: pathContext.depth,
-      },
+      pathContext: getPathContextForFileSummary(filepath),
     };
 
     this.pendingSummaries.set(filepath, fileSummary);

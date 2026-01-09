@@ -131,3 +131,11 @@ export {
   extractIdentifiersFromContent,
   isSearchableContent,
 } from "./simpleSearch";
+
+// Chunk context preparation (unified path context injection)
+export {
+  prepareChunkForEmbedding,
+  extractPathKeywordsForFileSummary,
+  getPathContextForFileSummary,
+  type ChunkContextOptions,
+} from "./chunkContext";

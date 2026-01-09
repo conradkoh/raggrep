@@ -34,8 +34,6 @@ import {
   BM25Index,
   normalizeScore,
   extractKeywords,
-  parsePathContext,
-  formatPathContextForEmbedding,
   calculateFileTypeBoost,
   extractQueryTerms,
   // Literal boosting
@@ -52,6 +50,10 @@ import {
   // Content phrase matching
   calculatePhraseMatch,
   PHRASE_MATCH_CONSTANTS,
+  // Path context injection (unified utility)
+  prepareChunkForEmbedding,
+  extractPathKeywordsForFileSummary,
+  getPathContextForFileSummary,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -214,10 +216,6 @@ export class TypeScriptModule implements IndexModule {
       return null;
     }
 
-    // Parse path context for structural awareness
-    const pathContext = parsePathContext(filepath);
-    const pathPrefix = formatPathContextForEmbedding(pathContext);
-
     // Check if we should include full file chunk
     // Include when:
     // 1. Config option is enabled (future: add to module config)
@@ -241,11 +239,14 @@ export class TypeScriptModule implements IndexModule {
     }
 
     // Generate embeddings for all chunks with path context
-    // Prepending path context helps the embedding model understand file structure
+    // Using the unified prepareChunkForEmbedding utility for consistent path injection
     const chunkContents = allParsedChunks.map((c) => {
-      // For named chunks, include the name for better embedding
-      const namePrefix = c.name ? `${c.name}: ` : "";
-      return `${pathPrefix} ${namePrefix}${c.content}`;
+      return prepareChunkForEmbedding({
+        filepath,
+        content: c.content,
+        name: c.name,
+        docComment: c.jsDoc,
+      });
     });
     const embeddings = await getEmbeddings(chunkContents);
 
@@ -283,28 +284,24 @@ export class TypeScriptModule implements IndexModule {
 
     // Extract keywords from semantic chunks + path keywords
     // (Skip full file chunk to avoid duplication)
-    const allKeywords = new Set<string>();
+    const contentKeywords = new Set<string>();
     for (const pc of parsedChunks) {
       const keywords = extractKeywords(pc.content, pc.name);
-      keywords.forEach((k) => allKeywords.add(k));
+      keywords.forEach((k) => contentKeywords.add(k));
     }
-    // Add path keywords
-    pathContext.keywords.forEach((k) => allKeywords.add(k));
+    // Add path keywords using unified utility
+    const pathKeywords = extractPathKeywordsForFileSummary(filepath);
+    const allKeywords = [...contentKeywords, ...pathKeywords];
 
     const fileSummary: FileSummary = {
       filepath,
       chunkCount: chunks.length,
       chunkTypes,
-      keywords: Array.from(allKeywords),
+      keywords: [...new Set(allKeywords)],
       exports,
       lastModified: stats.lastModified,
       // Include parsed path context for search boosting
-      pathContext: {
-        segments: pathContext.segments,
-        layer: pathContext.layer,
-        domain: pathContext.domain,
-        depth: pathContext.depth,
-      },
+      pathContext: getPathContextForFileSummary(filepath),
     };
 
     // Store summary for finalize

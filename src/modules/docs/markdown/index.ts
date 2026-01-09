@@ -37,6 +37,10 @@ import {
   // Content phrase matching
   calculatePhraseMatch,
   PHRASE_MATCH_CONSTANTS,
+  // Path context injection
+  prepareChunkForEmbedding,
+  extractPathKeywordsForFileSummary,
+  getPathContextForFileSummary,
 } from "../../../domain/services";
 import {
   getEmbeddingConfigFromModule,
@@ -411,11 +415,14 @@ export class MarkdownModule implements IndexModule {
       return null;
     }
 
-    // Generate embeddings for all chunks
+    // Generate embeddings for all chunks with path context
+    // Using the unified prepareChunkForEmbedding utility for consistent path injection
     const chunkContents = hierarchicalChunks.map((s) => {
-      const filename = path.basename(filepath);
-      const headingContext = s.heading ? `${s.heading}: ` : "";
-      return `${filename} ${headingContext}${s.content}`;
+      return prepareChunkForEmbedding({
+        filepath,
+        content: s.content,
+        name: s.heading || undefined,
+      });
     });
     const embeddings = await getEmbeddings(chunkContents);
 
@@ -449,16 +456,20 @@ export class MarkdownModule implements IndexModule {
       headings: uniqueHeadings,
     };
 
-    // Build file summary
-    const keywords = extractMarkdownKeywords(content);
+    // Build file summary with path keywords for better search
+    const contentKeywords = extractMarkdownKeywords(content);
+    const pathKeywords = extractPathKeywordsForFileSummary(filepath);
+    const allKeywords = [...new Set([...contentKeywords, ...pathKeywords])];
 
     const fileSummary: FileSummary = {
       filepath,
       chunkCount: chunks.length,
       chunkTypes: ["block"],
-      keywords,
+      keywords: allKeywords,
       exports: uniqueHeadings, // Use headings as "exports" for searchability
       lastModified: stats.lastModified,
+      // Include parsed path context for search boosting
+      pathContext: getPathContextForFileSummary(filepath),
     };
 
     this.pendingSummaries.set(filepath, fileSummary);
