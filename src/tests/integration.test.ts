@@ -15,15 +15,15 @@ import {
   afterAll,
   beforeEach,
   afterEach,
-} from "bun:test";
-import * as fs from "fs/promises";
-import * as path from "path";
-import raggrep from "../index";
-import { getIndexLocation } from "../infrastructure/config";
+} from 'bun:test';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import raggrep from '../index';
+import { getIndexLocation } from '../infrastructure/config';
 
 // Test configuration
-const SIMULATION_DIR = path.resolve(__dirname, "../../scenarios/basic");
-const TEST_FILES_DIR = path.join(SIMULATION_DIR, "test-files");
+const SIMULATION_DIR = path.resolve(__dirname, '../../scenarios/basic');
+const TEST_FILES_DIR = path.join(SIMULATION_DIR, 'test-files');
 
 // Store original console methods
 const originalConsoleLog = console.log;
@@ -77,7 +77,7 @@ async function createTestFile(
 ): Promise<string> {
   const fullPath = path.join(SIMULATION_DIR, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, content, "utf-8");
+  await fs.writeFile(fullPath, content, 'utf-8');
   return fullPath;
 }
 
@@ -97,7 +97,7 @@ async function removeTestFile(relativePath: string): Promise<void> {
 // Test Suite
 // ============================================================================
 
-describe("RAGgrep Integration Tests", () => {
+describe('RAGgrep Integration Tests', () => {
   // Clean up before and after all tests
   beforeAll(async () => {
     await cleanup();
@@ -112,17 +112,17 @@ describe("RAGgrep Integration Tests", () => {
   // --------------------------------------------------------------------------
   // Test 1: File name is considered in indexing
   // --------------------------------------------------------------------------
-  describe("File name indexing", () => {
-    const testFile = "test-files/password.txt";
+  describe('File name indexing', () => {
+    const testFile = 'test-files/password.txt';
 
     afterAll(async () => {
       await removeTestFile(testFile);
     });
 
-    test("should find file by filename when searching for filename term", async () => {
+    test('should find file by filename when searching for filename term', async () => {
       // Create a file named password.txt with content "password 123"
       // This tests that the filename "password" is considered in indexing
-      await createTestFile(testFile, "password 123");
+      await createTestFile(testFile, 'password 123');
 
       // Index the simulation directory
       const indexResults = await raggrep.index(SIMULATION_DIR);
@@ -133,14 +133,14 @@ describe("RAGgrep Integration Tests", () => {
       expect(totalIndexed).toBeGreaterThan(0);
 
       // Search for "password"
-      const searchResults = await raggrep.search(SIMULATION_DIR, "password", {
+      const searchResults = await raggrep.search(SIMULATION_DIR, 'password', {
         topK: 10,
         minScore: 0.01,
       });
 
       // Verify that password.txt is found in results
       const passwordResult = searchResults.find((result) =>
-        result.filepath.includes("password.txt")
+        result.filepath.includes('password.txt')
       );
 
       // Assert: file should be found
@@ -148,7 +148,7 @@ describe("RAGgrep Integration Tests", () => {
 
       // Assert: file should be ranked in top 5 results
       const passwordFileIndex = searchResults.findIndex((result) =>
-        result.filepath.includes("password.txt")
+        result.filepath.includes('password.txt')
       );
       expect(passwordFileIndex).toBeGreaterThanOrEqual(0);
       expect(passwordFileIndex).toBeLessThan(5);
@@ -158,23 +158,23 @@ describe("RAGgrep Integration Tests", () => {
   // --------------------------------------------------------------------------
   // Test 2: Folder path is considered in indexing
   // --------------------------------------------------------------------------
-  describe("Folder path indexing", () => {
-    const testFile = "test-files/secrets/config.txt";
+  describe('Folder path indexing', () => {
+    const testFile = 'test-files/secrets/config.txt';
 
     afterAll(async () => {
       await removeTestFile(testFile);
       // Also remove the secrets directory
       try {
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/secrets"));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/secrets'));
       } catch {
         // Directory may not exist or not empty
       }
     });
 
-    test("should find file by folder name when searching for folder term", async () => {
+    test('should find file by folder name when searching for folder term', async () => {
       // Create a file in a folder named "secrets"
       // This tests that the folder path is considered in indexing
-      await createTestFile(testFile, "API_KEY=abc123");
+      await createTestFile(testFile, 'API_KEY=abc123');
 
       // Index the simulation directory
       const indexResults = await raggrep.index(SIMULATION_DIR);
@@ -185,14 +185,14 @@ describe("RAGgrep Integration Tests", () => {
       expect(totalIndexed).toBeGreaterThan(0);
 
       // Search for "secrets" (the folder name)
-      const searchResults = await raggrep.search(SIMULATION_DIR, "secrets", {
+      const searchResults = await raggrep.search(SIMULATION_DIR, 'secrets', {
         topK: 10,
         minScore: 0.01,
       });
 
       // Verify that the file in secrets folder is found
       const secretsResult = searchResults.find((result) =>
-        result.filepath.includes("secrets/config.txt")
+        result.filepath.includes('secrets/config.txt')
       );
 
       // Assert: file should be found by folder name
@@ -200,7 +200,7 @@ describe("RAGgrep Integration Tests", () => {
 
       // Assert: file should be ranked in top 5 results
       const secretsFileIndex = searchResults.findIndex((result) =>
-        result.filepath.includes("secrets/config.txt")
+        result.filepath.includes('secrets/config.txt')
       );
       expect(secretsFileIndex).toBeGreaterThanOrEqual(0);
       expect(secretsFileIndex).toBeLessThan(5);
@@ -211,21 +211,21 @@ describe("RAGgrep Integration Tests", () => {
   // Test 3: Nested folder path context in markdown files
   // Reproduces issue: file at dynamodb/guides/adopt.md not matching "dynamodb stream"
   // --------------------------------------------------------------------------
-  describe("Nested folder path context for markdown", () => {
-    const testFile = "test-files/dynamodb/guides/adopt.md";
+  describe('Nested folder path context for markdown', () => {
+    const testFile = 'test-files/dynamodb/guides/adopt.md';
 
     afterAll(async () => {
       await removeTestFile(testFile);
       // Clean up directories
       try {
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/dynamodb/guides"));
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/dynamodb"));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/dynamodb/guides'));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/dynamodb'));
       } catch {
         // Directories may not exist or not empty
       }
     });
 
-    test("should find markdown file by nested folder path term combined with content", async () => {
+    test('should find markdown file by nested folder path term combined with content', async () => {
       // Create a markdown file in dynamodb/guides/ folder with "streams" in content
       // This tests that path segments like "dynamodb" are included in embeddings
       await createTestFile(
@@ -252,7 +252,7 @@ Streams enable real-time data processing and event-driven workflows.
       // Search for "dynamodb stream" - combines folder path term + content term
       const searchResults = await raggrep.search(
         SIMULATION_DIR,
-        "dynamodb stream",
+        'dynamodb stream',
         {
           topK: 10,
           minScore: 0.01,
@@ -261,7 +261,7 @@ Streams enable real-time data processing and event-driven workflows.
 
       // Verify that the file is found
       const adoptResult = searchResults.find((result) =>
-        result.filepath.includes("dynamodb/guides/adopt.md")
+        result.filepath.includes('dynamodb/guides/adopt.md')
       );
 
       // Assert: file should be found
@@ -269,33 +269,33 @@ Streams enable real-time data processing and event-driven workflows.
 
       // Assert: file should be ranked in top 5 results
       const adoptFileIndex = searchResults.findIndex((result) =>
-        result.filepath.includes("dynamodb/guides/adopt.md")
+        result.filepath.includes('dynamodb/guides/adopt.md')
       );
       expect(adoptFileIndex).toBeGreaterThanOrEqual(0);
       expect(adoptFileIndex).toBeLessThan(5);
     });
 
-    test("should find markdown file when searching for path segment alone", async () => {
+    test('should find markdown file when searching for path segment alone', async () => {
       // Search for just "dynamodb" - the folder name
-      const searchResults = await raggrep.search(SIMULATION_DIR, "dynamodb", {
+      const searchResults = await raggrep.search(SIMULATION_DIR, 'dynamodb', {
         topK: 10,
         minScore: 0.01,
       });
 
       // Verify that the file in dynamodb folder is found
       const adoptResult = searchResults.find((result) =>
-        result.filepath.includes("dynamodb/guides/adopt.md")
+        result.filepath.includes('dynamodb/guides/adopt.md')
       );
 
       // Assert: file should be found by folder path term
       expect(adoptResult).toBeDefined();
     });
 
-    test("should include path context in markdown chunk embeddings", async () => {
+    test('should include path context in markdown chunk embeddings', async () => {
       // Search combining path term + title term + content term
       const searchResults = await raggrep.search(
         SIMULATION_DIR,
-        "dynamodb adoption streams",
+        'dynamodb adoption streams',
         {
           topK: 10,
           minScore: 0.01,
@@ -304,7 +304,7 @@ Streams enable real-time data processing and event-driven workflows.
 
       // The file should rank very high since it matches on multiple dimensions
       const adoptFileIndex = searchResults.findIndex((result) =>
-        result.filepath.includes("dynamodb/guides/adopt.md")
+        result.filepath.includes('dynamodb/guides/adopt.md')
       );
 
       // Assert: should be in top 3 for this highly specific query
@@ -316,24 +316,24 @@ Streams enable real-time data processing and event-driven workflows.
   // --------------------------------------------------------------------------
   // Test 4: Source code should rank higher than documentation
   // --------------------------------------------------------------------------
-  describe("Source code vs documentation ranking", () => {
-    const authSourceFile = "test-files/src/auth/login.ts";
-    const authDocsFile = "test-files/docs/authentication.md";
+  describe('Source code vs documentation ranking', () => {
+    const authSourceFile = 'test-files/src/auth/login.ts';
+    const authDocsFile = 'test-files/docs/authentication.md';
 
     afterAll(async () => {
       await removeTestFile(authSourceFile);
       await removeTestFile(authDocsFile);
       // Clean up directories
       try {
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/src/auth"));
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/src"));
-        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/docs"));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/src/auth'));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/src'));
+        await fs.rmdir(path.join(SIMULATION_DIR, 'test-files/docs'));
       } catch {
         // Directories may not exist
       }
     });
 
-    test("should rank source code higher than docs for implementation queries", async () => {
+    test('should rank source code higher than docs for implementation queries', async () => {
       // Create a source file with authentication implementation
       await createTestFile(
         authSourceFile,
@@ -376,7 +376,7 @@ The system uses JWT tokens for session management.
       // Search for "authenticateUser" - specific function name
       const searchResults = await raggrep.search(
         SIMULATION_DIR,
-        "authenticateUser",
+        'authenticateUser',
         {
           topK: 10,
           minScore: 0.01,
@@ -385,10 +385,10 @@ The system uses JWT tokens for session management.
 
       // Find positions of source and docs files
       const sourceIndex = searchResults.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
       const docsIndex = searchResults.findIndex((r) =>
-        r.filepath.includes("docs/authentication.md")
+        r.filepath.includes('docs/authentication.md')
       );
 
       // Source file should be found
@@ -400,11 +400,11 @@ The system uses JWT tokens for session management.
       }
     });
 
-    test("should find source code for semantic queries", async () => {
+    test('should find source code for semantic queries', async () => {
       // Search for "verify user password" - semantic query
       const searchResults = await raggrep.search(
         SIMULATION_DIR,
-        "verify user password",
+        'verify user password',
         {
           topK: 10,
           minScore: 0.01,
@@ -413,7 +413,7 @@ The system uses JWT tokens for session management.
 
       // Source file should be in top 5 results
       const sourceIndex = searchResults.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       expect(sourceIndex).toBeGreaterThanOrEqual(0);
@@ -424,12 +424,12 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 4: Literal Boosting - Explicit backticks
   // --------------------------------------------------------------------------
-  describe("Literal Boosting - Explicit backticks", () => {
-    test("should boost exact function match with explicit backticks", async () => {
+  describe('Literal Boosting - Explicit backticks', () => {
+    test('should boost exact function match with explicit backticks', async () => {
       // Search with explicit backtick literal
       const resultsWithBackticks = await raggrep.search(
         SIMULATION_DIR,
-        "`hashPassword`",
+        '`hashPassword`',
         {
           topK: 10,
           minScore: 0.01,
@@ -438,7 +438,7 @@ The system uses JWT tokens for session management.
 
       // Both should find login.ts at position 0
       const loginPosWithBackticks = resultsWithBackticks.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       expect(loginPosWithBackticks).toBe(0);
@@ -448,11 +448,11 @@ The system uses JWT tokens for session management.
       expect(loginResult?.context?.literalMultiplier).toBeGreaterThan(1);
     });
 
-    test("should detect literal context in search results", async () => {
+    test('should detect literal context in search results', async () => {
       // Search with explicit backtick literal
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "`validateSession`",
+        '`validateSession`',
         {
           topK: 5,
           minScore: 0.01,
@@ -461,7 +461,7 @@ The system uses JWT tokens for session management.
 
       // Should find session.ts first
       const sessionResult = results.find((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
 
       expect(sessionResult).toBeDefined();
@@ -477,12 +477,12 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 5: Literal Boosting - Implicit PascalCase detection
   // --------------------------------------------------------------------------
-  describe("Literal Boosting - Implicit PascalCase detection", () => {
-    test("should detect PascalCase interface name and find definition", async () => {
+  describe('Literal Boosting - Implicit PascalCase detection', () => {
+    test('should detect PascalCase interface name and find definition', async () => {
       // Search for a PascalCase interface name
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "SessionMetadata interface",
+        'SessionMetadata interface',
         {
           topK: 10,
           minScore: 0.01,
@@ -491,23 +491,23 @@ The system uses JWT tokens for session management.
 
       // Should find session.ts which defines SessionMetadata
       const sessionResult = results.find((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
 
       expect(sessionResult).toBeDefined();
 
       // Should be in top 3 results
       const sessionPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
       expect(sessionPos).toBeLessThan(3);
     });
 
-    test("should detect camelCase function name implicitly", async () => {
+    test('should detect camelCase function name implicitly', async () => {
       // Search with camelCase function name (implicit detection)
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "where is authenticateUser defined",
+        'where is authenticateUser defined',
         {
           topK: 10,
           minScore: 0.01,
@@ -516,7 +516,7 @@ The system uses JWT tokens for session management.
 
       // Should find login.ts which defines authenticateUser
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       expect(loginPos).toBeGreaterThanOrEqual(0);
@@ -527,12 +527,12 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 6: Literal Boosting - Multiple literals in query
   // --------------------------------------------------------------------------
-  describe("Literal Boosting - Multiple literals", () => {
-    test("should handle query with multiple explicit literals", async () => {
+  describe('Literal Boosting - Multiple literals', () => {
+    test('should handle query with multiple explicit literals', async () => {
       // Search with multiple backtick literals
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "`createSession` and `validateSession`",
+        '`createSession` and `validateSession`',
         {
           topK: 10,
           minScore: 0.01,
@@ -541,23 +541,23 @@ The system uses JWT tokens for session management.
 
       // Should find session.ts which has both functions
       const sessionResult = results.find((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
 
       expect(sessionResult).toBeDefined();
 
       // session.ts should rank high because it contains both literals
       const sessionPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
       expect(sessionPos).toBe(0);
     });
 
-    test("should handle mixed explicit and implicit literals", async () => {
+    test('should handle mixed explicit and implicit literals', async () => {
       // Mix of backtick (explicit) and PascalCase (implicit)
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "`authenticateUser` returns AuthToken",
+        '`authenticateUser` returns AuthToken',
         {
           topK: 10,
           minScore: 0.01,
@@ -566,14 +566,14 @@ The system uses JWT tokens for session management.
 
       // Should find login.ts which has both
       const loginResult = results.find((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       expect(loginResult).toBeDefined();
 
       // login.ts should be first or second
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
       expect(loginPos).toBeLessThan(2);
     });
@@ -582,10 +582,10 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 7: Literal Boosting - Definition vs Reference ranking
   // --------------------------------------------------------------------------
-  describe("Literal Boosting - Definition vs Reference", () => {
-    test("should rank definition higher than references for exact literal", async () => {
+  describe('Literal Boosting - Definition vs Reference', () => {
+    test('should rank definition higher than references for exact literal', async () => {
       // Search for User interface - should find definition first
-      const results = await raggrep.search(SIMULATION_DIR, "`User` interface", {
+      const results = await raggrep.search(SIMULATION_DIR, '`User` interface', {
         topK: 10,
         minScore: 0.01,
       });
@@ -593,12 +593,12 @@ The system uses JWT tokens for session management.
       // Should find files that define User
       // login.ts defines User interface
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       // models/user.ts might also define User
       const modelPos = results.findIndex((r) =>
-        r.filepath.includes("database/models/user.ts")
+        r.filepath.includes('database/models/user.ts')
       );
 
       // At least one definition should be in top 3
@@ -610,25 +610,25 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 8: Expanded codebase - OAuth authentication
   // --------------------------------------------------------------------------
-  describe("Expanded codebase - OAuth authentication", () => {
-    test("should find oauth.ts when searching for OAuth flow", async () => {
-      const results = await raggrep.search(SIMULATION_DIR, "OAuth SSO login", {
+  describe('Expanded codebase - OAuth authentication', () => {
+    test('should find oauth.ts when searching for OAuth flow', async () => {
+      const results = await raggrep.search(SIMULATION_DIR, 'OAuth SSO login', {
         topK: 10,
         minScore: 0.01,
       });
 
       const oauthPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/oauth.ts")
+        r.filepath.includes('src/auth/oauth.ts')
       );
 
       expect(oauthPos).toBeGreaterThanOrEqual(0);
       expect(oauthPos).toBeLessThan(3);
     });
 
-    test("should find oauth.ts for Google GitHub provider query", async () => {
+    test('should find oauth.ts for Google GitHub provider query', async () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "Google GitHub authentication provider",
+        'Google GitHub authentication provider',
         {
           topK: 10,
           minScore: 0.01,
@@ -636,18 +636,18 @@ The system uses JWT tokens for session management.
       );
 
       const oauthPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/oauth.ts")
+        r.filepath.includes('src/auth/oauth.ts')
       );
 
       expect(oauthPos).toBeGreaterThanOrEqual(0);
       expect(oauthPos).toBeLessThan(3);
     });
 
-    test("should still find login.ts for password authentication", async () => {
+    test('should still find login.ts for password authentication', async () => {
       // With oauth.ts added, login.ts should still rank high for password auth
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "password authentication",
+        'password authentication',
         {
           topK: 10,
           minScore: 0.01,
@@ -655,7 +655,7 @@ The system uses JWT tokens for session management.
       );
 
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
 
       expect(loginPos).toBeGreaterThanOrEqual(0);
@@ -666,11 +666,11 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 9: Expanded codebase - Notification vs Email disambiguation
   // --------------------------------------------------------------------------
-  describe("Expanded codebase - Notification vs Email", () => {
-    test("should find notification.ts for push notification query", async () => {
+  describe('Expanded codebase - Notification vs Email', () => {
+    test('should find notification.ts for push notification query', async () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "push notification mobile",
+        'push notification mobile',
         {
           topK: 10,
           minScore: 0.01,
@@ -678,17 +678,17 @@ The system uses JWT tokens for session management.
       );
 
       const notifPos = results.findIndex((r) =>
-        r.filepath.includes("src/services/notification.ts")
+        r.filepath.includes('src/services/notification.ts')
       );
 
       expect(notifPos).toBeGreaterThanOrEqual(0);
       expect(notifPos).toBeLessThan(3);
     });
 
-    test("should find email.ts for email template query", async () => {
+    test('should find email.ts for email template query', async () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "email template password reset",
+        'email template password reset',
         {
           topK: 10,
           minScore: 0.01,
@@ -696,18 +696,18 @@ The system uses JWT tokens for session management.
       );
 
       const emailPos = results.findIndex((r) =>
-        r.filepath.includes("src/services/email.ts")
+        r.filepath.includes('src/services/email.ts')
       );
 
       expect(emailPos).toBeGreaterThanOrEqual(0);
       expect(emailPos).toBeLessThan(3);
     });
 
-    test("should distinguish between notification and email for welcome message", async () => {
+    test('should distinguish between notification and email for welcome message', async () => {
       // email.ts has sendWelcomeEmail, notification.ts does not
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "`sendWelcomeEmail`",
+        '`sendWelcomeEmail`',
         {
           topK: 10,
           minScore: 0.01,
@@ -715,10 +715,10 @@ The system uses JWT tokens for session management.
       );
 
       const emailPos = results.findIndex((r) =>
-        r.filepath.includes("src/services/email.ts")
+        r.filepath.includes('src/services/email.ts')
       );
       const notifPos = results.findIndex((r) =>
-        r.filepath.includes("src/services/notification.ts")
+        r.filepath.includes('src/services/notification.ts')
       );
 
       expect(emailPos).toBe(0); // email.ts should be first
@@ -731,11 +731,11 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 10: Expanded codebase - Cryptographic utilities
   // --------------------------------------------------------------------------
-  describe("Expanded codebase - Crypto utilities", () => {
-    test("should find crypto.ts for encryption query", async () => {
+  describe('Expanded codebase - Crypto utilities', () => {
+    test('should find crypto.ts for encryption query', async () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "encrypt decrypt AES",
+        'encrypt decrypt AES',
         {
           topK: 10,
           minScore: 0.01,
@@ -743,38 +743,38 @@ The system uses JWT tokens for session management.
       );
 
       const cryptoPos = results.findIndex((r) =>
-        r.filepath.includes("src/utils/crypto.ts")
+        r.filepath.includes('src/utils/crypto.ts')
       );
 
       expect(cryptoPos).toBeGreaterThanOrEqual(0);
       expect(cryptoPos).toBeLessThan(3);
     });
 
-    test("should find crypto.ts for HMAC verification", async () => {
-      const results = await raggrep.search(SIMULATION_DIR, "`generateHMAC`", {
+    test('should find crypto.ts for HMAC verification', async () => {
+      const results = await raggrep.search(SIMULATION_DIR, '`generateHMAC`', {
         topK: 10,
         minScore: 0.01,
       });
 
       const cryptoPos = results.findIndex((r) =>
-        r.filepath.includes("src/utils/crypto.ts")
+        r.filepath.includes('src/utils/crypto.ts')
       );
 
       expect(cryptoPos).toBe(0);
     });
 
-    test("should find login.ts for hashPassword (not crypto.ts)", async () => {
+    test('should find login.ts for hashPassword (not crypto.ts)', async () => {
       // hashPassword is in login.ts, not crypto.ts
-      const results = await raggrep.search(SIMULATION_DIR, "`hashPassword`", {
+      const results = await raggrep.search(SIMULATION_DIR, '`hashPassword`', {
         topK: 10,
         minScore: 0.01,
       });
 
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
       const cryptoPos = results.findIndex((r) =>
-        r.filepath.includes("src/utils/crypto.ts")
+        r.filepath.includes('src/utils/crypto.ts')
       );
 
       expect(loginPos).toBe(0);
@@ -787,11 +787,11 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 11: Expanded codebase - Products API (distractor)
   // --------------------------------------------------------------------------
-  describe("Expanded codebase - Products API isolation", () => {
-    test("should find products.ts for inventory query", async () => {
+  describe('Expanded codebase - Products API isolation', () => {
+    test('should find products.ts for inventory query', async () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "product inventory stock",
+        'product inventory stock',
         {
           topK: 10,
           minScore: 0.01,
@@ -799,18 +799,18 @@ The system uses JWT tokens for session management.
       );
 
       const productsPos = results.findIndex((r) =>
-        r.filepath.includes("src/api/routes/products.ts")
+        r.filepath.includes('src/api/routes/products.ts')
       );
 
       expect(productsPos).toBeGreaterThanOrEqual(0);
       expect(productsPos).toBeLessThan(3);
     });
 
-    test("should NOT rank products.ts high for auth queries", async () => {
+    test('should NOT rank products.ts high for auth queries', async () => {
       // products.ts is unrelated to authentication
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "user authentication login",
+        'user authentication login',
         {
           topK: 10,
           minScore: 0.01,
@@ -818,7 +818,7 @@ The system uses JWT tokens for session management.
       );
 
       const productsPos = results.findIndex((r) =>
-        r.filepath.includes("src/api/routes/products.ts")
+        r.filepath.includes('src/api/routes/products.ts')
       );
 
       // products.ts should either not be in results or rank low
@@ -831,12 +831,12 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 12: Semantic Expansion with expanded codebase
   // --------------------------------------------------------------------------
-  describe("Semantic Expansion with expanded codebase", () => {
-    test("should still find method when searching for function", async () => {
+  describe('Semantic Expansion with expanded codebase', () => {
+    test('should still find method when searching for function', async () => {
       // Tests that SSE still works with more files
       const results = await raggrep.search(
         SIMULATION_DIR,
-        "authentication function verify",
+        'authentication function verify',
         {
           topK: 10,
           minScore: 0.01,
@@ -846,22 +846,22 @@ The system uses JWT tokens for session management.
       // Should find auth-related files
       const authFiles = results.filter(
         (r) =>
-          r.filepath.includes("src/auth/") ||
-          r.filepath.includes("middleware/auth")
+          r.filepath.includes('src/auth/') ||
+          r.filepath.includes('middleware/auth')
       );
 
       expect(authFiles.length).toBeGreaterThan(0);
     });
 
-    test("should expand auth to authentication when searching", async () => {
+    test('should expand auth to authentication when searching', async () => {
       // Search for "auth" should still find authentication-related files
-      const results = await raggrep.search(SIMULATION_DIR, "auth session", {
+      const results = await raggrep.search(SIMULATION_DIR, 'auth session', {
         topK: 10,
         minScore: 0.01,
       });
 
       const sessionPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/session.ts")
+        r.filepath.includes('src/auth/session.ts')
       );
 
       expect(sessionPos).toBeGreaterThanOrEqual(0);
@@ -872,19 +872,19 @@ The system uses JWT tokens for session management.
   // --------------------------------------------------------------------------
   // Test 13: Multiple competing files for same concept
   // --------------------------------------------------------------------------
-  describe("Multiple competing files", () => {
-    test("should rank login.ts higher than oauth.ts for JWT token", async () => {
+  describe('Multiple competing files', () => {
+    test('should rank login.ts higher than oauth.ts for JWT token', async () => {
       // Both files use JWT, but login.ts is more about JWT tokens
-      const results = await raggrep.search(SIMULATION_DIR, "JWT token sign", {
+      const results = await raggrep.search(SIMULATION_DIR, 'JWT token sign', {
         topK: 10,
         minScore: 0.01,
       });
 
       const loginPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/login.ts")
+        r.filepath.includes('src/auth/login.ts')
       );
       const oauthPos = results.findIndex((r) =>
-        r.filepath.includes("src/auth/oauth.ts")
+        r.filepath.includes('src/auth/oauth.ts')
       );
 
       expect(loginPos).toBeGreaterThanOrEqual(0);
@@ -895,17 +895,17 @@ The system uses JWT tokens for session management.
       expect(oauthPos).toBeLessThan(5);
     });
 
-    test("should find both users.ts and products.ts for API routes query", async () => {
-      const results = await raggrep.search(SIMULATION_DIR, "API routes CRUD", {
+    test('should find both users.ts and products.ts for API routes query', async () => {
+      const results = await raggrep.search(SIMULATION_DIR, 'API routes CRUD', {
         topK: 10,
         minScore: 0.01,
       });
 
       const usersPos = results.findIndex((r) =>
-        r.filepath.includes("src/api/routes/users.ts")
+        r.filepath.includes('src/api/routes/users.ts')
       );
       const productsPos = results.findIndex((r) =>
-        r.filepath.includes("src/api/routes/products.ts")
+        r.filepath.includes('src/api/routes/products.ts')
       );
 
       // Both should be found
