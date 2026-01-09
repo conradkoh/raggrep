@@ -208,7 +208,113 @@ describe("RAGgrep Integration Tests", () => {
   });
 
   // --------------------------------------------------------------------------
-  // Test 3: Source code should rank higher than documentation
+  // Test 3: Nested folder path context in markdown files
+  // Reproduces issue: file at dynamodb/guides/adopt.md not matching "dynamodb stream"
+  // --------------------------------------------------------------------------
+  describe("Nested folder path context for markdown", () => {
+    const testFile = "test-files/dynamodb/guides/adopt.md";
+
+    afterAll(async () => {
+      await removeTestFile(testFile);
+      // Clean up directories
+      try {
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/dynamodb/guides"));
+        await fs.rmdir(path.join(SIMULATION_DIR, "test-files/dynamodb"));
+      } catch {
+        // Directories may not exist or not empty
+      }
+    });
+
+    test("should find markdown file by nested folder path term combined with content", async () => {
+      // Create a markdown file in dynamodb/guides/ folder with "streams" in content
+      // This tests that path segments like "dynamodb" are included in embeddings
+      await createTestFile(
+        testFile,
+        `# DynamoDB Adoption Guide
+
+This guide covers best practices for adopting DynamoDB in your application.
+
+## Overview
+
+DynamoDB is a managed NoSQL database service.
+
+## Event-Driven Architecture
+
+Line 91: Learn about streams and how to use them effectively.
+Streams enable real-time data processing and event-driven workflows.
+`
+      );
+
+      // Index the simulation directory
+      const indexResults = await raggrep.index(SIMULATION_DIR);
+      expect(indexResults.length).toBeGreaterThan(0);
+
+      // Search for "dynamodb stream" - combines folder path term + content term
+      const searchResults = await raggrep.search(
+        SIMULATION_DIR,
+        "dynamodb stream",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // Verify that the file is found
+      const adoptResult = searchResults.find((result) =>
+        result.filepath.includes("dynamodb/guides/adopt.md")
+      );
+
+      // Assert: file should be found
+      expect(adoptResult).toBeDefined();
+
+      // Assert: file should be ranked in top 5 results
+      const adoptFileIndex = searchResults.findIndex((result) =>
+        result.filepath.includes("dynamodb/guides/adopt.md")
+      );
+      expect(adoptFileIndex).toBeGreaterThanOrEqual(0);
+      expect(adoptFileIndex).toBeLessThan(5);
+    });
+
+    test("should find markdown file when searching for path segment alone", async () => {
+      // Search for just "dynamodb" - the folder name
+      const searchResults = await raggrep.search(SIMULATION_DIR, "dynamodb", {
+        topK: 10,
+        minScore: 0.01,
+      });
+
+      // Verify that the file in dynamodb folder is found
+      const adoptResult = searchResults.find((result) =>
+        result.filepath.includes("dynamodb/guides/adopt.md")
+      );
+
+      // Assert: file should be found by folder path term
+      expect(adoptResult).toBeDefined();
+    });
+
+    test("should include path context in markdown chunk embeddings", async () => {
+      // Search combining path term + title term + content term
+      const searchResults = await raggrep.search(
+        SIMULATION_DIR,
+        "dynamodb adoption streams",
+        {
+          topK: 10,
+          minScore: 0.01,
+        }
+      );
+
+      // The file should rank very high since it matches on multiple dimensions
+      const adoptFileIndex = searchResults.findIndex((result) =>
+        result.filepath.includes("dynamodb/guides/adopt.md")
+      );
+
+      // Assert: should be in top 3 for this highly specific query
+      expect(adoptFileIndex).toBeGreaterThanOrEqual(0);
+      expect(adoptFileIndex).toBeLessThan(3);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Test 4: Source code should rank higher than documentation
   // --------------------------------------------------------------------------
   describe("Source code vs documentation ranking", () => {
     const authSourceFile = "test-files/src/auth/login.ts";
