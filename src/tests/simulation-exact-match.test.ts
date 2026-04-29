@@ -437,15 +437,10 @@ describe("Simulation: Exact Match Variable Name Scoring", () => {
     await raggrep.index(SIMULATION_DIR);
   });
 
-  afterAll(async () => {
+  afterAll(() => {
     restoreConsole();
-
-    // Clean up simulation directory
-    try {
-      await fs.rm(SIMULATION_DIR, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+    // Do not delete SIMULATION_DIR here — sibling describes (Stress, Debug, Edge
+    // Cases) reuse it. Cleanup runs in "Edge Cases" afterAll.
   });
 
   describe("SCREAMING_SNAKE_CASE exact match should rank first", () => {

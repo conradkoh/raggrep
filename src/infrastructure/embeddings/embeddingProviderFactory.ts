@@ -8,7 +8,6 @@ import type {
   EmbeddingRuntime,
 } from "../../domain/ports";
 import { HuggingFaceTransformersEmbeddingProvider } from "./huggingfaceEmbeddingProvider";
-import { XenovaTransformersEmbeddingProvider } from "./xenovaEmbeddingProvider";
 
 function resolveRuntime(config: EmbeddingConfig): EmbeddingRuntime {
   return config.runtime ?? "huggingface";
@@ -17,13 +16,21 @@ function resolveRuntime(config: EmbeddingConfig): EmbeddingRuntime {
 /**
  * Instantiate the embedding adapter matching {@link EmbeddingConfig.runtime}.
  * Defaults to `@huggingface/transformers` when `runtime` is omitted.
+ *
+ * `@xenova/transformers` is loaded only when {@link EmbeddingConfig.runtime}
+ * is `"xenova"`. Loading both Xenova and Hugging Face stacks in one process
+ * pulls two different native `sharp`/libvips builds and can crash on macOS
+ * (duplicate Objective‑C classes, malloc errors after shutdown).
  */
-export function createEmbeddingProvider(
+export async function createEmbeddingProvider(
   config: EmbeddingConfig
-): EmbeddingProvider {
+): Promise<EmbeddingProvider> {
   const runtime = resolveRuntime(config);
   if (runtime === "huggingface") {
     return new HuggingFaceTransformersEmbeddingProvider(config);
   }
+  const { XenovaTransformersEmbeddingProvider } = await import(
+    "./xenovaEmbeddingProvider.js"
+  );
   return new XenovaTransformersEmbeddingProvider(config);
 }
