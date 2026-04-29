@@ -70,8 +70,14 @@ export type {
   HybridSearchResults,
   Chunk,
   FileIndex,
+  RankingWeightsPartial,
+  RankingWeightsConfig,
 } from "./types";
 export type { Logger, LoggerFactory } from "./domain/ports";
+export {
+  mergeRankingWeights,
+  DEFAULT_RANKING_WEIGHTS,
+} from "./domain/entities";
 
 // Re-export logger implementations and factories
 export {

@@ -104,6 +104,14 @@ export class BM25Index {
   }
 
   /**
+   * IDF for a term in this index (same formula as BM25 scoring).
+   * Returns 0 if the term does not appear in any indexed document.
+   */
+  getInverseDocumentFrequency(term: string): number {
+    return this.idf(term.toLowerCase());
+  }
+
+  /**
    * Calculate BM25 score for a document given query terms.
    */
   private score(tokens: string[], queryTerms: string[]): number {

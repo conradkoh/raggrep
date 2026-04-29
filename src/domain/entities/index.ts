@@ -40,6 +40,22 @@ export type {
 } from "./searchResult";
 export { DEFAULT_SEARCH_OPTIONS } from "./searchResult";
 
+// Ranking — numeric tuning inputs for hybrid search
+export type {
+  DiscriminativeWeights,
+  TypeScriptRankingWeights,
+  LanguageRankingWeights,
+  MarkdownRankingWeights,
+  JsonRankingWeights,
+  RankingWeightsConfig,
+  RankingWeightsPartial,
+} from "./rankingWeights";
+export {
+  DEFAULT_RANKING_WEIGHTS,
+  DEFAULT_DISCRIMINATIVE_WEIGHTS,
+  mergeRankingWeights,
+} from "./rankingWeights";
+
 // Config - Application configuration
 export type { Config, ModuleConfig } from "./config";
 export {

@@ -39,6 +39,7 @@ import {
   PHRASE_MATCH_CONSTANTS,
   // Path context injection
   prepareChunkForEmbedding,
+  scoreDiscriminativeTerms,
   extractPathKeywordsForFileSummary,
   getPathContextForFileSummary,
 } from "../../../domain/services";
@@ -46,6 +47,7 @@ import {
   getEmbeddingConfigFromModule,
   getRaggrepDir,
 } from "../../../infrastructure/config";
+import { mergeRankingWeights } from "../../../domain/entities";
 import { SymbolicIndex } from "../../../infrastructure/storage";
 import type { EmbeddingConfig, Logger } from "../../../domain/ports";
 import type { FileSummary, ChunkType } from "../../../domain/entities";
@@ -55,12 +57,6 @@ export const DEFAULT_MIN_SCORE = 0.15;
 
 /** Default number of results to return */
 export const DEFAULT_TOP_K = 10;
-
-/** Weight for semantic similarity in hybrid scoring (0-1) */
-const SEMANTIC_WEIGHT = 0.7;
-
-/** Weight for BM25 keyword matching in hybrid scoring (0-1) */
-const BM25_WEIGHT = 0.3;
 
 /**
  * Calculate boost based on heading level.
@@ -517,6 +513,9 @@ export class MarkdownModule implements IndexModule {
       filePatterns,
     } = options;
 
+    const rw = mergeRankingWeights(options.rankingWeights);
+    const mw = rw.markdown;
+
     const indexDir = getRaggrepDir(ctx.rootDir, ctx.config);
     const symbolicIndex = new SymbolicIndex(indexDir, this.id);
 
@@ -607,28 +606,41 @@ export class MarkdownModule implements IndexModule {
           ].includes(t)
         )
       ) {
-        docBoost = 0.05;
+        docBoost = mw.docIntentBoost;
       }
 
-      // Boost for more specific sections
-      const headingBoost = calculateHeadingLevelBoost(chunk);
+      const rawHeadingBoost = calculateHeadingLevelBoost(chunk);
+      const headingBoost =
+        rawHeadingBoost *
+        (mw.headingPhraseCoverageMin +
+          mw.headingPhraseCoverageSpan *
+            (phraseMatch.totalTokenCount > 0 ? phraseMatch.coverage : 1));
 
       const hybridScore =
-        SEMANTIC_WEIGHT * semanticScore +
-        BM25_WEIGHT * bm25Score +
+        mw.semantic * semanticScore +
+        mw.bm25 * bm25Score +
         docBoost +
         headingBoost +
         phraseMatch.boost; // Add phrase match boost
 
+      const disc = scoreDiscriminativeTerms(
+        bm25Index,
+        query,
+        chunk.content,
+        chunk.name,
+        rw.discriminative
+      );
+      const finalScore = (hybridScore + disc.boost) * disc.penaltyFactor;
+
       if (
-        hybridScore >= minScore ||
+        finalScore >= minScore ||
         bm25Score > 0.3 ||
         phraseMatch.isSignificant // Include chunks with exact phrase or high token coverage
       ) {
         results.push({
           filepath,
           chunk,
-          score: hybridScore,
+          score: finalScore,
           moduleId: this.id,
           context: {
             semanticScore,
@@ -638,6 +650,10 @@ export class MarkdownModule implements IndexModule {
             docBoost,
             headingBoost,
             headingLevel: (chunk.metadata as any)?.headingLevel,
+            discriminativeCoverage: disc.salientCoverage,
+            discriminativePenaltyFactor: disc.penaltyFactor,
+            discriminativeBoost: disc.boost,
+            matchedSalientTerms: disc.matchedSalient,
           },
         });
       }

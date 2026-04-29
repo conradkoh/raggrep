@@ -52,6 +52,7 @@ import {
   PHRASE_MATCH_CONSTANTS,
   // Path context injection (unified utility)
   prepareChunkForEmbedding,
+  scoreDiscriminativeTerms,
   extractPathKeywordsForFileSummary,
   getPathContextForFileSummary,
 } from "../../../domain/services";
@@ -67,24 +68,13 @@ import type {
   ExtractedLiteral,
   LiteralMatch,
 } from "../../../domain/entities";
+import { mergeRankingWeights } from "../../../domain/entities";
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
 
 /** Default number of results to return */
 export const DEFAULT_TOP_K = 10;
-
-/** Weight for semantic similarity in hybrid scoring (0-1) */
-const SEMANTIC_WEIGHT = 0.6;
-
-/** Weight for BM25 keyword matching in hybrid scoring (0-1) */
-const BM25_WEIGHT = 0.25;
-
-/** Weight for vocabulary matching in hybrid scoring (0-1) */
-const VOCAB_WEIGHT = 0.15;
-
-/** Minimum vocabulary overlap score to bypass minScore filter */
-const VOCAB_THRESHOLD = 0.4;
 
 /** File extensions supported by this module */
 export const TYPESCRIPT_EXTENSIONS = [
@@ -411,6 +401,9 @@ export class TypeScriptModule implements IndexModule {
       filePatterns,
     } = options;
 
+    const rw = mergeRankingWeights(options.rankingWeights);
+    const tw = rw.typescript;
+
     // Parse query for literals (explicit backticks/quotes and implicit casing)
     const { literals: queryLiterals, remainingQuery } =
       parseQueryLiterals(query);
@@ -604,9 +597,9 @@ export class TypeScriptModule implements IndexModule {
 
       // Base hybrid score: weighted combination of semantic, BM25, and vocabulary
       const baseScore =
-        SEMANTIC_WEIGHT * semanticScore +
-        BM25_WEIGHT * bm25Score +
-        VOCAB_WEIGHT * vocabScore;
+        tw.semantic * semanticScore +
+        tw.bm25 * bm25Score +
+        tw.vocab * vocabScore;
 
       // Apply literal boosting (multiplicative)
       const literalMatches = literalMatchMap.get(chunk.id) || [];
@@ -618,20 +611,28 @@ export class TypeScriptModule implements IndexModule {
 
       // Final score = boosted base score + additive boosts
       const finalScore = boostedScore + additiveBoost;
+      const disc = scoreDiscriminativeTerms(
+        bm25Index,
+        query,
+        chunk.content,
+        chunk.name,
+        rw.discriminative
+      );
+      const adjustedScore = (finalScore + disc.boost) * disc.penaltyFactor;
 
       processedChunkIds.add(chunk.id);
 
       if (
-        finalScore >= minScore ||
+        adjustedScore >= minScore ||
         bm25Score > 0.3 ||
         literalMatches.length > 0 ||
-        vocabScore > VOCAB_THRESHOLD || // Include chunks with significant vocabulary overlap
+        vocabScore > tw.vocabBypassThreshold || // Include chunks with significant vocabulary overlap
         phraseMatch.isSignificant // Include chunks with exact phrase or high token coverage
       ) {
         results.push({
           filepath,
           chunk,
-          score: finalScore,
+          score: adjustedScore,
           moduleId: this.id,
           context: {
             semanticScore,
@@ -643,6 +644,10 @@ export class TypeScriptModule implements IndexModule {
             fileTypeBoost,
             chunkTypeBoost,
             exportBoost,
+            discriminativeCoverage: disc.salientCoverage,
+            discriminativePenaltyFactor: disc.penaltyFactor,
+            discriminativeBoost: disc.boost,
+            matchedSalientTerms: disc.matchedSalient,
             // Literal boosting context
             literalMultiplier: literalContribution.multiplier,
             literalMatchType: literalContribution.bestMatchType,
@@ -735,9 +740,9 @@ export class TypeScriptModule implements IndexModule {
         // Use LITERAL_SCORING_CONSTANTS.BASE_SCORE as base for literal-only
         const baseScore =
           semanticScore > 0
-            ? SEMANTIC_WEIGHT * semanticScore +
-              BM25_WEIGHT * bm25Score +
-              VOCAB_WEIGHT * vocabScore
+            ? tw.semantic * semanticScore +
+              tw.bm25 * bm25Score +
+              tw.vocab * vocabScore
             : LITERAL_SCORING_CONSTANTS.BASE_SCORE;
 
         const boostedScore = applyLiteralBoost(
@@ -746,13 +751,21 @@ export class TypeScriptModule implements IndexModule {
           semanticScore > 0
         );
         const finalScore = boostedScore + additiveBoost;
+        const disc = scoreDiscriminativeTerms(
+          bm25Index,
+          query,
+          chunk.content,
+          chunk.name,
+          rw.discriminative
+        );
+        const adjustedScore = (finalScore + disc.boost) * disc.penaltyFactor;
 
         processedChunkIds.add(chunkId);
 
         results.push({
           filepath,
           chunk,
-          score: finalScore,
+          score: adjustedScore,
           moduleId: this.id,
           context: {
             semanticScore,
@@ -764,6 +777,10 @@ export class TypeScriptModule implements IndexModule {
             fileTypeBoost,
             chunkTypeBoost,
             exportBoost,
+            discriminativeCoverage: disc.salientCoverage,
+            discriminativePenaltyFactor: disc.penaltyFactor,
+            discriminativeBoost: disc.boost,
+            matchedSalientTerms: disc.matchedSalient,
             literalMultiplier: literalContribution.multiplier,
             literalMatchType: literalContribution.bestMatchType,
             literalConfidence: literalContribution.bestConfidence,

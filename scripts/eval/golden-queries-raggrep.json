@@ -1,0 +1,28 @@
+{
+  "dataset": "raggrep-repository",
+  "repoUrl": "local",
+  "pinnedCommit": "n/a",
+  "description": "Regression queries for ranking changes; paths are repo-relative (POSIX). Same schema as scripts/eval/golden-queries-next-convex.json.",
+  "queries": [
+    {
+      "id": "hf-embedding-init",
+      "query": "huggingface embedding provider initialization factory entry point",
+      "expectedPaths": ["src/infrastructure/embeddings/embeddingProviderFactory.ts"]
+    },
+    {
+      "id": "bm25-retrieval",
+      "query": "BM25 inverse document frequency keyword scoring normalizeScore",
+      "expectedPaths": ["src/domain/services/bm25.ts"]
+    },
+    {
+      "id": "default-config-modules",
+      "query": "createDefaultConfig enabled modules typescript markdown",
+      "expectedPaths": ["src/domain/entities/config.ts"]
+    },
+    {
+      "id": "hybrid-search-cli",
+      "query": "hybridSearch aggregate modules search results topK",
+      "expectedPaths": ["src/app/search/index.ts"]
+    }
+  ]
+}

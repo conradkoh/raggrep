@@ -28,6 +28,8 @@ export type {
   ExactMatchFile,
   ExactMatchResults,
   HybridSearchResults,
+  RankingWeightsPartial,
+  RankingWeightsConfig,
 } from "./domain/entities";
 
 export {

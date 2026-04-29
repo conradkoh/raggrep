@@ -5,6 +5,7 @@
  */
 
 import type { Chunk } from "./chunk";
+import type { RankingWeightsPartial } from "./rankingWeights";
 
 /**
  * Contribution from the core index.
@@ -115,6 +116,12 @@ export interface SearchOptions {
    * Set to false if you've already ensured freshness or want explicit control.
    */
   ensureFresh?: boolean;
+
+  /**
+   * Optional overrides for hybrid retrieval weights (merged with
+   * {@link DEFAULT_RANKING_WEIGHTS}). Intended for benchmarks and tuning.
+   */
+  rankingWeights?: RankingWeightsPartial;
 }
 
 /**
@@ -126,6 +133,7 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   filePatterns: [],
   pathFilter: [],
   ensureFresh: true,
+  rankingWeights: {},
 };
 
 // ============================================================================

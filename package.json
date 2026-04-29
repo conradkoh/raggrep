@@ -31,6 +31,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "bench:embeddings": "bun run scripts/benchmark-embedding-runtimes.ts",
     "bench:retrieval": "bun run scripts/benchmark-retrieval-quality.ts",
+    "eval:golden": "bun run scripts/eval/run-golden-queries.ts",
     "dev": "bun run src/app/cli/main.ts"
   },
   "keywords": [
