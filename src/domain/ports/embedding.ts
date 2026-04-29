@@ -32,7 +32,7 @@ export interface EmbeddingConfig {
   model: EmbeddingModelName;
   /**
    * Embedding runtime (`@xenova/transformers` vs `@huggingface/transformers`).
-   * Defaults to `xenova` when omitted (backward compatible).
+   * Defaults to `huggingface` when omitted.
    */
   runtime?: EmbeddingRuntime;
   /** Whether to show progress during model loading (deprecated, use logger instead) */

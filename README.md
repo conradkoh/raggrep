@@ -277,8 +277,8 @@ Indexing uses Transformers.js–style **local ONNX** models. Unless you change `
 
 | | Default |
 |---|--------|
-| **Runtime** | **`xenova`** (`@xenova/transformers`). Set `embeddingRuntime` to `"huggingface"` on a module in `.raggrep/config.json` to use `@huggingface/transformers` instead. |
-| **Model** | **`all-MiniLM-L6-v2`** on each embedding-backed module (TypeScript, Python, Go, Rust, JSON, markdown). |
+| **Runtime** | **`huggingface`** (`@huggingface/transformers`). Set `embeddingRuntime` to `"xenova"` on a module in `.raggrep/config.json` to use `@xenova/transformers` instead. |
+| **Model** | **`bge-small-en-v1.5`** on each embedding-backed module (TypeScript, Python, Go, Rust, JSON, markdown). |
 
 **Benchmarks** (clone [next-convex-starter-app](https://github.com/conradkoh/next-convex-starter-app) at a pinned commit; see each script for options):
 

@@ -11,12 +11,12 @@ import { HuggingFaceTransformersEmbeddingProvider } from "./huggingfaceEmbedding
 import { XenovaTransformersEmbeddingProvider } from "./xenovaEmbeddingProvider";
 
 function resolveRuntime(config: EmbeddingConfig): EmbeddingRuntime {
-  return config.runtime ?? "xenova";
+  return config.runtime ?? "huggingface";
 }
 
 /**
  * Instantiate the embedding adapter matching {@link EmbeddingConfig.runtime}.
- * Defaults to `@xenova/transformers` when `runtime` is omitted.
+ * Defaults to `@huggingface/transformers` when `runtime` is omitted.
  */
 export function createEmbeddingProvider(
   config: EmbeddingConfig

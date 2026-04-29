@@ -219,7 +219,7 @@ Usage:
 Options:
   -C, --dir <path>         Project directory to index (default: current directory)
   -w, --watch              Watch for file changes and re-index automatically
-  -m, --model <name>       Override embedding model for the TypeScript module (default: saved config, else all-MiniLM-L6-v2)
+  -m, --model <name>       Override embedding model for the TypeScript module (default: saved config, else bge-small-en-v1.5)
   -c, --concurrency <n>    Number of files to process in parallel (default: auto)
   -v, --verbose            Show detailed progress
   -h, --help               Show this help message
