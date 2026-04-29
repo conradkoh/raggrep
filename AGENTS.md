@@ -115,8 +115,7 @@ The infrastructure layer implements domain ports using external technologies.
 #### `src/infrastructure/embeddings/`
 
 - MUST contain embedding provider implementations
-- Currently: `TransformersEmbeddingProvider` using Transformers.js
-- Provides global API functions: `getEmbedding()`, `getEmbeddings()`, `configureEmbeddings()`
+- Currently: `XenovaTransformersEmbeddingProvider` and `HuggingFaceTransformersEmbeddingProvider` using `@xenova/transformers` / `@huggingface/transformers`; `createEmbeddingProvider()` selects the adapter; global API: `getEmbedding()`, `getEmbeddings()`, `configureEmbeddings()`
 
 #### `src/infrastructure/filesystem/`
 
@@ -182,7 +181,7 @@ Index modules are **cross-cutting concerns** that implement the `IndexModule` in
 
 ```typescript
 // ✅ CORRECT: Infrastructure implements domain port
-// src/infrastructure/embeddings/transformersEmbedding.ts
+// src/infrastructure/embeddings/xenovaEmbeddingProvider.ts
 import type { IEmbeddingProvider } from "../../domain/ports";
 
 // ✅ CORRECT: App uses domain and infrastructure

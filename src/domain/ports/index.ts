@@ -10,6 +10,7 @@ export type {
   EmbeddingProvider,
   EmbeddingConfig,
   EmbeddingModelName,
+  EmbeddingRuntime,
 } from "./embedding";
 export type { IndexStorage } from "./storage";
 export type { Logger, ProgressInfo, LoggerFactory } from "./logger";
