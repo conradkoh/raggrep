@@ -11,8 +11,18 @@ export { NodeFileSystem, nodeFileSystem } from "./filesystem";
 // Embeddings
 export {
   TransformersEmbeddingProvider,
+  XenovaTransformersEmbeddingProvider,
+  HuggingFaceTransformersEmbeddingProvider,
+  createEmbeddingProvider,
+  configureEmbeddings,
+  getEmbedding,
+  getEmbeddings,
+  getEmbeddingConfig,
   getCacheDir,
   isModelCached,
+  resetGlobalEmbeddingProvider,
+  EMBEDDING_MODEL_IDS,
+  EMBEDDING_DIMENSIONS,
 } from "./embeddings";
 
 // Storage

@@ -10,7 +10,14 @@ import * as fs from "fs/promises";
 import * as crypto from "crypto";
 import type { Config, ModuleConfig } from "../../domain/entities";
 import { createDefaultConfig } from "../../domain/entities";
-import type { EmbeddingConfig, EmbeddingModelName } from "../../domain/ports";
+import type {
+  EmbeddingConfig,
+  EmbeddingModelName,
+  EmbeddingRuntime,
+} from "../../domain/ports";
+import { EMBEDDING_MODELS } from "../embeddings/modelCatalog";
+
+export { EMBEDDING_MODELS };
 
 // ============================================================================
 // Constants
@@ -21,15 +28,6 @@ export const DEFAULT_CONFIG: Config = createDefaultConfig();
 
 /** Directory name for index data under the project (or CLI cwd) root */
 export const RAGGREP_INDEX_DIR = ".raggrep";
-
-/** Available embedding models (for validation) */
-export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
-  "all-MiniLM-L6-v2": "Xenova/all-MiniLM-L6-v2",
-  "all-MiniLM-L12-v2": "Xenova/all-MiniLM-L12-v2",
-  "bge-small-en-v1.5": "Xenova/bge-small-en-v1.5",
-  "paraphrase-MiniLM-L3-v2": "Xenova/paraphrase-MiniLM-L3-v2",
-  "nomic-embed-text-v1.5": "nomic-ai/nomic-embed-text-v1.5",
-};
 
 // ============================================================================
 // Path Utilities (pure functions)
@@ -191,8 +189,19 @@ export function getEmbeddingConfigFromModule(
     return { model: "bge-small-en-v1.5" };
   }
 
+  const rt = options.embeddingRuntime as string | undefined;
+  let runtime: EmbeddingRuntime | undefined;
+  if (rt === "xenova" || rt === "huggingface") {
+    runtime = rt;
+  } else if (rt !== undefined) {
+    console.warn(
+      `Unknown embeddingRuntime: ${rt}, falling back to default (xenova)`
+    );
+  }
+
   return {
     model: modelName as EmbeddingModelName,
+    ...(runtime ? { runtime } : {}),
     // Default to NO progress logs unless explicitly enabled
     showProgress: options.showProgress === true,
   };

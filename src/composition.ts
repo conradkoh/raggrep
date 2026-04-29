@@ -20,7 +20,6 @@ import type { IndexModule, IndexContext, SearchContext } from "./types";
 
 // Infrastructure implementations
 import { NodeFileSystem, nodeFileSystem } from "./infrastructure/filesystem";
-import { TransformersEmbeddingProvider } from "./infrastructure/embeddings";
 import { FileIndexStorage } from "./infrastructure/storage";
 
 // Module registry

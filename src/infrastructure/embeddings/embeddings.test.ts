@@ -4,7 +4,7 @@
 
 import { test, expect, describe } from "bun:test";
 import { cosineSimilarity } from "../../domain/services/similarity";
-import { EMBEDDING_MODELS, getCacheDir } from "./transformersEmbedding";
+import { EMBEDDING_MODELS, getCacheDir } from "./index";
 
 describe("cosineSimilarity", () => {
   test("returns 1 for identical vectors", () => {
