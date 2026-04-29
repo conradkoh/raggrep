@@ -8,10 +8,8 @@
 // FileSystem
 export { NodeFileSystem, nodeFileSystem } from "./filesystem";
 
-// Embeddings
+// Embeddings (Xenova: import from `./embeddings/xenovaEmbeddingProvider` — not barrel-exported)
 export {
-  TransformersEmbeddingProvider,
-  XenovaTransformersEmbeddingProvider,
   HuggingFaceTransformersEmbeddingProvider,
   createEmbeddingProvider,
   configureEmbeddings,

@@ -54,7 +54,7 @@ export function getEmbeddingConfig(): EmbeddingConfig {
 
 async function ensureGlobalProvider(): Promise<EmbeddingProvider> {
   if (!globalProvider) {
-    globalProvider = createEmbeddingProvider(globalConfig);
+    globalProvider = await createEmbeddingProvider(globalConfig);
     await globalProvider.initialize?.(globalConfig);
   }
   return globalProvider;

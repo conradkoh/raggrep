@@ -16,9 +16,12 @@ export {
 
 export { RAGGREP_MODEL_CACHE_DIR } from "./embeddingPaths";
 
-export { XenovaTransformersEmbeddingProvider } from "./xenovaEmbeddingProvider";
-/** @deprecated Use {@link XenovaTransformersEmbeddingProvider} */
-export { TransformersEmbeddingProvider } from "./xenovaEmbeddingProvider";
+/**
+ * Optional Xenova runtime: import {@link XenovaTransformersEmbeddingProvider} from
+ * `./xenovaEmbeddingProvider` only if you need it. Re-exporting it from this barrel
+ * would load `@xenova/transformers` for every CLI/SDK user and duplicate native
+ * `sharp`/libvips with the Hugging Face stack (crash on macOS).
+ */
 
 export { HuggingFaceTransformersEmbeddingProvider } from "./huggingfaceEmbeddingProvider";
 
