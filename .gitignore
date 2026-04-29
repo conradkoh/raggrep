@@ -38,3 +38,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # test scenarios (indexed data, not source files)
 scenarios/*/.raggrep/
+
+# benchmark output (regenerate with bun run bench:retrieval)
+scripts/benchmarks/*.result.md
