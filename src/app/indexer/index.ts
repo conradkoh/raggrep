@@ -1674,7 +1674,6 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   // Load config
   const config = await loadConfig(rootDir);
 
-  // Get index location (now in temp directory)
   const location = getIndexLocation(rootDir);
   const indexDir = location.indexDir;
 

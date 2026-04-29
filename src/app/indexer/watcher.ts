@@ -11,7 +11,7 @@
 
 import { watch, type FSWatcher } from 'chokidar';
 import * as path from 'path';
-import { loadConfig, getIndexLocation } from '../../infrastructure/config';
+import { loadConfig } from '../../infrastructure/config';
 import type { Config } from '../../domain/entities';
 import { indexDirectory, cleanupIndex, clearFreshnessCache, type IndexOptions, type IndexResult } from './index';
 
@@ -63,10 +63,7 @@ export async function watchDirectory(
   
   // Load config
   const config = await loadConfig(rootDir);
-  
-  // Get index location (now in temp directory, so no need to ignore in project)
-  const indexLocation = getIndexLocation(rootDir);
-  
+
   // Create a set of valid extensions for fast lookup
   const validExtensions = new Set(config.extensions);
   
@@ -75,6 +72,7 @@ export async function watchDirectory(
     ...config.ignorePaths.map(p => `**/${p}/**`),
     '**/node_modules/**',
     '**/.git/**',
+    '**/.raggrep/**',
   ];
   
   /**

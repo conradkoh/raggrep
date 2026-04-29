@@ -8,6 +8,7 @@ export {
   // Constants
   DEFAULT_CONFIG,
   EMBEDDING_MODELS,
+  RAGGREP_INDEX_DIR,
   // Path utilities
   getRaggrepDir,
   getIndexLocation,
