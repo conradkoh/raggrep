@@ -7,6 +7,8 @@
 export {
   EMBEDDING_MODEL_IDS,
   EMBEDDING_MODELS,
+  ALL_EMBEDDING_MODEL_NAMES,
+  BENCHMARK_MODEL_NAMES,
   EMBEDDING_DIMENSIONS,
   getEmbeddingModelId,
   getEmbeddingDimension,

@@ -41,3 +41,4 @@ scenarios/*/.raggrep/
 
 # benchmark output (regenerate with bun run bench:retrieval)
 scripts/benchmarks/*.result.md
+scripts/benchmarks/*.cache.json

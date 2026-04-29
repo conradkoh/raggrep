@@ -2,7 +2,8 @@
 /**
  * Embedding harness: clone a reference repo, sample real source texts, then
  * benchmark every (runtime × model) combination **sequentially** (one subprocess
- * at a time) for clean timings.
+ * at a time) for clean timings. Models are {@link BENCHMARK_MODEL_NAMES} (nomic
+ * omitted in the harness for now).
  *
  * On macOS, Transformers.js teardown may exit 134/139 after a successful run; the
  * parent accepts that when a RESULT line was parsed from stdout.
@@ -26,6 +27,7 @@ import type {
   EmbeddingModelName,
   EmbeddingRuntime,
 } from "../src/domain/ports";
+import { BENCHMARK_MODEL_NAMES } from "../src/infrastructure/embeddings/modelCatalog";
 
 /** Self path for respawning this script as a worker (portable; avoids Bun-only `import.meta.path`). */
 const SCRIPT_FILE = fileURLToPath(import.meta.url);
@@ -38,14 +40,6 @@ const DEFAULT_REPO_COMMIT =
   "7518c373c3a72279252cb9eaef54c1a936f1bd0c";
 
 const RUNTIMES: EmbeddingRuntime[] = ["xenova", "huggingface"];
-
-const MODELS: EmbeddingModelName[] = [
-  "all-MiniLM-L6-v2",
-  "all-MiniLM-L12-v2",
-  "bge-small-en-v1.5",
-  "paraphrase-MiniLM-L3-v2",
-  "nomic-embed-text-v1.5",
-];
 
 export interface BenchMetric {
   runtime: EmbeddingRuntime;
@@ -98,7 +92,7 @@ function buildHarnessCombinations(): Array<{
   const out: Array<{ runtime: EmbeddingRuntime; model: EmbeddingModelName }> =
     [];
   for (const runtime of RUNTIMES) {
-    for (const model of MODELS) {
+    for (const model of BENCHMARK_MODEL_NAMES) {
       out.push({ runtime, model });
     }
   }

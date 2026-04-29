@@ -17,6 +17,29 @@ export const EMBEDDING_MODEL_IDS: Record<EmbeddingModelName, string> = {
 /** Alias for imports that expect the historical name `EMBEDDING_MODELS` */
 export const EMBEDDING_MODELS = EMBEDDING_MODEL_IDS;
 
+/**
+ * Every {@link EmbeddingModelName}, in harness order.
+ * Used when a full model list is required; benchmarks use {@link BENCHMARK_MODEL_NAMES}.
+ */
+export const ALL_EMBEDDING_MODEL_NAMES: readonly EmbeddingModelName[] = [
+  "all-MiniLM-L6-v2",
+  "all-MiniLM-L12-v2",
+  "bge-small-en-v1.5",
+  "paraphrase-MiniLM-L3-v2",
+  "nomic-embed-text-v1.5",
+];
+
+/**
+ * Models run by `bench:embeddings` and `bench:retrieval` matrix.
+ * Omits `nomic-embed-text-v1.5` for now (heavy in the local harness).
+ */
+export const BENCHMARK_MODEL_NAMES: readonly EmbeddingModelName[] = [
+  "all-MiniLM-L6-v2",
+  "all-MiniLM-L12-v2",
+  "bge-small-en-v1.5",
+  "paraphrase-MiniLM-L3-v2",
+];
+
 /** Embedding vector dimension per model */
 export const EMBEDDING_DIMENSIONS: Record<EmbeddingModelName, number> = {
   "all-MiniLM-L6-v2": 384,

@@ -4,18 +4,26 @@
  * golden queries sequentially, record index + search timings and accuracy.
  * Writes `<benchmark-name>.result.md` (default under `scripts/benchmarks/`).
  *
- * Default compares **two** presets (same `huggingface` runtime, fair model-only
- * comparison):
- * - **Fast** — `paraphrase-MiniLM-L3-v2` (winner of `bench:embeddings` throughput)
- * - **Quality** — `bge-small-en-v1.5` (stronger retrieval default)
+ * **Default:** full matrix — every {@link EmbeddingRuntime} ×
+ * {@link BENCHMARK_MODEL_NAMES} (nomic omitted), one subprocess per cell.
+ * Results are merged into `<benchmark-name>.cache.json` so completed cells
+ * are skipped on re-run. Use `--fresh` to clear that cache first.
+ *
+ * **Optional:** `--compare-two` runs only `huggingface` + fastest vs strongest
+ * retrieval presets (`paraphrase-MiniLM-L3-v2` vs `bge-small-en-v1.5`).
  *
  * Usage:
  *   bun run bench:retrieval
- *   bun run scripts/benchmark-retrieval-quality.ts --benchmark-name my-run
- *   bun run scripts/benchmark-retrieval-quality.ts --matrix
+ *   bun run scripts/benchmark-retrieval-quality.ts --compare-two
+ *
+ *   bun run scripts/benchmark-retrieval-quality.ts --fresh
+ *
+ * Internal (one matrix cell):
+ *   bun run scripts/benchmark-retrieval-quality.ts --_worker-combo /path/to/payload.json
  */
 
 import * as fs from "fs/promises";
+import * as crypto from "node:crypto";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import type {
@@ -27,8 +35,10 @@ import { saveConfig } from "../src/infrastructure/config";
 import { indexDirectory } from "../src/app/indexer";
 import { hybridSearch } from "../src/app/search";
 import { resetGlobalEmbeddingProvider } from "../src/infrastructure/embeddings";
+import { BENCHMARK_MODEL_NAMES } from "../src/infrastructure/embeddings/modelCatalog";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const SCRIPT_FILE = fileURLToPath(import.meta.url);
 const GOLDEN_PATH = path.join(
   SCRIPT_DIR,
   "eval",
@@ -50,14 +60,6 @@ const PRESET_QUALITY = {
 };
 
 const RUNTIMES_MATRIX: EmbeddingRuntime[] = ["xenova", "huggingface"];
-
-const MODELS_MATRIX: EmbeddingModelName[] = [
-  "all-MiniLM-L6-v2",
-  "all-MiniLM-L12-v2",
-  "bge-small-en-v1.5",
-  "paraphrase-MiniLM-L3-v2",
-  "nomic-embed-text-v1.5",
-];
 
 interface GoldenFile {
   dataset: string;
@@ -89,6 +91,80 @@ interface ComboResult {
   queryCount: number;
 }
 
+const RETRIEVAL_CACHE_SCHEMA_VERSION = 1;
+
+interface RetrievalBenchmarkCache {
+  schemaVersion: number;
+  /** Stable when golden file, k, and query set are unchanged. */
+  goldenFingerprint: string;
+  /** `runtime|model` → last successful {@link ComboResult}. */
+  entries: Record<string, ComboResult>;
+  updatedAt?: string;
+}
+
+function goldenFingerprint(golden: GoldenFile, k: number): string {
+  return crypto
+    .createHash("sha256")
+    .update(`${golden.pinnedCommit}\0${k}\0${JSON.stringify(golden.queries)}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+function comboCacheKey(
+  runtime: EmbeddingRuntime,
+  model: EmbeddingModelName
+): string {
+  return `${runtime}|${model}`;
+}
+
+function emptyCache(fingerprint: string): RetrievalBenchmarkCache {
+  return {
+    schemaVersion: RETRIEVAL_CACHE_SCHEMA_VERSION,
+    goldenFingerprint: fingerprint,
+    entries: {},
+  };
+}
+
+function isCacheValid(
+  parsed: unknown,
+  fingerprint: string
+): parsed is RetrievalBenchmarkCache {
+  if (!parsed || typeof parsed !== "object") return false;
+  const c = parsed as RetrievalBenchmarkCache;
+  if (c.schemaVersion !== RETRIEVAL_CACHE_SCHEMA_VERSION) return false;
+  if (c.goldenFingerprint !== fingerprint) return false;
+  if (!c.entries || typeof c.entries !== "object") return false;
+  return true;
+}
+
+async function loadRetrievalCache(
+  cachePath: string,
+  fingerprint: string
+): Promise<RetrievalBenchmarkCache> {
+  try {
+    const raw = await fs.readFile(cachePath, "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (isCacheValid(parsed, fingerprint)) {
+      return parsed;
+    }
+  } catch {
+    // missing or corrupt
+  }
+  return emptyCache(fingerprint);
+}
+
+async function saveRetrievalCache(
+  cachePath: string,
+  cache: RetrievalBenchmarkCache
+): Promise<void> {
+  cache.updatedAt = new Date().toISOString();
+  const dir = path.dirname(cachePath);
+  await fs.mkdir(dir, { recursive: true });
+  const tmp = `${cachePath}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(cache, null, 2), "utf-8");
+  await fs.rename(tmp, cachePath);
+}
+
 function parseArg(name: string, fallback: number): number {
   const i = process.argv.indexOf(name);
   if (i === -1 || !process.argv[i + 1]) return fallback;
@@ -117,7 +193,7 @@ function buildMatrixCombinations(): Array<{
     model: EmbeddingModelName;
   }> = [];
   for (const runtime of RUNTIMES_MATRIX) {
-    for (const model of MODELS_MATRIX) {
+    for (const model of BENCHMARK_MODEL_NAMES) {
       out.push({
         presetLabel: `${runtime} / ${model}`,
         runtime,
@@ -239,6 +315,101 @@ function escapeMdCell(s: string): string {
   return s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
+interface ComboWorkerPayload {
+  workdir: string;
+  k: number;
+  presetLabel: string;
+  runtime: EmbeddingRuntime;
+  model: EmbeddingModelName;
+}
+
+function parseComboResultLine(stdout: string): ComboResult | null {
+  for (const line of stdout.split("\n")) {
+    const m = line.match(/^RESULT_JSON (.+)$/);
+    if (m) {
+      try {
+        return JSON.parse(m[1]) as ComboResult;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function comboWorkerExitOk(code: number, parsed: ComboResult | null): boolean {
+  if (code === 0) return true;
+  if (parsed != null && (code === 134 || code === 139)) return true;
+  return false;
+}
+
+async function runWorkerComboFromArgv(): Promise<void> {
+  try {
+    const idx = process.argv.indexOf("--_worker-combo");
+    const payloadPath = process.argv[idx + 1];
+    if (!payloadPath) {
+      console.error("Missing path after --_worker-combo");
+      process.exit(1);
+    }
+    const payload = JSON.parse(
+      await fs.readFile(payloadPath, "utf-8")
+    ) as ComboWorkerPayload;
+    const goldenRaw = await fs.readFile(GOLDEN_PATH, "utf-8");
+    const golden = JSON.parse(goldenRaw) as GoldenFile;
+    const repoRoot = await ensureRepo(payload.workdir, golden);
+    const result = await runOneCombo(
+      repoRoot,
+      golden,
+      payload.k,
+      payload.presetLabel,
+      payload.runtime,
+      payload.model
+    );
+    process.stdout.write(`RESULT_JSON ${JSON.stringify(result)}\n`);
+    await fs.unlink(payloadPath).catch(() => {});
+    await resetGlobalEmbeddingProvider();
+    process.exit(0);
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
+}
+
+async function runComboIsolated(
+  workdir: string,
+  golden: GoldenFile,
+  k: number,
+  presetLabel: string,
+  runtime: EmbeddingRuntime,
+  model: EmbeddingModelName,
+  payloadBaseName: string
+): Promise<ComboResult> {
+  const payload: ComboWorkerPayload = {
+    workdir,
+    k,
+    presetLabel,
+    runtime,
+    model,
+  };
+  const payloadPath = path.join(workdir, payloadBaseName);
+  await fs.writeFile(payloadPath, JSON.stringify(payload), "utf-8");
+
+  const proc = Bun.spawn({
+    cmd: ["bun", "run", SCRIPT_FILE, "--_worker-combo", payloadPath],
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+  const stdout = await new Response(proc.stdout).text();
+  const code = await proc.exited;
+  const parsed = parseComboResultLine(stdout);
+  if (!comboWorkerExitOk(code, parsed) || !parsed) {
+    throw new Error(
+      `Combo subprocess failed (exit ${code}) for ${runtime} + ${model}. Last stdout:\n${stdout.slice(-1200)}`
+    );
+  }
+  return parsed;
+}
+
 async function runOneCombo(
   repoRoot: string,
   golden: GoldenFile,
@@ -342,6 +513,11 @@ function pct01(x: number): string {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes("--_worker-combo")) {
+    await runWorkerComboFromArgv();
+    return;
+  }
+
   const workdir = parseArgString(
     "--workdir",
     path.join(process.env.TMPDIR || "/tmp", "raggrep-retrieval-eval")
@@ -355,16 +531,24 @@ async function main(): Promise<void> {
     path.join(SCRIPT_DIR, "benchmarks")
   );
   const outPath = path.join(outDir, `${benchmarkName}.result.md`);
-  const matrix = parseArgFlag("--matrix");
+  const cachePath = path.join(outDir, `${benchmarkName}.cache.json`);
+  const compareTwo = parseArgFlag("--compare-two");
+  const fresh = parseArgFlag("--fresh");
 
   const goldenRaw = await fs.readFile(GOLDEN_PATH, "utf-8");
   const golden = JSON.parse(goldenRaw) as GoldenFile;
+  const fingerprint = goldenFingerprint(golden, k);
+
+  if (fresh) {
+    await fs.unlink(cachePath).catch(() => {});
+  }
+
+  let cache = await loadRetrievalCache(cachePath, fingerprint);
 
   const repoRoot = await ensureRepo(workdir, golden);
 
-  const combinations = matrix
-    ? buildMatrixCombinations()
-    : [
+  const combinations = compareTwo
+    ? [
         {
           presetLabel: PRESET_FAST.presetLabel,
           runtime: PRESET_FAST.runtime,
@@ -375,21 +559,48 @@ async function main(): Promise<void> {
           runtime: PRESET_QUALITY.runtime,
           model: PRESET_QUALITY.model,
         },
-      ];
+      ]
+    : buildMatrixCombinations();
+
+  const useSubprocessPerCombo = !compareTwo;
 
   const comboResults: ComboResult[] = [];
   let i = 0;
   for (const { presetLabel, runtime, model } of combinations) {
     i += 1;
+    const key = comboCacheKey(runtime, model);
+    const cached = cache.entries[key];
+    if (cached) {
+      console.error(`[${i}/${combinations.length}] ${presetLabel} (cached)`);
+      comboResults.push(cached);
+      continue;
+    }
+
     console.error(`[${i}/${combinations.length}] ${presetLabel}`);
-    comboResults.push(
-      await runOneCombo(repoRoot, golden, k, presetLabel, runtime, model)
-    );
+    const safeName = `${i}-${runtime}-${model}`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const payloadName = `raggrep-retrieval-combo-${safeName}.json`;
+    let result: ComboResult;
+    if (useSubprocessPerCombo) {
+      result = await runComboIsolated(
+        workdir,
+        golden,
+        k,
+        presetLabel,
+        runtime,
+        model,
+        payloadName
+      );
+    } else {
+      result = await runOneCombo(repoRoot, golden, k, presetLabel, runtime, model);
+    }
+    cache.entries[key] = result;
+    await saveRetrievalCache(cachePath, cache);
+    comboResults.push(result);
   }
 
-  const sorted = matrix
-    ? sortComboResults(comboResults)
-    : orderDefaultCompare(comboResults);
+  const sorted = compareTwo
+    ? orderDefaultCompare(comboResults)
+    : sortComboResults(comboResults);
   const iso = new Date().toISOString();
 
   const lines: string[] = [];
@@ -402,19 +613,20 @@ async function main(): Promise<void> {
   lines.push(`- **Workdir:** \`${workdir}\``);
   lines.push(`- **Quality @k:** top-${k} chunks vs golden paths`);
   lines.push(
-    `- **Mode:** ${matrix ? "full matrix (\`--matrix\`)" : "fast vs quality (2 presets, both \`huggingface\` runtime)"}`
+    `- **Mode:** ${compareTwo ? "`--compare-two`: fast vs quality on `huggingface` only (in-process)" : `full matrix (${RUNTIMES_MATRIX.length} runtimes × ${BENCHMARK_MODEL_NAMES.length} models), one subprocess per cell`}`
   );
   lines.push(`- **Combinations:** ${combinations.length}`);
+  lines.push(`- **Cache:** \`${path.basename(cachePath)}\` (skip cells when fingerprint matches; \`--fresh\` clears)`);
   lines.push("");
   lines.push("## By model and runtime");
   lines.push("");
-  if (matrix) {
+  if (compareTwo) {
     lines.push(
-      "Sorted by **Score** (higher first), then faster **Retrieval total**, then faster **Index**."
+      "Rows are **Fast** then **Quality** (not re-sorted), both using `huggingface` runtime."
     );
   } else {
     lines.push(
-      "Rows are **Fast** then **Quality** (not re-sorted), both using `huggingface` runtime."
+      "Sorted by **Score** (higher first), then faster **Retrieval total**, then faster **Index**."
     );
   }
   lines.push("");
