@@ -264,7 +264,7 @@ const results = await raggrep.search("./my-project", "authentication");
 ## Notes
 
 - The SDK uses the same indexing logic as the CLI
-- Index is stored in a system temp directory (not in your project)
+- Index data lives under **`<project>/.raggrep/`** in the directory you pass to each API call
 - First search may take longer as the index is created
 - Subsequent searches are fast if files haven't changed
 - Default model is `bge-small-en-v1.5` (384 dimensions, ~33MB)
