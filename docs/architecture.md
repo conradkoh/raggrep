@@ -731,7 +731,7 @@ Adapters implementing domain ports.
 | Adapter                         | Port                | Implementation          |
 | ------------------------------- | ------------------- | ----------------------- |
 | `NodeFileSystem`                | `FileSystem`        | Node.js `fs` and `path` |
-| `TransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js         |
+| `XenovaTransformersEmbeddingProvider` / `HuggingFaceTransformersEmbeddingProvider` | `EmbeddingProvider` | Transformers.js (`@xenova/*`, `@huggingface/*`) |
 | `FileIndexStorage`              | `IndexStorage`      | JSON file storage       |
 | `LiteralIndex`                  | —                   | Literal → chunk mapping |
 | `SymbolicIndex`                 | —                   | BM25 + file metadata    |

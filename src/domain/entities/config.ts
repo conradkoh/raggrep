@@ -152,6 +152,12 @@ export const DEFAULT_EXTENSIONS = [
   ".txt",
 ];
 
+/** Default local embedding stack for embedding-backed modules (Transformers.js ONNX). */
+const DEFAULT_EMBEDDING_MODULE_OPTIONS = {
+  embeddingModel: "bge-small-en-v1.5",
+  embeddingRuntime: "huggingface",
+} as const;
+
 /**
  * Create a default configuration.
  */
@@ -170,44 +176,32 @@ export function createDefaultConfig(): Config {
       {
         id: "language/typescript",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
       {
         id: "language/python",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
       {
         id: "language/go",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
       {
         id: "language/rust",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
       {
         id: "data/json",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
       {
         id: "docs/markdown",
         enabled: true,
-        options: {
-          embeddingModel: "all-MiniLM-L6-v2",
-        },
+        options: { ...DEFAULT_EMBEDDING_MODULE_OPTIONS },
       },
     ],
   };

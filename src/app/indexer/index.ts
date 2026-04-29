@@ -128,8 +128,9 @@ async function parallelMap<T, R>(
  * - 1.0.0: Initial version
  * - 1.1.0: Changed default embedding model to bge-small-en-v1.5, added nomic-embed-text-v1.5
  * - 2.0.0: Tree-sitter integration, vocabulary extraction, README context, full file chunks, hierarchical markdown
+ * - 2.1.0: Default embedding preset is huggingface + bge-small-en-v1.5 (bump invalidates prior indexes for rebuild)
  */
-const INDEX_SCHEMA_VERSION = "2.0.0";
+const INDEX_SCHEMA_VERSION = "2.1.0";
 
 export interface IndexResult {
   moduleId: string;
@@ -1674,7 +1675,6 @@ export async function getIndexStatus(rootDir: string): Promise<IndexStatus> {
   // Load config
   const config = await loadConfig(rootDir);
 
-  // Get index location (now in temp directory)
   const location = getIndexLocation(rootDir);
   const indexDir = location.indexDir;
 

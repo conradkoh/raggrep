@@ -1,0 +1,58 @@
+{
+  "dataset": "next-convex-starter-app",
+  "repoUrl": "https://github.com/conradkoh/next-convex-starter-app.git",
+  "pinnedCommit": "7518c373c3a72279252cb9eaef54c1a936f1bd0c",
+  "description": "Hand-labeled retrieval targets at pinnedCommit. Paths are repo-relative (POSIX). Any path in expectedPaths counts as correct.",
+  "queries": [
+    {
+      "id": "schema-tables",
+      "query": "Where is the Convex defineSchema database schema with tables like appInfo and users?",
+      "expectedPaths": ["services/backend/convex/schema.ts"]
+    },
+    {
+      "id": "google-oauth-backend",
+      "query": "Google OAuth authentication setup in the Convex backend",
+      "expectedPaths": ["services/backend/convex/auth/google.ts"]
+    },
+    {
+      "id": "anonymous-login-ui",
+      "query": "button or UI to sign in anonymously without creating an account",
+      "expectedPaths": ["apps/webapp/src/modules/auth/AnonymousLoginButton.tsx"]
+    },
+    {
+      "id": "theme-provider",
+      "query": "React provider that applies dark mode or theme class to the application",
+      "expectedPaths": ["apps/webapp/src/modules/theme/ThemeProvider.tsx"]
+    },
+    {
+      "id": "checklist-sync",
+      "query": "hook that syncs checklist data with Convex in real time",
+      "expectedPaths": ["apps/webapp/src/modules/checklist/use-checklist-sync.ts"]
+    },
+    {
+      "id": "service-desk",
+      "query": "Convex mutations or queries for service desk tickets",
+      "expectedPaths": ["services/backend/convex/serviceDesk.ts"]
+    },
+    {
+      "id": "password-gate-context",
+      "query": "React context for password protected pages or routes",
+      "expectedPaths": ["apps/webapp/src/modules/password-protection/PasswordProtectContext.tsx"]
+    },
+    {
+      "id": "attendance-copy-dialog",
+      "query": "dialog component for copying attendance data to clipboard",
+      "expectedPaths": ["apps/webapp/src/modules/attendance/components/AttendanceCopyDialog.tsx"]
+    },
+    {
+      "id": "discussion-form",
+      "query": "form component to submit a new message in a discussion thread",
+      "expectedPaths": ["apps/webapp/src/modules/discussion/discussion-form.tsx"]
+    },
+    {
+      "id": "convex-migrations",
+      "query": "Convex migration runner or schema migration functions",
+      "expectedPaths": ["services/backend/convex/migrations.ts"]
+    }
+  ]
+}

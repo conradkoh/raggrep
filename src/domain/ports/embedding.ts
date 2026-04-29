@@ -19,11 +19,22 @@ export type EmbeddingModelName =
   | "nomic-embed-text-v1.5";
 
 /**
+ * Which Transformers.js distribution backs local embedding inference.
+ * Used by the composition root / factory to pick an adapter implementation.
+ */
+export type EmbeddingRuntime = "xenova" | "huggingface";
+
+/**
  * Configuration for embedding provider
  */
 export interface EmbeddingConfig {
   /** Model name to use */
   model: EmbeddingModelName;
+  /**
+   * Embedding runtime (`@xenova/transformers` vs `@huggingface/transformers`).
+   * Defaults to `huggingface` when omitted.
+   */
+  runtime?: EmbeddingRuntime;
   /** Whether to show progress during model loading (deprecated, use logger instead) */
   showProgress?: boolean;
   /** Logger for reporting download progress */

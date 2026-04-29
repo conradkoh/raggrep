@@ -7,11 +7,17 @@
 
 import * as path from "path";
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as crypto from "crypto";
 import type { Config, ModuleConfig } from "../../domain/entities";
 import { createDefaultConfig } from "../../domain/entities";
-import type { EmbeddingConfig, EmbeddingModelName } from "../../domain/ports";
+import type {
+  EmbeddingConfig,
+  EmbeddingModelName,
+  EmbeddingRuntime,
+} from "../../domain/ports";
+import { EMBEDDING_MODELS } from "../embeddings/modelCatalog";
+
+export { EMBEDDING_MODELS };
 
 // ============================================================================
 // Constants
@@ -20,17 +26,8 @@ import type { EmbeddingConfig, EmbeddingModelName } from "../../domain/ports";
 /** Default configuration instance */
 export const DEFAULT_CONFIG: Config = createDefaultConfig();
 
-/** Base directory for raggrep temp indexes */
-const RAGGREP_TEMP_BASE = path.join(os.tmpdir(), "raggrep-indexes");
-
-/** Available embedding models (for validation) */
-export const EMBEDDING_MODELS: Record<EmbeddingModelName, string> = {
-  "all-MiniLM-L6-v2": "Xenova/all-MiniLM-L6-v2",
-  "all-MiniLM-L12-v2": "Xenova/all-MiniLM-L12-v2",
-  "bge-small-en-v1.5": "Xenova/bge-small-en-v1.5",
-  "paraphrase-MiniLM-L3-v2": "Xenova/paraphrase-MiniLM-L3-v2",
-  "nomic-embed-text-v1.5": "nomic-ai/nomic-embed-text-v1.5",
-};
+/** Directory name for index data under the project (or CLI cwd) root */
+export const RAGGREP_INDEX_DIR = ".raggrep";
 
 // ============================================================================
 // Path Utilities (pure functions)
@@ -51,27 +48,18 @@ function hashPath(inputPath: string): string {
 /**
  * Get the index storage directory path.
  *
- * Index data is stored in a system temp directory to avoid cluttering
- * the user's project with index files. The temp path is derived from
- * a hash of the project's absolute path to ensure uniqueness.
+ * Index data is stored under `{rootDir}/.raggrep/`, where `rootDir` is the
+ * directory being indexed (for the CLI this is the current working directory).
  *
- * Structure: {tmpdir}/raggrep-indexes/{hash}/
- *
- * @param rootDir - Absolute path to the project root
+ * @param rootDir - Absolute or resolved path to the project root
  * @returns Absolute path to the index storage directory
  */
 export function getRaggrepDir(
   rootDir: string,
   _config: Config = DEFAULT_CONFIG
 ): string {
-  // Ensure we have an absolute path
   const absoluteRoot = path.resolve(rootDir);
-
-  // Generate a unique hash for this project
-  const projectHash = hashPath(absoluteRoot);
-
-  // Return the temp directory path
-  return path.join(RAGGREP_TEMP_BASE, projectHash);
+  return path.join(absoluteRoot, RAGGREP_INDEX_DIR);
 }
 
 /**
@@ -87,7 +75,7 @@ export function getIndexLocation(rootDir: string): {
   const projectHash = hashPath(absoluteRoot);
 
   return {
-    indexDir: path.join(RAGGREP_TEMP_BASE, projectHash),
+    indexDir: path.join(absoluteRoot, RAGGREP_INDEX_DIR),
     projectRoot: absoluteRoot,
     projectHash,
   };
@@ -129,8 +117,7 @@ export function getGlobalManifestPath(
 }
 
 /**
- * Get the config file path.
- * Note: Config is still stored in the temp index directory, not the project.
+ * Get the config file path (inside `.raggrep` under the project root).
  */
 export function getConfigPath(
   rootDir: string,
@@ -202,8 +189,19 @@ export function getEmbeddingConfigFromModule(
     return { model: "bge-small-en-v1.5" };
   }
 
+  const rt = options.embeddingRuntime as string | undefined;
+  let runtime: EmbeddingRuntime | undefined;
+  if (rt === "xenova" || rt === "huggingface") {
+    runtime = rt;
+  } else if (rt !== undefined) {
+    console.warn(
+      `Unknown embeddingRuntime: ${rt}, falling back to default (huggingface)`
+    );
+  }
+
   return {
     model: modelName as EmbeddingModelName,
+    ...(runtime ? { runtime } : {}),
     // Default to NO progress logs unless explicitly enabled
     showProgress: options.showProgress === true,
   };

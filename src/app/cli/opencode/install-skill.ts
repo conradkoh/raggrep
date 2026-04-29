@@ -80,19 +80,32 @@ pnpm add -g raggrep
 \`\`\`
 
 ### Step 1: Index your codebase
+
+Index data is written to **\`<project>/.raggrep/\`** inside the directory you target. Add \`.raggrep/\` to \`.gitignore\` if you do not want it in version control.
+
+From the repository root:
 \`\`\`bash
-# Navigate to your project directory and index it
 cd /path/to/your/project
 raggrep index
 \`\`\`
 
-### Step 2: Use semantic search
+Or pass the project path explicitly (no \`cd\` needed; same flag as \`git -C\`):
 \`\`\`bash
-# Search for specific functionality
+raggrep index --dir /path/to/your/project
+# short form:
+raggrep index -C ~/projects/my-app
+\`\`\`
+
+### Step 2: Use semantic search
+
+\`\`\`bash
+# Search for specific functionality (from project root, or use --dir / -C)
 raggrep query "user authentication"
+raggrep query -C /path/to/your/project "user authentication"
 
 # Search with filters
 raggrep query "React hooks for data fetching" --filter "src/components"
+raggrep query -C /path/to/your/project "React hooks" --filter "src/components"
 
 # Search with specific file types
 raggrep query "database connection" --type ts
@@ -100,6 +113,8 @@ raggrep query "database connection" --type ts
 # Get more results
 raggrep query "error handling" --top 15
 \`\`\`
+
+Use **\`-C\` / \`--dir\`** on \`raggrep query\`, \`raggrep index\`, \`raggrep status\`, and \`raggrep reset\` when the shell is not already in the repository root.
 
 ### Step 3: Use in OpenCode agents
 
@@ -136,6 +151,7 @@ Instead of using grep/rg or manually reading files:
 
 ✅ **DO this instead:**
 - \`raggrep query "Find the auth middleware"\` (finds ALL auth-related code)
+- \`raggrep query -C /path/to/repo "Find the auth middleware"\` (when not \`cd\`'d into the repo)
 - \`raggrep query "Where are React components?"\`
 - \`raggrep query "Database connection logic?"\`
 - \`raggrep query "Error handling patterns"\`
@@ -146,6 +162,7 @@ Instead of using grep/rg or manually reading files:
 2. **Use filters strategically**: \`--filter "src/auth"\`, \`--filter "*.test.ts"\`
 3. **Adjust result count**: Use \`--top 5\` for focused results, \`--top 20\` for comprehensive search
 4. **Replace grep/rg habits**: Instead of \`rg "pattern"\`, try \`raggrep query "what the code does"\`
+5. **Target the right tree**: If your shell is not in the repo root, use \`-C /path/to/repo\` or \`--dir\` on every command so the index under that repo's \`.raggrep/\` stays aligned with searches
 
 **Result**: 10x fewer tool calls, BETTER results, deeper code understanding.
 `;
@@ -249,7 +266,7 @@ The raggrep skill is now available to OpenCode agents.
 
 To use this skill:
 1. Install raggrep: npm install -g raggrep
-2. Index your codebase: raggrep index
+2. Index your codebase: \`cd\` to the repo and \`raggrep index\`, or \`raggrep index --dir /path/to/repo\`
 3. In OpenCode, load the skill: skill({ name: "raggrep" })`;
 
     if (logger) {

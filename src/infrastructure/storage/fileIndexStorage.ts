@@ -17,6 +17,7 @@ import type {
   Tier1Manifest 
 } from '../../domain/entities';
 import { createDefaultConfig } from '../../domain/entities';
+import { RAGGREP_INDEX_DIR } from '../config';
 
 /**
  * Filesystem-based index storage.
@@ -38,7 +39,7 @@ export class FileIndexStorage implements IndexStorage {
   private rootDir: string;
   private indexDir: string;
 
-  constructor(fs: FileSystem, rootDir: string, indexDir: string = '.raggrep') {
+  constructor(fs: FileSystem, rootDir: string, indexDir: string = RAGGREP_INDEX_DIR) {
     this.fs = fs;
     this.rootDir = fs.resolve(rootDir);
     this.indexDir = indexDir;

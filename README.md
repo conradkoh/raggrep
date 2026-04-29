@@ -153,6 +153,7 @@ raggrep reset            # Clear the index
 
 ```bash
 raggrep query "user login"                    # Natural language query
+raggrep query -C ~/projects/my-app "login"    # Search a project without cd
 raggrep query "AUTH_SERVICE_URL"             # Exact identifier (auto-triggers exact match)
 raggrep query "\`AuthService\`"              # Backticks force exact match
 raggrep query "error handling" --top 5        # Limit results
@@ -164,6 +165,7 @@ raggrep query "api" -f src/api -f src/routes  # Multiple path filters
 
 | Flag              | Short | Description                                                |
 | ----------------- | ----- | ---------------------------------------------------------- |
+| `--dir <path>`    | `-C`  | Project directory to search (default: current directory)   |
 | `--top <n>`       | `-k`  | Number of results to return (default: 10)                  |
 | `--min-score <n>` | `-s`  | Minimum similarity score 0-1 (default: 0.15)               |
 | `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)               |
@@ -234,6 +236,7 @@ Exact matches are shown in a separate section with line numbers and context. Sem
 
 ```bash
 raggrep index                        # Index current directory
+raggrep index --dir ../other-repo    # Index another path without cd
 raggrep index --watch                # Watch mode - re-index on file changes
 raggrep index --verbose              # Show detailed progress
 raggrep index --concurrency 8        # Set parallel workers (default: auto)
@@ -242,18 +245,21 @@ raggrep index --model bge-small-en-v1.5  # Use specific embedding model
 
 | Flag                | Short | Description                                             |
 | ------------------- | ----- | ------------------------------------------------------- |
+| `--dir <path>`      | `-C`  | Project directory to index (default: current directory) |
 | `--watch`           | `-w`  | Watch for file changes and re-index automatically       |
 | `--verbose`         | `-v`  | Show detailed progress                                  |
 | `--concurrency <n>` | `-c`  | Number of parallel workers (default: auto based on CPU) |
-| `--model <name>`    | `-m`  | Embedding model to use                                  |
+| `--model <name>`    | `-m`  | Override TypeScript module embedding model (saved config otherwise) |
 | `--help`            | `-h`  | Show help message                                       |
 
 ### Other Commands
 
 ```bash
-raggrep status           # Show index status and statistics
-raggrep reset            # Clear the index completely
-raggrep --version        # Show version
+raggrep status                    # Show index status and statistics
+raggrep status --dir ./packages/api
+raggrep reset                     # Clear the index for the current directory
+raggrep reset -C ~/projects/my-app
+raggrep --version                 # Show version
 ```
 
 ## How It Works
@@ -263,7 +269,25 @@ raggrep --version        # Show version
 3. **Files changed** — Re-indexes only modified files automatically
 4. **Files deleted** — Stale entries cleaned up automatically
 
-The index is stored in a system temp directory, keeping your project clean.
+The index is stored under **`.raggrep/`** in the project directory you index or pass with **`--dir` / `-C`** (by default, the current working directory). Add `.raggrep/` to `.gitignore` if you do not want index files in version control.
+
+## Embeddings and benchmarks
+
+Indexing uses Transformers.js–style **local ONNX** models. Unless you change `.raggrep/config.json` or pass **`raggrep index --model`**, a fresh install uses this stack:
+
+| | Default |
+|---|--------|
+| **Runtime** | **`huggingface`** (`@huggingface/transformers`). Set `embeddingRuntime` to `"xenova"` on a module in `.raggrep/config.json` to use `@xenova/transformers` instead. |
+| **Model** | **`bge-small-en-v1.5`** on each embedding-backed module (TypeScript, Python, Go, Rust, JSON, markdown). |
+
+**Benchmarks** (clone [next-convex-starter-app](https://github.com/conradkoh/next-convex-starter-app) at a pinned commit; see each script for options):
+
+| Command | What it measures | Source |
+|--------|------------------|--------|
+| `bun run bench:embeddings` | Embedding throughput (runtime × model matrix; **nomic** omitted from the harness for now) | [`scripts/benchmark-embedding-runtimes.ts`](./scripts/benchmark-embedding-runtimes.ts) |
+| `bun run bench:retrieval` | Index + hybrid search time and accuracy vs golden queries | [`scripts/benchmark-retrieval-quality.ts`](./scripts/benchmark-retrieval-quality.ts) |
+
+Golden query set: [`scripts/eval/golden-queries-next-convex.json`](./scripts/eval/golden-queries-next-convex.json). Retrieval runs write `scripts/benchmarks/<benchmark-name>.result.md` and resumable `*.cache.json` (ignored by git by default).
 
 ## What Gets Indexed
 

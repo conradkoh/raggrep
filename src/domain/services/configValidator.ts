@@ -54,13 +54,18 @@ const KNOWN_MODULE_IDS = [
 ];
 
 /**
- * Supported embedding models.
+ * Supported embedding models (informational validation).
+ * Keep aligned with {@link EmbeddingModelName} in domain ports.
  */
 const KNOWN_EMBEDDING_MODELS = [
   "all-MiniLM-L6-v2",
-  "all-mpnet-base-v2",
-  "paraphrase-MiniLM-L6-v2",
+  "all-MiniLM-L12-v2",
+  "bge-small-en-v1.5",
+  "paraphrase-MiniLM-L3-v2",
+  "nomic-embed-text-v1.5",
 ];
+
+const KNOWN_EMBEDDING_RUNTIMES = ["xenova", "huggingface"] as const;
 
 /**
  * Validate a RAGgrep configuration.
@@ -246,6 +251,21 @@ function validateModuleOptions(
         severity: "info",
         message: `Embedding model '${embeddingModel}' is not in the known list`,
         suggestion: `Known models: ${KNOWN_EMBEDDING_MODELS.join(", ")}. Custom models may work if available.`,
+      });
+    }
+
+    const embeddingRuntime = options.embeddingRuntime as string | undefined;
+    if (
+      embeddingRuntime &&
+      !KNOWN_EMBEDDING_RUNTIMES.includes(
+        embeddingRuntime as (typeof KNOWN_EMBEDDING_RUNTIMES)[number]
+      )
+    ) {
+      issues.push({
+        path: `${basePath}.embeddingRuntime`,
+        severity: "warning",
+        message: `embeddingRuntime '${embeddingRuntime}' is not recognized`,
+        suggestion: `Use one of: ${KNOWN_EMBEDDING_RUNTIMES.join(", ")}`,
       });
     }
   }
