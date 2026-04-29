@@ -13,7 +13,7 @@ let globalProvider: EmbeddingProvider | null = null;
 
 let globalConfig: EmbeddingConfig = {
   model: "bge-small-en-v1.5",
-  runtime: "xenova",
+  runtime: "huggingface",
   showProgress: false,
   logger: undefined,
 };
@@ -28,7 +28,7 @@ export function configureEmbeddings(config: Partial<EmbeddingConfig>): void {
     ...config,
   };
   if (merged.runtime === undefined) {
-    merged.runtime = "xenova";
+    merged.runtime = "huggingface";
   }
 
   const needsReset =

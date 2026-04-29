@@ -195,7 +195,7 @@ export function getEmbeddingConfigFromModule(
     runtime = rt;
   } else if (rt !== undefined) {
     console.warn(
-      `Unknown embeddingRuntime: ${rt}, falling back to default (xenova)`
+      `Unknown embeddingRuntime: ${rt}, falling back to default (huggingface)`
     );
   }
 
