@@ -1,5 +1,7 @@
 // Main CLI entry point for raggrep
 
+import * as path from "path";
+import { stat } from "fs/promises";
 import { EMBEDDING_MODELS, getCacheDir } from "../../infrastructure/embeddings";
 import {
   createInlineLogger,
@@ -68,6 +70,8 @@ interface ParsedFlags {
   forceTool: boolean;
   /** Force skill installation (mutually exclusive with --tool) */
   forceSkill: boolean;
+  /** Project root to index or query (default: current working directory) */
+  projectDir?: string;
   /** Remaining positional arguments */
   remaining: string[];
 }
@@ -157,6 +161,16 @@ function parseFlags(args: string[]): ParsedFlags {
         );
         process.exit(1);
       }
+    } else if (arg === "--dir" || arg === "-C") {
+      const dir = args[++i];
+      if (dir) {
+        flags.projectDir = dir;
+      } else {
+        console.error(
+          "--dir / -C requires a path to the project directory to index or search."
+        );
+        process.exit(1);
+      }
     } else if (arg === "--tool") {
       flags.forceTool = true;
     } else if (arg === "--skill") {
@@ -169,6 +183,26 @@ function parseFlags(args: string[]): ParsedFlags {
   return flags;
 }
 
+/**
+ * Resolve the project directory from flags or cwd, and ensure it exists.
+ */
+async function resolveProjectRoot(flags: ParsedFlags): Promise<string> {
+  const root = path.resolve(flags.projectDir ?? process.cwd());
+  try {
+    const st = await stat(root);
+    if (!st.isDirectory()) {
+      console.error(`Error: not a directory: ${root}`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(
+      `Error: directory does not exist or is not accessible: ${root}`
+    );
+    process.exit(1);
+  }
+  return root;
+}
+
 async function main() {
   const flags = parseFlags(args.slice(1)); // Skip the command itself
 
@@ -177,12 +211,13 @@ async function main() {
       if (flags.help) {
         const models = Object.keys(EMBEDDING_MODELS).join(", ");
         console.log(`
-raggrep index - Index the current directory for semantic search
+raggrep index - Index a directory for semantic search
 
 Usage:
   raggrep index [options]
 
 Options:
+  -C, --dir <path>         Project directory to index (default: current directory)
   -w, --watch              Watch for file changes and re-index automatically
   -m, --model <name>       Embedding model to use (default: bge-small-en-v1.5)
   -c, --concurrency <n>    Number of files to process in parallel (default: auto)
@@ -196,6 +231,7 @@ Model Cache: ${getCacheDir()}
 
 Examples:
   raggrep index
+  raggrep index --dir ../other-repo
   raggrep index --watch
   raggrep index --model bge-small-en-v1.5
   raggrep index --concurrency 8
@@ -209,11 +245,13 @@ Examples:
       // Create inline logger for CLI (progress replaces current line)
       const logger = createInlineLogger({ verbose: flags.verbose });
 
+      const projectRoot = await resolveProjectRoot(flags);
+
       // Initial indexing
       console.log("RAGgrep Indexer");
       console.log("================\n");
       try {
-        const results = await indexDirectory(process.cwd(), {
+        const results = await indexDirectory(projectRoot, {
           model: flags.model,
           verbose: flags.verbose,
           concurrency: flags.concurrency,
@@ -238,7 +276,7 @@ Examples:
         console.log("└─────────────────────────────────────────┘\n");
 
         try {
-          const watcher = await watchDirectory(process.cwd(), {
+          const watcher = await watchDirectory(projectRoot, {
             model: flags.model,
             verbose: flags.verbose,
             onFileChange: (event, filepath) => {
@@ -280,6 +318,7 @@ Usage:
   raggrep query <search query> [options]
 
 Options:
+  -C, --dir <path>     Project directory to search (default: current directory)
   -k, --top <n>        Number of results to return (default: 10)
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
@@ -307,6 +346,7 @@ Multiple Filters (OR logic):
 
 Examples:
   raggrep query "user authentication"
+  raggrep query --dir ~/projects/my-app "user authentication"
   raggrep query "handle errors" --top 5
   raggrep query "database" --min-score 0.1
   raggrep query "interface" --type ts
@@ -335,12 +375,14 @@ Examples:
         process.exit(1);
       }
 
+      const projectRoot = await resolveProjectRoot(flags);
+
       try {
         // Create silent logger for background indexing during query
         const silentLogger = createSilentLogger();
 
         // Ensure index is fresh (creates if needed, updates if changed)
-        const freshStats = await ensureIndexFresh(process.cwd(), {
+        const freshStats = await ensureIndexFresh(projectRoot, {
           model: flags.model,
           quiet: true, // Suppress detailed indexing output
           logger: silentLogger,
@@ -389,7 +431,7 @@ Examples:
         // Use hybrid search to get both semantic and exact match results
         const { hybridSearch, formatHybridSearchResults } = await import("../search");
 
-        const hybridResults = await hybridSearch(process.cwd(), query, {
+        const hybridResults = await hybridSearch(projectRoot, query, {
           topK: flags.topK ?? 10,
           minScore: flags.minScore,
           filePatterns,
@@ -408,28 +450,32 @@ Examples:
     case "reset": {
       if (flags.help) {
         console.log(`
-raggrep reset - Clear the index for the current directory
+raggrep reset - Clear the index for a project directory
 
 Usage:
   raggrep reset [options]
 
 Options:
+  -C, --dir <path>     Project directory whose index to remove (default: current directory)
   -h, --help           Show this help message
 
 Description:
-  Completely removes the index for the current directory.
+  Completely removes the .raggrep index for the project directory.
   The next 'raggrep index' or 'raggrep query' will rebuild from scratch.
 
 Examples:
   raggrep reset
+  raggrep reset --dir ../other-repo
 `);
         process.exit(0);
       }
 
       const { resetIndex } = await import("../indexer");
 
+      const projectRoot = await resolveProjectRoot(flags);
+
       try {
-        const result = await resetIndex(process.cwd());
+        const result = await resetIndex(projectRoot);
         console.log("Index cleared successfully.");
         console.log(`  Removed: ${result.indexDir}`);
       } catch (error) {
@@ -455,22 +501,27 @@ Usage:
   raggrep status [options]
 
 Options:
+  -C, --dir <path>     Project directory to report on (default: current directory)
   -h, --help           Show this help message
 
 Description:
-  Displays information about the index in the current directory,
+  Displays information about the index for the project directory,
   including whether it exists, how many files are indexed, and
   when it was last updated.
 
 Examples:
   raggrep status
+  raggrep status --dir ../other-repo
 `);
         process.exit(0);
       }
 
       const { getIndexStatus } = await import("../indexer");
+
+      const projectRoot = await resolveProjectRoot(flags);
+
       try {
-        const status = await getIndexStatus(process.cwd());
+        const status = await getIndexStatus(projectRoot);
 
         if (!status.exists) {
           console.log(`
@@ -615,19 +666,23 @@ Usage:
   raggrep <command> [options]
 
 Commands:
-  index      Index the current directory
+  index      Index a project directory
   query      Search the indexed codebase
   status     Show the current state of the index
-  reset      Clear the index for the current directory
+  reset      Clear the index for a project directory
   opencode   Manage opencode integration
 
 Options:
   -h, --help     Show help for a command
   -v, --version  Show version number
 
+Project directory (index, query, status, reset):
+  Use -C or --dir <path> to target a directory other than the current one.
+
 Examples:
   raggrep index
   raggrep query "user login"
+  raggrep query -C ~/projects/app "user login"
   raggrep status
   raggrep reset
   raggrep opencode install
