@@ -1,0 +1,85 @@
+name: Publish to npm
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.version-check.outputs.should_publish }}
+      local_version: ${{ steps.version-check.outputs.local_version }}
+      npm_version: ${{ steps.version-check.outputs.npm_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check versions
+        id: version-check
+        run: |
+          LOCAL_VERSION=$(node -pe "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")
+          echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
+
+          # Get npm version (returns empty if package doesn't exist)
+          NPM_VERSION=$(npm view raggrep version 2>/dev/null || echo "0.0.0")
+          echo "npm_version=$NPM_VERSION" >> $GITHUB_OUTPUT
+
+          # Compare versions using node
+          SHOULD_PUBLISH=$(node -e "
+            const local = '$LOCAL_VERSION'.split('.').map(Number);
+            const npm = '$NPM_VERSION'.split('.').map(Number);
+            const isNewer = local[0] > npm[0] ||
+              (local[0] === npm[0] && local[1] > npm[1]) ||
+              (local[0] === npm[0] && local[1] === npm[1] && local[2] > npm[2]);
+            console.log(isNewer ? 'true' : 'false');
+          ")
+          echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
+
+          echo "Local version: $LOCAL_VERSION"
+          echo "npm version: $NPM_VERSION"
+          echo "Should publish: $SHOULD_PUBLISH"
+
+  publish:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish to npm
+        run: |
+          echo "Publishing version ${{ needs.check-version.outputs.local_version }}"
+          echo "Previous npm version: ${{ needs.check-version.outputs.npm_version }}"
+          npm publish --access public
+        # Trusted publishing (OIDC): configure the package on npmjs.com → Package →
+        # "Publishing access" / Trusted Publisher → link this GitHub repo + publish.yml.
