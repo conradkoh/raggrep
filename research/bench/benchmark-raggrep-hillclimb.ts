@@ -18,32 +18,31 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import type { EmbeddingModelName, EmbeddingRuntime } from "../src/domain/ports";
+import type { EmbeddingModelName, EmbeddingRuntime } from "../../src/domain/ports";
 import type {
   RankingWeightsConfig,
   RankingWeightsPartial,
   SearchOptions,
-} from "../src/domain/entities";
+} from "../../src/domain/entities";
 import {
   createDefaultConfig,
   DEFAULT_RANKING_WEIGHTS,
   mergeRankingWeights,
   type Config,
-} from "../src/domain/entities";
-import { saveConfig } from "../src/infrastructure/config";
-import { indexDirectory } from "../src/app/indexer";
-import { hybridSearch } from "../src/app/search";
+} from "../../src/domain/entities";
+import { saveConfig } from "../../src/infrastructure/config";
+import { indexDirectory } from "../../src/app/indexer";
+import { hybridSearch } from "../../src/app/search";
 import {
   resetGlobalEmbeddingProvider,
   getEmbeddingModelId,
-} from "../src/infrastructure/embeddings";
+} from "../../src/infrastructure/embeddings";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_GOLDEN = path.join(
-  SCRIPT_DIR,
-  "eval",
-  "golden-queries-next-convex-50.json"
-);
+const RESEARCH_ROOT = path.resolve(SCRIPT_DIR, "..");
+const EVAL_DIR = path.join(RESEARCH_ROOT, "eval");
+const RESULTS_DIR = path.join(RESEARCH_ROOT, "results");
+const DEFAULT_GOLDEN = path.join(EVAL_DIR, "golden-queries-next-convex-50.json");
 
 function embeddingPkg(runtime: EmbeddingRuntime): string {
   return runtime === "xenova"
@@ -396,7 +395,7 @@ async function main(): Promise<void> {
   const goldenPath = path.resolve(parseArgString("--golden", DEFAULT_GOLDEN));
   const outDir = parseArgString(
     "--out-dir",
-    path.join(SCRIPT_DIR, "benchmarks")
+    RESULTS_DIR
   );
   const benchmarkName = parseArgString(
     "--benchmark-name",

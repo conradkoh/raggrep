@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /**
  * Run golden-query retrieval checks against the repo root using the default
- * config (same evaluation shape as scripts/benchmark-retrieval-quality.ts).
+ * config (same evaluation shape as `research/bench/benchmark-retrieval-quality.ts`).
  *
  * Usage:
- *   bun run scripts/eval/run-golden-queries.ts
- *   bun run scripts/eval/run-golden-queries.ts --root /path/to/repo
- *   bun run scripts/eval/run-golden-queries.ts --golden scripts/eval/golden-queries-raggrep.json --k 10
+ *   bun run research/eval/run-golden-queries.ts
+ *   bun run research/eval/run-golden-queries.ts --root /path/to/repo
+ *   bun run research/eval/run-golden-queries.ts --golden research/eval/golden-queries-raggrep.json --k 10
  */
 
 import * as fs from "fs/promises";

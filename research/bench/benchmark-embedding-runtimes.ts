@@ -10,12 +10,12 @@
  *
  * Usage:
  *   bun run bench:embeddings
- *   bun run scripts/benchmark-embedding-runtimes.ts --count 128 --warmup 4
- *   bun run scripts/benchmark-embedding-runtimes.ts --repo https://github.com/conradkoh/next-convex-starter-app.git
- *   bun run scripts/benchmark-embedding-runtimes.ts --commit 7518c373c3a72279252cb9eaef54c1a936f1bd0c
+ *   bun run research/bench/benchmark-embedding-runtimes.ts --count 128 --warmup 4
+ *   bun run research/bench/benchmark-embedding-runtimes.ts --repo https://github.com/conradkoh/next-convex-starter-app.git
+ *   bun run research/bench/benchmark-embedding-runtimes.ts --commit 7518c373c3a72279252cb9eaef54c1a936f1bd0c
  *
  * Worker (internal):
- *   bun run scripts/benchmark-embedding-runtimes.ts --_worker xenova --model bge-small-en-v1.5 --texts-file /path/to/texts.json --warmup 2
+ *   bun run research/bench/benchmark-embedding-runtimes.ts --_worker xenova --model bge-small-en-v1.5 --texts-file /path/to/texts.json --warmup 2
  */
 
 import * as fs from "fs/promises";
@@ -26,8 +26,8 @@ import { glob } from "glob";
 import type {
   EmbeddingModelName,
   EmbeddingRuntime,
-} from "../src/domain/ports";
-import { BENCHMARK_MODEL_NAMES } from "../src/infrastructure/embeddings/modelCatalog";
+} from "../../src/domain/ports";
+import { BENCHMARK_MODEL_NAMES } from "../../src/infrastructure/embeddings/modelCatalog";
 
 /** Self path for respawning this script as a worker (portable; avoids Bun-only `import.meta.path`). */
 const SCRIPT_FILE = fileURLToPath(import.meta.url);
@@ -35,7 +35,7 @@ const SCRIPT_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_REPO_URL =
   "https://github.com/conradkoh/next-convex-starter-app.git";
 
-/** Pinned tree for reproducible harness runs (matches scripts/eval/golden-queries-next-convex.json). */
+/** Pinned tree for reproducible harness runs (matches research/eval/golden-queries-next-convex.json). */
 const DEFAULT_REPO_COMMIT =
   "7518c373c3a72279252cb9eaef54c1a936f1bd0c";
 
@@ -292,7 +292,7 @@ async function runWorker(): Promise<void> {
   const {
     configureEmbeddings,
     getEmbeddings,
-  } = await import("../src/infrastructure/embeddings/globalEmbeddings");
+  } = await import("../../src/infrastructure/embeddings/globalEmbeddings");
 
   configureEmbeddings({
     model,

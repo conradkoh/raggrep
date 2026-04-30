@@ -9,42 +9,41 @@
  * Default: 10 weight passes (`WEIGHT_SWEEP`), one report whose primary section is a comparison table.
  *
  * Usage:
- *   bun run scripts/benchmark-raggrep-golden-queries.ts
- *   bun run scripts/benchmark-raggrep-golden-queries.ts --passes 10 --k 10 --fast
- *   bun run scripts/benchmark-raggrep-golden-queries.ts --weights-json ./my.json
- *   bun run scripts/benchmark-raggrep-golden-queries.ts --cache
- *   bun run scripts/benchmark-raggrep-golden-queries.ts --per-query
+ *   bun run research/bench/benchmark-raggrep-golden-queries.ts
+ *   bun run research/bench/benchmark-raggrep-golden-queries.ts --passes 10 --k 10 --fast
+ *   bun run research/bench/benchmark-raggrep-golden-queries.ts --weights-json ./my.json
+ *   bun run research/bench/benchmark-raggrep-golden-queries.ts --cache
+ *   bun run research/bench/benchmark-raggrep-golden-queries.ts --per-query
  */
 
 import * as fs from "fs/promises";
 import * as crypto from "node:crypto";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import type { EmbeddingModelName, EmbeddingRuntime } from "../src/domain/ports";
+import type { EmbeddingModelName, EmbeddingRuntime } from "../../src/domain/ports";
 import type {
   RankingWeightsPartial,
   SearchOptions,
   RankingWeightsConfig,
-} from "../src/domain/entities";
+} from "../../src/domain/entities";
 import {
   createDefaultConfig,
   mergeRankingWeights,
   type Config,
-} from "../src/domain/entities";
-import { saveConfig } from "../src/infrastructure/config";
-import { indexDirectory } from "../src/app/indexer";
-import { hybridSearch } from "../src/app/search";
+} from "../../src/domain/entities";
+import { saveConfig } from "../../src/infrastructure/config";
+import { indexDirectory } from "../../src/app/indexer";
+import { hybridSearch } from "../../src/app/search";
 import {
   resetGlobalEmbeddingProvider,
   getEmbeddingModelId,
-} from "../src/infrastructure/embeddings";
+} from "../../src/infrastructure/embeddings";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_GOLDEN = path.join(
-  SCRIPT_DIR,
-  "eval",
-  "golden-queries-next-convex-50.json"
-);
+const RESEARCH_ROOT = path.resolve(SCRIPT_DIR, "..");
+const EVAL_DIR = path.join(RESEARCH_ROOT, "eval");
+const RESULTS_DIR = path.join(RESEARCH_ROOT, "results");
+const DEFAULT_GOLDEN = path.join(EVAL_DIR, "golden-queries-next-convex-50.json");
 
 /** NPM package used for ONNX embeddings (matches {@link EmbeddingRuntime}). */
 function getEmbeddingPackage(runtime: EmbeddingRuntime): string {
@@ -595,7 +594,7 @@ async function runBenchmark(): Promise<void> {
   );
   const outDir = parseArgString(
     "--out-dir",
-    path.join(SCRIPT_DIR, "benchmarks")
+    RESULTS_DIR
   );
   const useFast = parseArgFlag("--fast");
   const fresh = parseArgFlag("--fresh");

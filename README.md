@@ -266,13 +266,13 @@ Indexing uses Transformers.js–style **local ONNX** models. Unless you change `
 
 | Command | What it measures | Source |
 |--------|------------------|--------|
-| `bun run bench:embeddings` | Embedding throughput (runtime × model matrix; **nomic** omitted from the harness for now) | [`scripts/benchmark-embedding-runtimes.ts`](./scripts/benchmark-embedding-runtimes.ts) |
-| `bun run bench:retrieval` | Index + hybrid search time and accuracy vs golden queries | [`scripts/benchmark-retrieval-quality.ts`](./scripts/benchmark-retrieval-quality.ts) |
-| `bun run eval:golden` | Accuracy-only golden eval against a checkout | [`scripts/eval/run-golden-queries.ts`](./scripts/eval/run-golden-queries.ts) |
-| `bun run bench:golden-hillclimb` | Parameter tuning sweep vs golden set | [`scripts/benchmark-raggrep-hillclimb.ts`](./scripts/benchmark-raggrep-hillclimb.ts) |
-| `bun run bench:golden-convex` | Wave-style benchmark vs Convex starter (`--fresh`, `--passes`, etc.) | [`scripts/benchmark-raggrep-golden-queries.ts`](./scripts/benchmark-raggrep-golden-queries.ts) |
+| `bun run bench:embeddings` | Embedding throughput (runtime × model matrix; **nomic** omitted from the harness for now) | [`research/bench/benchmark-embedding-runtimes.ts`](./research/bench/benchmark-embedding-runtimes.ts) |
+| `bun run bench:retrieval` | Index + hybrid search time and accuracy vs golden queries | [`research/bench/benchmark-retrieval-quality.ts`](./research/bench/benchmark-retrieval-quality.ts) |
+| `bun run eval:golden` | Accuracy-only golden eval against a checkout | [`research/eval/run-golden-queries.ts`](./research/eval/run-golden-queries.ts) |
+| `bun run bench:golden-hillclimb` | Parameter tuning sweep vs golden set | [`research/bench/benchmark-raggrep-hillclimb.ts`](./research/bench/benchmark-raggrep-hillclimb.ts) |
+| `bun run bench:golden-convex` | Wave-style benchmark vs Convex starter (`--fresh`, `--passes`, etc.) | [`research/bench/benchmark-raggrep-golden-queries.ts`](./research/bench/benchmark-raggrep-golden-queries.ts) |
 
-Golden query sets: [`scripts/eval/golden-queries-next-convex.json`](./scripts/eval/golden-queries-next-convex.json) (10 queries), [`scripts/eval/golden-queries-next-convex-50.json`](./scripts/eval/golden-queries-next-convex-50.json) (50 queries). Benchmark scripts write **`scripts/benchmarks/<name>.result.md`** (versioned in git for reference) and resumable **`scripts/benchmarks/*.cache.json`** (ignored).
+Golden query sets: [`research/eval/golden-queries-next-convex.json`](./research/eval/golden-queries-next-convex.json) (10 queries), [`research/eval/golden-queries-next-convex-50.json`](./research/eval/golden-queries-next-convex-50.json) (50 queries). Benchmark scripts write **`research/results/<name>.result.md`** (versioned in git for reference) and resumable **`research/results/*.cache.json`** (ignored).
 
 ## What Gets Indexed
 

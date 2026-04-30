@@ -2,7 +2,7 @@
   "dataset": "raggrep-repository",
   "repoUrl": "local",
   "pinnedCommit": "n/a",
-  "description": "Regression queries for ranking changes; paths are repo-relative (POSIX). Same schema as scripts/eval/golden-queries-next-convex.json.",
+  "description": "Regression queries for ranking changes; paths are repo-relative (POSIX). Same schema as research/eval/golden-queries-next-convex.json.",
   "queries": [
     {
       "id": "hf-embedding-init",

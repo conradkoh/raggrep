@@ -41,4 +41,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 scenarios/*/.raggrep/
 
 # benchmark cache (regenerate with bench scripts; .result.md reports are versioned)
-scripts/benchmarks/*.cache.json
+research/results/*.cache.json
