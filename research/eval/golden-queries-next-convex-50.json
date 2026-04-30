@@ -1,0 +1,258 @@
+{
+  "dataset": "next-convex-starter-app",
+  "repoUrl": "https://github.com/conradkoh/next-convex-starter-app.git",
+  "pinnedCommit": "7518c373c3a72279252cb9eaef54c1a936f1bd0c",
+  "description": "50 code/feature retrieval targets at pinnedCommit (hand-labeled). Paths POSIX; any expectedPaths match counts.",
+  "queries": [
+    {
+      "id": "schema-define-appinfo-users",
+      "query": "Convex defineSchema tables appInfo users schema definition",
+      "expectedPaths": ["services/backend/convex/schema.ts"]
+    },
+    {
+      "id": "google-oauth-convex-backend",
+      "query": "Google OAuth Convex backend auth configuration handlers",
+      "expectedPaths": ["services/backend/convex/auth/google.ts"]
+    },
+    {
+      "id": "anonymous-login-button-component",
+      "query": "anonymous sign in button component without account registration",
+      "expectedPaths": ["apps/webapp/src/modules/auth/AnonymousLoginButton.tsx"]
+    },
+    {
+      "id": "theme-provider-dark-mode",
+      "query": "React ThemeProvider dark mode className root layout",
+      "expectedPaths": ["apps/webapp/src/modules/theme/ThemeProvider.tsx"]
+    },
+    {
+      "id": "checklist-convex-realtime-hook",
+      "query": "useChecklistSync hook real-time Convex checklist subscription",
+      "expectedPaths": ["apps/webapp/src/modules/checklist/use-checklist-sync.ts"]
+    },
+    {
+      "id": "service-desk-convex-api",
+      "query": "Convex mutations queries service desk tickets support",
+      "expectedPaths": ["services/backend/convex/serviceDesk.ts"]
+    },
+    {
+      "id": "password-protect-react-context",
+      "query": "password protected routes React context provider gate",
+      "expectedPaths": ["apps/webapp/src/modules/password-protection/PasswordProtectContext.tsx"]
+    },
+    {
+      "id": "attendance-copy-clipboard-dialog",
+      "query": "attendance copy to clipboard dialog modal component",
+      "expectedPaths": ["apps/webapp/src/modules/attendance/components/AttendanceCopyDialog.tsx"]
+    },
+    {
+      "id": "discussion-thread-message-form",
+      "query": "submit new message discussion thread form component",
+      "expectedPaths": ["apps/webapp/src/modules/discussion/discussion-form.tsx"]
+    },
+    {
+      "id": "convex-schema-migrations-runner",
+      "query": "Convex migrations runner schema migration batch operations",
+      "expectedPaths": ["services/backend/convex/migrations.ts"]
+    },
+    {
+      "id": "app-info-convex-queries",
+      "query": "Convex appinfo queries mutations application metadata version",
+      "expectedPaths": ["services/backend/convex/appinfo.ts"]
+    },
+    {
+      "id": "attendance-backend-convex",
+      "query": "Convex attendance records mutations API backend functions",
+      "expectedPaths": ["services/backend/convex/attendance.ts"]
+    },
+    {
+      "id": "discussions-backend-convex",
+      "query": "discussion threads Convex discussions CRUD backend",
+      "expectedPaths": ["services/backend/convex/discussions.ts"]
+    },
+    {
+      "id": "presentations-backend-convex",
+      "query": "presentation slides Convex storage mutations queries",
+      "expectedPaths": ["services/backend/convex/presentations.ts"]
+    },
+    {
+      "id": "sessions-backend-convex",
+      "query": "user sessions Convex session invalidate cookie backend",
+      "expectedPaths": ["services/backend/convex/sessions.ts"]
+    },
+    {
+      "id": "cleanup-tasks-convex",
+      "query": "scheduled cleanup tasks cron Convex cleanupTasks",
+      "expectedPaths": ["services/backend/convex/cleanupTasks.ts"]
+    },
+    {
+      "id": "crypto-utils-convex",
+      "query": "encryption hashing crypto helpers Convex backend security",
+      "expectedPaths": ["services/backend/convex/crypto.ts"]
+    },
+    {
+      "id": "convex-config-project",
+      "query": "Convex project config convex.config.ts bundler components",
+      "expectedPaths": ["services/backend/convex/convex.config.ts"]
+    },
+    {
+      "id": "system-google-auth-convex",
+      "query": "system Google auth helpers Convex internal OAuth utilities",
+      "expectedPaths": ["services/backend/convex/system/auth/google.ts"]
+    },
+    {
+      "id": "access-control-backend-module",
+      "query": "role based access control permissions authorization backend module",
+      "expectedPaths": ["services/backend/modules/auth/accessControl.ts"]
+    },
+    {
+      "id": "login-code-utils-backend",
+      "query": "email login code generation verification utilities backend",
+      "expectedPaths": ["services/backend/modules/auth/codeUtils.ts"]
+    },
+    {
+      "id": "get-auth-user-helper",
+      "query": "get authenticated user from session identity backend helper",
+      "expectedPaths": ["services/backend/modules/auth/getAuthUser.ts"]
+    },
+    {
+      "id": "auth-state-typescript-type",
+      "query": "AuthState type union authenticated loading backend auth types",
+      "expectedPaths": ["services/backend/modules/auth/types/AuthState.ts"]
+    },
+    {
+      "id": "server-feature-flags",
+      "query": "feature flags config backend toggles environment service",
+      "expectedPaths": ["services/backend/config/featureFlags.ts"]
+    },
+    {
+      "id": "convex-auth-http",
+      "query": "Convex auth HTTP handlers signIn signOut token backend auth.ts",
+      "expectedPaths": ["services/backend/convex/auth.ts"]
+    },
+    {
+      "id": "checklists-backend-convex",
+      "query": "checklist items Convex mutations queries backend checklists.ts",
+      "expectedPaths": ["services/backend/convex/checklists.ts"]
+    },
+    {
+      "id": "google-oauth-callback-ui",
+      "query": "Google OAuth callback page component exchange code session",
+      "expectedPaths": ["apps/webapp/src/app/login/google/components/GoogleCallback.tsx"]
+    },
+    {
+      "id": "convex-react-provider",
+      "query": "ConvexProvider ConvexReactClient root provider Next.js app layout",
+      "expectedPaths": ["apps/webapp/src/app/ConvexClientProvider.tsx"]
+    },
+    {
+      "id": "use-google-login-flow",
+      "query": "useGoogleLoginFlow hook redirect PKCE Google login flow client",
+      "expectedPaths": ["apps/webapp/src/modules/auth/useGoogleLoginFlow.ts"]
+    },
+    {
+      "id": "google-login-button",
+      "query": "GoogleLoginButton sign in with Google UI component",
+      "expectedPaths": ["apps/webapp/src/modules/auth/GoogleLoginButton.tsx"]
+    },
+    {
+      "id": "connect-button-wallet-style",
+      "query": "ConnectButton wallet style connect account UI auth module",
+      "expectedPaths": ["apps/webapp/src/modules/auth/ConnectButton.tsx"]
+    },
+    {
+      "id": "admin-guard-route-protection",
+      "query": "AdminGuard protect admin routes authorization guard component",
+      "expectedPaths": ["apps/webapp/src/modules/admin/AdminGuard.tsx"]
+    },
+    {
+      "id": "app-info-provider-context",
+      "query": "AppInfoProvider React context app metadata version provider",
+      "expectedPaths": ["apps/webapp/src/modules/app/AppInfoProvider.tsx"]
+    },
+    {
+      "id": "use-app-info-hook",
+      "query": "useAppInfo hook consume application info context frontend",
+      "expectedPaths": ["apps/webapp/src/modules/app/useAppInfo.ts"]
+    },
+    {
+      "id": "use-attendance-data-hook",
+      "query": "useAttendanceData hook fetch attendance Convex subscription",
+      "expectedPaths": ["apps/webapp/src/modules/attendance/hooks/useAttendanceData.ts"]
+    },
+    {
+      "id": "use-discussion-sync-hook",
+      "query": "useDiscussionSync hook realtime discussion messages Convex",
+      "expectedPaths": ["apps/webapp/src/modules/discussion/use-discussion-sync.ts"]
+    },
+    {
+      "id": "use-presentation-sync-hook",
+      "query": "usePresentationSync hook slides Convex presentation sync",
+      "expectedPaths": ["apps/webapp/src/modules/presentation/use-presentation-sync.ts"]
+    },
+    {
+      "id": "password-utils-hash-verify",
+      "query": "password hash verify bcrypt utils password protection module",
+      "expectedPaths": ["apps/webapp/src/modules/password-protection/password-utils.ts"]
+    },
+    {
+      "id": "password-protect-wrapper-component",
+      "query": "PasswordProtect component gate children wrong password UI",
+      "expectedPaths": ["apps/webapp/src/modules/password-protection/PasswordProtect.tsx"]
+    },
+    {
+      "id": "profile-name-edit-form",
+      "query": "NameEditForm profile edit display name form submit",
+      "expectedPaths": ["apps/webapp/src/modules/profile/NameEditForm.tsx"]
+    },
+    {
+      "id": "theme-settings-ui",
+      "query": "ThemeSettings theme preference selector light dark system",
+      "expectedPaths": ["apps/webapp/src/modules/theme/ThemeSettings.tsx"]
+    },
+    {
+      "id": "navigation-shell-component",
+      "query": "Navigation main nav links header layout component",
+      "expectedPaths": ["apps/webapp/src/components/Navigation.tsx"]
+    },
+    {
+      "id": "theme-toggle-switch",
+      "query": "ThemeToggle dark light mode switch button component",
+      "expectedPaths": ["apps/webapp/src/components/ThemeToggle.tsx"]
+    },
+    {
+      "id": "user-menu-dropdown",
+      "query": "UserMenu avatar dropdown logout account menu header",
+      "expectedPaths": ["apps/webapp/src/components/UserMenu.tsx"]
+    },
+    {
+      "id": "unauthorized-fallback-page",
+      "query": "UnauthorizedPage access denied 403 not allowed component",
+      "expectedPaths": ["apps/webapp/src/components/UnauthorizedPage.tsx"]
+    },
+    {
+      "id": "admin-google-auth-settings-page",
+      "query": "admin Google OAuth settings page configuration dashboard",
+      "expectedPaths": ["apps/webapp/src/app/app/admin/google-auth/page.tsx"]
+    },
+    {
+      "id": "login-code-entry-page",
+      "query": "login code entry page email magic link verification UI",
+      "expectedPaths": ["apps/webapp/src/app/login/code/page.tsx"]
+    },
+    {
+      "id": "api-google-oauth-callback-route",
+      "query": "Next.js API route Google OAuth callback handler auth redirect",
+      "expectedPaths": ["apps/webapp/src/app/api/auth/google/callback/page.tsx"]
+    },
+    {
+      "id": "use-allow-touch-selection",
+      "query": "useAllowTouchSelection hook touch device selection behavior",
+      "expectedPaths": ["apps/webapp/src/hooks/useAllowTouchSelection.ts"]
+    },
+    {
+      "id": "presentation-controls-toolbar",
+      "query": "presentation controls toolbar next prev slide keyboard shortcuts",
+      "expectedPaths": ["apps/webapp/src/modules/presentation/presentation-controls.tsx"]
+    }
+  ]
+}

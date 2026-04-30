@@ -561,7 +561,7 @@ describe("Simulation: Exact Match Variable Name Scoring", () => {
       const results = await raggrep.search(
         SIMULATION_DIR,
         "auth service url",
-        { topK: 10, minScore: 0.01 }
+        { topK: 10, minScore: 0.01, rankBy: "combined" }
       );
 
       // Should find config.ts with AUTH_SERVICE_URL
@@ -645,7 +645,7 @@ describe("Stress Test: Many files with common AUTH/SERVICE prefix", () => {
     const results = await raggrep.search(
       SIMULATION_DIR,
       "handleRefreshToken",
-      { topK: 10, minScore: 0.01 }
+      { topK: 10, minScore: 0.01, rankBy: "combined" }
     );
 
     restoreConsole();

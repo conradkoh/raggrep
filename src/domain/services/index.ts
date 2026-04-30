@@ -15,6 +15,20 @@ export {
   type BM25SerializedData,
 } from "./bm25";
 
+// Discriminative term re-ranking (BM25 IDF–guided)
+export {
+  scoreDiscriminativeTerms,
+  DISCRIMINATIVE_CONSTANTS,
+  type DiscriminativeTermResult,
+} from "./discriminativeTerms";
+
+export {
+  attachMatchScales,
+  compareSearchResultsByRankBy,
+  clamp01,
+  semanticPctFromCosine,
+} from "./matchScales";
+
 // Keyword extraction
 export {
   extractKeywords,

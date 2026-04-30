@@ -40,10 +40,10 @@ import {
   extractLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   expandQuery,
   // Path context injection (unified utility)
   prepareChunkForEmbedding,
+  scoreDiscriminativeTerms,
   extractPathKeywordsForFileSummary,
   getPathContextForFileSummary,
 } from "../../../domain/services";
@@ -55,18 +55,13 @@ import { SymbolicIndex, LiteralIndex } from "../../../infrastructure/storage";
 import { createParserForFile } from "../../../infrastructure/parsing";
 import type { EmbeddingConfig, Logger, ParsedChunk } from "../../../domain/ports";
 import type { FileSummary, ExtractedLiteral, LiteralMatch } from "../../../domain/entities";
+import { mergeRankingWeights } from "../../../domain/entities";
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.15;
 
 /** Default number of results to return */
 export const DEFAULT_TOP_K = 10;
-
-/** Weight for semantic similarity in hybrid scoring (0-1) */
-const SEMANTIC_WEIGHT = 0.7;
-
-/** Weight for BM25 keyword matching in hybrid scoring (0-1) */
-const BM25_WEIGHT = 0.3;
 
 /** File extensions supported by this module */
 export const RUST_EXTENSIONS = [".rs"];
@@ -619,6 +614,10 @@ export class RustModule implements IndexModule {
       filePatterns,
     } = options;
 
+    const rw = mergeRankingWeights(options.rankingWeights);
+    const lw = rw.language;
+    const lt = rw.literal;
+
     const { literals: queryLiterals, remainingQuery } =
       parseQueryLiterals(query);
 
@@ -759,28 +758,42 @@ export class RustModule implements IndexModule {
         pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
 
       const baseScore =
-        SEMANTIC_WEIGHT * semanticScore + BM25_WEIGHT * bm25Score;
+        lw.semantic * semanticScore + lw.bm25 * bm25Score;
 
       const literalMatches = literalMatchMap.get(chunk.id) || [];
       const literalContribution = calculateLiteralContribution(
         literalMatches,
-        true
+        true,
+        lt
       );
-      const boostedScore = applyLiteralBoost(baseScore, literalMatches, true);
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        literalMatches,
+        true,
+        lt
+      );
 
       const finalScore = boostedScore + additiveBoost;
+      const disc = scoreDiscriminativeTerms(
+        bm25Index,
+        query,
+        chunk.content,
+        chunk.name,
+        rw.discriminative
+      );
+      const adjustedScore = (finalScore + disc.boost) * disc.penaltyFactor;
 
       processedChunkIds.add(chunk.id);
 
       if (
-        finalScore >= minScore ||
+        adjustedScore >= minScore ||
         bm25Score > 0.3 ||
         literalMatches.length > 0
       ) {
         results.push({
           filepath,
           chunk,
-          score: finalScore,
+          score: adjustedScore,
           moduleId: this.id,
           context: {
             semanticScore,
@@ -789,6 +802,10 @@ export class RustModule implements IndexModule {
             fileTypeBoost,
             chunkTypeBoost,
             exportBoost,
+            discriminativeCoverage: disc.salientCoverage,
+            discriminativePenaltyFactor: disc.penaltyFactor,
+            discriminativeBoost: disc.boost,
+            matchedSalientTerms: disc.matchedSalient,
             literalMultiplier: literalContribution.multiplier,
             literalMatchType: literalContribution.bestMatchType,
             literalConfidence: literalContribution.bestConfidence,

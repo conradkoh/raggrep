@@ -1,6 +1,6 @@
 {
   "name": "raggrep",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "description": "Local filesystem-based RAG system for codebases - semantic search using local embeddings",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,9 +28,12 @@
     "prepublishOnly": "bun run build",
     "raggrep": "bun run src/app/cli/main.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
-    "bench:embeddings": "bun run scripts/benchmark-embedding-runtimes.ts",
-    "bench:retrieval": "bun run scripts/benchmark-retrieval-quality.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p research/tsconfig.json",
+    "bench:embeddings": "bun run research/bench/benchmark-embedding-runtimes.ts",
+    "bench:retrieval": "bun run research/bench/benchmark-retrieval-quality.ts",
+    "eval:golden": "bun run research/eval/run-golden-queries.ts",
+    "bench:golden-convex": "bun run research/bench/benchmark-raggrep-golden-queries.ts",
+    "bench:golden-hillclimb": "bun run research/bench/benchmark-raggrep-hillclimb.ts",
     "dev": "bun run src/app/cli/main.ts"
   },
   "keywords": [

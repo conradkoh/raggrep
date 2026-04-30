@@ -21,6 +21,7 @@ export type {
   CoreContribution,
   LanguageContribution,
   IntrospectionContribution,
+  RankBy,
   Config,
   ModuleConfig,
   // Exact match types
@@ -28,6 +29,9 @@ export type {
   ExactMatchFile,
   ExactMatchResults,
   HybridSearchResults,
+  RankingWeightsPartial,
+  RankingWeightsConfig,
+  LiteralBoostWeights,
 } from "./domain/entities";
 
 export {

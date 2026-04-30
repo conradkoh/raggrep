@@ -136,6 +136,7 @@ describe('RAGgrep Integration Tests', () => {
       const searchResults = await raggrep.search(SIMULATION_DIR, 'password', {
         topK: 10,
         minScore: 0.01,
+        rankBy: 'combined',
       });
 
       // Verify that password.txt is found in results

@@ -7,39 +7,17 @@
  * This is a pure domain service with no external dependencies.
  */
 
-import type {
-  LiteralMatch,
-  LiteralMatchType,
-  LiteralConfidence,
-  LITERAL_SCORING,
-} from "../entities/literal";
+import type { LiteralMatch, LiteralMatchType, LiteralConfidence } from "../entities/literal";
+import type { LiteralBoostWeights } from "../entities/rankingWeights";
+import { DEFAULT_RANKING_WEIGHTS } from "../entities/rankingWeights";
+
+const DEFAULT_LW: LiteralBoostWeights = DEFAULT_RANKING_WEIGHTS.literal;
 
 /**
  * Scoring constants for literal boosting.
+ * @deprecated Prefer {@link DEFAULT_LITERAL_BOOST_WEIGHTS} / `rankingWeights.literal` from search options.
  */
-export const LITERAL_SCORING_CONSTANTS = {
-  /** Base score for chunks found only via literal index */
-  BASE_SCORE: 0.5,
-
-  /** Multipliers by match type and confidence */
-  MULTIPLIERS: {
-    definition: { high: 2.5, medium: 2.0, low: 1.5 },
-    reference: { high: 2.0, medium: 1.5, low: 1.3 },
-    import: { high: 1.5, medium: 1.3, low: 1.1 },
-  } as Record<LiteralMatchType, Record<LiteralConfidence, number>>,
-
-  /** Vocabulary match scoring */
-  VOCABULARY: {
-    /** Base multiplier for vocabulary-only matches (no exact literal match) */
-    BASE_MULTIPLIER: 1.3,
-    /** Bonus per additional vocabulary word matched (up to a limit) */
-    PER_WORD_BONUS: 0.1,
-    /** Maximum vocabulary bonus */
-    MAX_VOCABULARY_BONUS: 0.5,
-    /** Minimum vocabulary words required for a match to count */
-    MIN_WORDS_FOR_MATCH: 2,
-  },
-};
+export const LITERAL_SCORING_CONSTANTS: LiteralBoostWeights = DEFAULT_LW;
 
 /**
  * Calculate the literal multiplier for a given match type and confidence.
@@ -50,9 +28,10 @@ export const LITERAL_SCORING_CONSTANTS = {
  */
 export function calculateLiteralMultiplier(
   matchType: LiteralMatchType,
-  confidence: LiteralConfidence
+  confidence: LiteralConfidence,
+  weights: LiteralBoostWeights = DEFAULT_LW
 ): number {
-  return LITERAL_SCORING_CONSTANTS.MULTIPLIERS[matchType][confidence];
+  return weights.multipliers[matchType][confidence];
 }
 
 /**
@@ -63,7 +42,10 @@ export function calculateLiteralMultiplier(
  * @param matches - Array of literal matches for a chunk
  * @returns The maximum multiplier, or 1.0 if no matches
  */
-export function calculateMaxMultiplier(matches: LiteralMatch[]): number {
+export function calculateMaxMultiplier(
+  matches: LiteralMatch[],
+  weights: LiteralBoostWeights = DEFAULT_LW
+): number {
   if (!matches || matches.length === 0) {
     return 1.0;
   }
@@ -72,7 +54,8 @@ export function calculateMaxMultiplier(matches: LiteralMatch[]): number {
     ...matches.map((m) =>
       calculateLiteralMultiplier(
         m.indexedLiteral.matchType,
-        m.queryLiteral.confidence
+        m.queryLiteral.confidence,
+        weights
       )
     )
   );
@@ -104,8 +87,11 @@ export interface VocabularyMatchResult {
  */
 export function calculateVocabularyMatch(
   queryVocabulary: string[],
-  chunkVocabulary: string[]
+  chunkVocabulary: string[],
+  weights: LiteralBoostWeights = DEFAULT_LW
 ): VocabularyMatchResult {
+  const voc = weights.vocabulary;
+
   if (
     !queryVocabulary ||
     queryVocabulary.length === 0 ||
@@ -133,19 +119,17 @@ export function calculateVocabularyMatch(
   const matchedWordCount = matchedWords.length;
 
   // Check if match is significant
-  const isSignificant =
-    matchedWordCount >= LITERAL_SCORING_CONSTANTS.VOCABULARY.MIN_WORDS_FOR_MATCH;
+  const isSignificant = matchedWordCount >= voc.minWordsForMatch;
 
   // Calculate multiplier
   let multiplier = 1.0;
   if (isSignificant) {
-    multiplier = LITERAL_SCORING_CONSTANTS.VOCABULARY.BASE_MULTIPLIER;
+    multiplier = voc.baseMultiplier;
     // Add bonus for additional words (above minimum)
-    const extraWords =
-      matchedWordCount - LITERAL_SCORING_CONSTANTS.VOCABULARY.MIN_WORDS_FOR_MATCH;
+    const extraWords = matchedWordCount - voc.minWordsForMatch;
     const bonus = Math.min(
-      extraWords * LITERAL_SCORING_CONSTANTS.VOCABULARY.PER_WORD_BONUS,
-      LITERAL_SCORING_CONSTANTS.VOCABULARY.MAX_VOCABULARY_BONUS
+      extraWords * voc.perWordBonus,
+      voc.maxVocabularyBonus
     );
     multiplier += bonus;
   }
@@ -188,7 +172,8 @@ export interface LiteralScoreContribution {
  */
 export function calculateLiteralContribution(
   matches: LiteralMatch[],
-  hasSemanticOrBm25: boolean
+  hasSemanticOrBm25: boolean,
+  weights: LiteralBoostWeights = DEFAULT_LW
 ): LiteralScoreContribution {
   if (!matches || matches.length === 0) {
     return {
@@ -205,7 +190,8 @@ export function calculateLiteralContribution(
   for (const match of matches) {
     const mult = calculateLiteralMultiplier(
       match.indexedLiteral.matchType,
-      match.queryLiteral.confidence
+      match.queryLiteral.confidence,
+      weights
     );
     if (mult > bestMultiplier) {
       bestMultiplier = mult;
@@ -238,18 +224,19 @@ export function calculateLiteralContribution(
 export function applyLiteralBoost(
   baseScore: number,
   matches: LiteralMatch[],
-  hasSemanticOrBm25: boolean
+  hasSemanticOrBm25: boolean,
+  weights: LiteralBoostWeights = DEFAULT_LW
 ): number {
   // No literal matches - return base score
   if (!matches || matches.length === 0) {
     return baseScore;
   }
 
-  const multiplier = calculateMaxMultiplier(matches);
+  const multiplier = calculateMaxMultiplier(matches, weights);
 
   // Literal match but no semantic/BM25 - use base score
   if (!hasSemanticOrBm25) {
-    return LITERAL_SCORING_CONSTANTS.BASE_SCORE * multiplier;
+    return weights.baseScore * multiplier;
   }
 
   // Has both - multiply the base score
@@ -279,7 +266,8 @@ export interface MergeOutput extends MergeInput {
 
 export function mergeWithLiteralBoost(
   semanticBm25Results: MergeInput[],
-  literalMatchMap: Map<string, LiteralMatch[]>
+  literalMatchMap: Map<string, LiteralMatch[]>,
+  weights: LiteralBoostWeights = DEFAULT_LW
 ): MergeOutput[] {
   const results: MergeOutput[] = [];
   const processedChunks = new Set<string>();
@@ -287,8 +275,13 @@ export function mergeWithLiteralBoost(
   // Process results that have semantic/BM25 scores
   for (const result of semanticBm25Results) {
     const matches = literalMatchMap.get(result.chunkId) || [];
-    const contribution = calculateLiteralContribution(matches, true);
-    const finalScore = applyLiteralBoost(result.baseScore, matches, true);
+    const contribution = calculateLiteralContribution(matches, true, weights);
+    const finalScore = applyLiteralBoost(
+      result.baseScore,
+      matches,
+      true,
+      weights
+    );
 
     results.push({
       ...result,
@@ -304,8 +297,12 @@ export function mergeWithLiteralBoost(
       continue;
     }
 
-    const contribution = calculateLiteralContribution(matches, false);
-    const finalScore = applyLiteralBoost(0, matches, false);
+    const contribution = calculateLiteralContribution(
+      matches,
+      false,
+      weights
+    );
+    const finalScore = applyLiteralBoost(0, matches, false, weights);
 
     results.push({
       chunkId,

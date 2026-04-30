@@ -3,14 +3,16 @@
  * Performance Benchmark Script
  * 
  * Measures indexing and search performance for sanity checks.
- * Run: bun scripts/benchmark.ts
+ * Run: `bun run research/bench/benchmark.ts`
  */
 
 import * as path from "path";
 import * as fs from "fs/promises";
-import raggrep from "../src/index";
+import { fileURLToPath } from "url";
+import raggrep from "../../src/index";
 
-const SCENARIO_DIR = path.resolve(__dirname, "../scenarios/basic");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SCENARIO_DIR = path.resolve(__dirname, "../../scenarios/basic");
 
 async function runBenchmark() {
   console.log("=".repeat(60));

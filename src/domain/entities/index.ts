@@ -32,6 +32,7 @@ export type {
   CoreContribution,
   LanguageContribution,
   IntrospectionContribution,
+  RankBy,
   // Exact match types
   ExactMatchOccurrence,
   ExactMatchFile,
@@ -39,6 +40,26 @@ export type {
   HybridSearchResults,
 } from "./searchResult";
 export { DEFAULT_SEARCH_OPTIONS } from "./searchResult";
+
+// Ranking — numeric tuning inputs for hybrid search
+export type {
+  DiscriminativeWeights,
+  TypeScriptRankingWeights,
+  LanguageRankingWeights,
+  MarkdownRankingWeights,
+  JsonRankingWeights,
+  LiteralBoostWeights,
+  LiteralConfidenceMultipliers,
+  RankingWeightsConfig,
+  RankingWeightsPartial,
+} from "./rankingWeights";
+export {
+  DEFAULT_RANKING_WEIGHTS,
+  DEFAULT_DISCRIMINATIVE_WEIGHTS,
+  DEFAULT_LITERAL_BOOST_WEIGHTS,
+  mergeRankingWeights,
+  mergeLiteralWeights,
+} from "./rankingWeights";
 
 // Config - Application configuration
 export type { Config, ModuleConfig } from "./config";

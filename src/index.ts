@@ -68,10 +68,20 @@ export type {
   SearchOptions,
   SearchResult,
   HybridSearchResults,
+  RankBy,
   Chunk,
   FileIndex,
+  RankingWeightsPartial,
+  RankingWeightsConfig,
+  LiteralBoostWeights,
 } from "./types";
 export type { Logger, LoggerFactory } from "./domain/ports";
+export {
+  mergeRankingWeights,
+  mergeLiteralWeights,
+  DEFAULT_RANKING_WEIGHTS,
+  DEFAULT_LITERAL_BOOST_WEIGHTS,
+} from "./domain/entities";
 
 // Re-export logger implementations and factories
 export {

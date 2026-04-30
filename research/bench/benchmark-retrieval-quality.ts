@@ -2,7 +2,7 @@
 /**
  * Real-world retrieval benchmark: clone pinned corpus, re-index per combo, run
  * golden queries sequentially, record index + search timings and accuracy.
- * Writes `<benchmark-name>.result.md` (default under `scripts/benchmarks/`).
+ * Writes `<benchmark-name>.result.md` (default under `research/results/`).
  *
  * **Default:** full matrix — every {@link EmbeddingRuntime} ×
  * {@link BENCHMARK_MODEL_NAMES} (nomic omitted), one subprocess per cell.
@@ -14,12 +14,12 @@
  *
  * Usage:
  *   bun run bench:retrieval
- *   bun run scripts/benchmark-retrieval-quality.ts --compare-two
+ *   bun run research/bench/benchmark-retrieval-quality.ts --compare-two
  *
- *   bun run scripts/benchmark-retrieval-quality.ts --fresh
+ *   bun run research/bench/benchmark-retrieval-quality.ts --fresh
  *
  * Internal (one matrix cell):
- *   bun run scripts/benchmark-retrieval-quality.ts --_worker-combo /path/to/payload.json
+ *   bun run research/bench/benchmark-retrieval-quality.ts --_worker-combo /path/to/payload.json
  */
 
 import * as fs from "fs/promises";
@@ -29,21 +29,20 @@ import { fileURLToPath } from "url";
 import type {
   EmbeddingModelName,
   EmbeddingRuntime,
-} from "../src/domain/ports";
-import { createDefaultConfig, type Config } from "../src/domain/entities";
-import { saveConfig } from "../src/infrastructure/config";
-import { indexDirectory } from "../src/app/indexer";
-import { hybridSearch } from "../src/app/search";
-import { resetGlobalEmbeddingProvider } from "../src/infrastructure/embeddings";
-import { BENCHMARK_MODEL_NAMES } from "../src/infrastructure/embeddings/modelCatalog";
+} from "../../src/domain/ports";
+import { createDefaultConfig, type Config } from "../../src/domain/entities";
+import { saveConfig } from "../../src/infrastructure/config";
+import { indexDirectory } from "../../src/app/indexer";
+import { hybridSearch } from "../../src/app/search";
+import { resetGlobalEmbeddingProvider } from "../../src/infrastructure/embeddings";
+import { BENCHMARK_MODEL_NAMES } from "../../src/infrastructure/embeddings/modelCatalog";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT_FILE = fileURLToPath(import.meta.url);
-const GOLDEN_PATH = path.join(
-  SCRIPT_DIR,
-  "eval",
-  "golden-queries-next-convex.json"
-);
+const RESEARCH_ROOT = path.resolve(SCRIPT_DIR, "..");
+const EVAL_DIR = path.join(RESEARCH_ROOT, "eval");
+const RESULTS_DIR = path.join(RESEARCH_ROOT, "results");
+const GOLDEN_PATH = path.join(EVAL_DIR, "golden-queries-next-convex.json");
 
 /** Throughput harness winner: fastest vec/s on the reference repo (see `bench:embeddings`). */
 const PRESET_FAST = {
@@ -528,7 +527,7 @@ async function main(): Promise<void> {
   );
   const outDir = parseArgString(
     "--out-dir",
-    path.join(SCRIPT_DIR, "benchmarks")
+    RESULTS_DIR
   );
   const outPath = path.join(outDir, `${benchmarkName}.result.md`);
   const cachePath = path.join(outDir, `${benchmarkName}.cache.json`);

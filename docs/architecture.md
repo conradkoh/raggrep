@@ -140,9 +140,10 @@ RAGgrep uses a dual-track hybrid search approach combining semantic similarity, 
 ┌─────────────────────────────────────────────────────────────────┐
 │                   HYBRID SCORING (DUAL TRACK)                   │
 │                                                                 │
-│  SEMANTIC TRACK:                                                │
-│    Base Score = 0.6 × Semantic + 0.25 × BM25 + 0.15 × Vocab    │
-│    Final Score = Base × LiteralMultiplier + Boosts             │
+│  SEMANTIC TRACK (configurable weights — see rankingWeights.ts):   │
+│    TypeScript: tw.semantic×Sem + tw.bm25×BM25 + tw.vocab×Vocab   │
+│    (defaults ≈ 0.43 / 0.42 / 0.15; tune via RankingWeightsConfig) │
+│    Final fused score = literal boost + additive boosts + discriminative adj. │
 │                                                                 │
 │  EXACT MATCH TRACK:                                             │
 │    • Grep-like search across all files (no index required)     │
@@ -150,8 +151,8 @@ RAGgrep uses a dual-track hybrid search approach combining semantic similarity, 
 │    • Sorted by: match count (most occurrences first)           │
 │                                                                 │
 │  FUSION BOOSTING:                                               │
-│    • If exact matches found, boost semantic results            │
-│    • Fusion multiplier: 1.5x for files with exact matches      │
+│    • If exact matches found, boost hybrid hits in those files  │
+│    • Fusion: 1.5× on fused score; 1.5× on structuredMatch (after scales) │
 │    • Context mark: results.exactMatchFusion = true             │
 │                                                                 │
 │  SCORING COMPONENTS:                                            │
@@ -160,8 +161,28 @@ RAGgrep uses a dual-track hybrid search approach combining semantic similarity, 
 │    • Vocab: Vocabulary overlap between query and identifiers   │
 │    • Literal: Multiplicative boost for exact identifier match  │
 │    • Boosts: Path context, file type, chunk type, exports      │
+│    • Discriminative terms: BM25-IDF salience boost/penalty (TS, MD, …) │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Match scales & result ordering
+
+After modules return fused `score` values, the app layer (**`src/app/search/index.ts`**) derives two comparable **[0, 1]** scales for each hit (**`src/domain/services/matchScales.ts`**):
+
+| Field | Meaning |
+| ----- | ------- |
+| **`semanticMatch`** | Embedding track, from cosine similarity mapped to a percentage. |
+| **`structuredMatch`** | Non-embedding signals (BM25, vocab, path/heading/phrase boosts, etc.), blended per `moduleId`. |
+
+**`SearchOptions.rankBy`** (CLI: `--rank-by`) controls sort order after aggregation:
+
+- **`structured`** (default) — `structuredMatch` primary, then `semanticMatch`, then fused `score`.
+- **`semantic`** — `semanticMatch` primary, then `structuredMatch`, then `score`.
+- **`combined`** — fused `score` only (legacy-style ordering).
+
+When identifier exact-match fusion runs, hits in files with grep matches get **`score × 1.5`** and **`structuredMatch × 1.5`** so ranking stays aligned with the displayed scales.
+
+Weights for the TS/BM25/vocab **blend** and literal/discriminative knobs live in **`src/domain/entities/rankingWeights.ts`** (`mergeRankingWeights()`), overridable via search options or config.
 
 ### Why Dual-Track Hybrid Scoring?
 
@@ -176,10 +197,10 @@ RAGgrep uses a dual-track hybrid search approach combining semantic similarity, 
 The dual-track approach (semantic + exact match) ensures:
 1. **Code**: Semantic search finds by meaning in AST-parsed code
 2. **Config files**: Exact match track finds identifiers in YAML, .env, docker-compose.yml
-3. **Fusion boosting**: Files with exact matches get 1.5x semantic score boost
+3. **Fusion boosting**: Files with exact matches get **1.5×** on fused `score` and **1.5×** on `structuredMatch` (see `hybridSearch()`)
 4. **Precision**: Exact matches shown separately with line numbers and context
 
-The 60/25/15 weighting favors semantic understanding while still boosting keyword and vocabulary matches. Vocabulary scoring enables natural language queries like "where is user session validated" to find `validateUserSession()` by matching vocabulary overlap. Literal boosting adds a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
+Default **TypeScript** weights (`RankingWeightsConfig.typescript`) favor a balanced semantic + lexical mix (see `rankingWeights.ts`; values are tuned via golden-query benchmarks). Vocabulary scoring enables natural language queries like "where is user session validated" to find `validateUserSession()` by matching vocabulary overlap. Literal boosting applies a multiplicative factor when exact identifier names match, ensuring that searches for `AuthService` find that specific class first.
 
 ## Multi-Language Support
 
@@ -362,10 +383,12 @@ The TypeScript module extracts literals from AST-parsed code structures:
 
 ### Multiplicative Scoring
 
-When a literal matches, the base score is multiplied (not added):
+When a literal matches, the **weighted base** (semantic + BM25 + vocab for TypeScript, with per-module weights from `mergeRankingWeights()`) is passed through the literal multiplier pipeline, then additive boosts and discriminative adjustment are applied (see TypeScript `search()` in `src/modules/language/typescript/index.ts`).
 
 ```
-Final Score = (0.7 × Semantic + 0.3 × BM25) × LiteralMultiplier + Boosts
+Base = tw.semantic×Semantic + tw.bm25×BM25 + tw.vocab×Vocab   (TypeScript)
+Boosted = applyLiteralBoost(base, …)
+Final = (Boosted + path/file/chunk/phrase boosts) with discriminative boost/penalty
 ```
 
 | Match Type | High Confidence | Medium Confidence |
@@ -403,7 +426,7 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
 
 ```
 1. Parse query for identifier patterns (SCREAMING_SNAKE, camelCase, PascalCase, backticks)
-2. If identifier detected, run DUAL SEARCH:
+2. Search enabled index modules (semantic / hybrid per module). If the query is identifier-like, also run the exact-match track:
    ├─ SEMANTIC TRACK (steps 3-16):
    │  3. Extract vocabulary from query (filter stop words)
    │  4. Load symbolic index (for path context and metadata)
@@ -422,13 +445,13 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
    │      - Look up BM25 score (keyword score)
    │      - Look up vocabulary overlap score
    │      - Look up literal matches for chunk
-   │      - Calculate base score = 0.6 × semantic + 0.25 × BM25 + 0.15 × vocab
-   │      - Apply literal multiplier if matched
-   │      - Add boosts (path, file type, chunk type, export)
+   │      - Calculate weighted base score (module-specific: TS uses semantic/bm25/vocab weights)
+   │      - Apply literal multiplier if matched; add boosts; apply discriminative terms
    │  14. Filter by minimum score threshold (or high vocabulary overlap)
-   │  15. Sort by final score
+   │  15. Merge results from all modules; attach semanticMatch / structuredMatch (matchScales)
+   │  16. Sort by SearchOptions.rankBy (default structured-first)
    │
-   └─ EXACT MATCH TRACK (steps 17-22):
+   └─ EXACT MATCH TRACK (steps 17-23):
    │  17. Walk filesystem (respecting ignore patterns)
    │  18. Apply path filters (--filter options)
    │  19. For each file:
@@ -441,7 +464,7 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
    │
    23. FUSION (if exact matches found):
    │      - Identify files with exact matches
-   │      - Boost semantic results in those files (1.5x multiplier)
+   │      - Boost semantic results in those files (1.5x on score; 1.5x on structuredMatch)
    │      - Mark with exactMatchFusion flag
    │
    24. Return HybridSearchResults:
@@ -456,42 +479,44 @@ For detailed design documentation, see [Literal Boosting Design](./design/litera
 
 ## Index Structure
 
-Index data is stored in a **system temp directory** (not in your project) to keep your codebase clean:
+Index data is stored under **`{projectRoot}/.raggrep/`** by default (`RAGGREP_INDEX_DIR` in `src/infrastructure/config/configLoader.ts`). This keeps the index next to the tree you index or pass with `--dir` / `-C`. Add `.raggrep/` to `.gitignore` if you do not want index files in version control.
 
 ```
-# Location: /tmp/raggrep-indexes/<project-hash>/
-# The <project-hash> is derived from your project's absolute path
-
-<temp>/raggrep-indexes/<hash>/
-├── config.json              # Project configuration (optional)
-├── manifest.json            # Global manifest (lists active modules)
-├── introspection/           # Shared file metadata
-│   ├── _project.json        # Detected project structure
-│   └── files/               # Per-file introspection
-│       └── src/auth/
-│           └── authService.json
-│
-└── index/
-    ├── core/                # Language-agnostic text index
-    │   ├── manifest.json    # Module manifest
-    │   ├── symbols.json     # Symbol index + BM25 data
-    │   └── src/auth/
-    │       └── authService.json  # Per-file chunk index
-    │
-    └── language/            # Language-specific indexes
-        └── typescript/      # TypeScript/JavaScript index
-            ├── manifest.json    # Module manifest (file list, timestamps)
-            ├── symbolic/        # Symbolic index (keywords + BM25)
-            │   ├── _meta.json   # BM25 statistics
-            │   └── src/auth/
-            │       └── authService.json  # File summary
-            ├── literals/        # Literal index (exact-match lookup)
-            │   └── _index.json  # Literal → chunk mappings
-            └── src/auth/
-                └── authService.json  # Full index (chunks + embeddings)
+project/
+└── .raggrep/
+    ├── config.json              # Project + module configuration (optional overrides)
+    ├── manifest.json            # Global manifest (lists active modules)
+    ├── introspection/           # Shared file metadata
+    │   ├── _project.json
+    │   └── files/               # Per-file introspection (mirrors source paths)
+    └── index/
+        ├── core/                # Language-agnostic symbol + BM25 index
+        ├── language/            # Per-language AST + embeddings (when applicable)
+        │   ├── typescript/
+        │   ├── python/
+        │   ├── go/
+        │   └── rust/
+        ├── docs/
+        │   └── markdown/
+        └── data/
+            └── json/
 ```
 
-Both modules create per-file JSON indexes that mirror your source directory structure.
+Each module stores per-file JSON under its subtree, mirroring your repository layout (for example, `index/language/typescript/src/auth/authService.json`).
+
+### Example: TypeScript module layout
+
+```
+.raggrep/index/language/typescript/
+├── manifest.json
+├── symbolic/
+│   ├── _meta.json
+│   └── src/auth/authService.json   # File summary + keywords
+├── literals/
+│   └── _index.json
+└── src/auth/
+    └── authService.json            # Chunks + embeddings
+```
 
 ### Symbolic Index Format
 
@@ -657,14 +682,7 @@ interface ExactMatchOccurrence {
 
 **Fusion Boosting:**
 
-When exact matches are found:
-1. Identify all files with exact matches
-2. For each semantic result in those files:
-   - Apply 1.5x score multiplier
-   - Set `result.context.exactMatchFusion = true`
-3. Re-sort semantic results after fusion
-
-This ensures files with exact identifiers rank higher in semantic results.
+When exact matches are found, `hybridSearch()` multiplies fused **`score`** by **1.5** for semantic hits in those files and sets `context.exactMatchFusion`. After **`attachMatchScales()`**, it applies the same factor to **`structuredMatch`** so default structured-first ordering aligns with the displayed percentages. Final ordering uses **`SearchOptions.rankBy`** (see **Match scales & result ordering** above).
 
 **Performance:**
 
@@ -716,7 +734,14 @@ Pure business logic with **no external dependencies**.
 | `services/` | Pure algorithms (BM25, keywords, literal parsing/scoring)     |
 | `usecases/`  | Business logic orchestration with injected dependencies          |
 
-**Literal Boosting & Vocabulary Services:**
+**Hybrid ranking & weights**
+
+| Location | Description |
+| -------- | ----------- |
+| `services/matchScales.ts` | Derives `semanticMatch` / `structuredMatch` and `compareSearchResultsByRankBy()` |
+| `entities/rankingWeights.ts` | `RankingWeightsConfig`, defaults, and `mergeRankingWeights()` |
+
+**Literal boosting & vocabulary:**
 
 | Service                 | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
@@ -754,10 +779,15 @@ Pluggable modules implementing the `IndexModule` interface.
 
 | Module ID             | Location                           | Description                                                |
 | --------------------- | ---------------------------------- | ---------------------------------------------------------- |
-| `core`                | `src/modules/core/`                | Language-agnostic symbol extraction + BM25                 |
-| `language/typescript` | `src/modules/language/typescript/` | AST parsing + embeddings + literal index + two-path search |
+| `core`                | `src/modules/core/`                | Language-agnostic symbols + BM25                           |
+| `language/typescript` | `src/modules/language/typescript/` | TS/JS AST, embeddings, literals, hybrid search              |
+| `language/python`     | `src/modules/language/python/`     | Python (Tree-sitter)                                       |
+| `language/go`         | `src/modules/language/go/`         | Go (Tree-sitter)                                           |
+| `language/rust`       | `src/modules/language/rust/`       | Rust (Tree-sitter)                                         |
+| `docs/markdown`       | `src/modules/docs/markdown/`       | Markdown chunking + hybrid search                          |
+| `data/json`           | `src/modules/data/json/`           | JSON structure-aware index                                 |
 
-Both modules are enabled by default and run during indexing. Search aggregates results from all modules, sorted by score. The TypeScript module implements the full literal boosting pipeline.
+Enabled modules are listed in config / manifest; search aggregates all enabled modules and sorts after match-scale attachment (see **Match scales & result ordering** above).
 
 ### Introspection
 
@@ -913,7 +943,7 @@ Trade-off: Local models are smaller than cloud models (384-768 vs 1536+ dimensio
 - [x] **Literal boosting**: Exact identifier matching with multiplicative score boost (v0.7.0)
 - [x] **Exact match track**: Grep-like search across all file types (YAML, .env, config) (v0.15.0)
 - [x] **Fusion boosting**: Semantic results with exact matches get 1.5x boost (v0.15.0)
-- [x] **Dual search output**: Shows both exact matches and semantic results separately (v0.15.0)
+- [x] **Match scales & rankBy**: `semanticMatch` / `structuredMatch` display and `--rank-by structured|semantic|combined` ordering
 
 ### Planned
 

@@ -32,7 +32,6 @@ import {
   parseQueryLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   // JSON path extraction
   extractJsonPaths,
   extractJsonKeywords,
@@ -45,18 +44,13 @@ import type {
   ExtractedLiteral,
   LiteralMatch,
 } from "../../../domain/entities";
+import { mergeRankingWeights } from "../../../domain/entities";
 
 /** Default minimum similarity score for search results */
 export const DEFAULT_MIN_SCORE = 0.1;
 
 /** Default number of results to return */
 export const DEFAULT_TOP_K = 10;
-
-/** Weight for BM25 keyword matching in scoring */
-const BM25_WEIGHT = 0.4;
-
-/** Weight for literal matching in scoring */
-const LITERAL_WEIGHT = 0.6;
 
 /** File extensions supported by this module */
 export const JSON_EXTENSIONS = [".json"];
@@ -268,6 +262,9 @@ export class JsonModule implements IndexModule {
       filePatterns,
     } = options;
 
+    const rw = mergeRankingWeights(options.rankingWeights);
+    const jw = rw.json;
+
     // Parse query for literals (explicit backticks/quotes and implicit patterns)
     const { literals: queryLiterals, remainingQuery } =
       parseQueryLiterals(query);
@@ -358,19 +355,20 @@ export class JsonModule implements IndexModule {
       );
 
       // Base score from BM25
-      const baseScore = BM25_WEIGHT * bm25Score;
+      const baseScore = jw.bm25 * bm25Score;
 
       // Apply literal boosting
       const boostedScore = applyLiteralBoost(
         baseScore,
         literalMatches,
-        bm25Score > 0
+        bm25Score > 0,
+        rw.literal
       );
 
       // Add literal contribution if no BM25 score
       const literalBase =
         literalMatches.length > 0 && bm25Score === 0
-          ? LITERAL_SCORING_CONSTANTS.BASE_SCORE * LITERAL_WEIGHT
+          ? rw.literal.baseScore * jw.literalBaseWeight
           : 0;
 
       const finalScore = boostedScore + literalBase;
@@ -413,8 +411,7 @@ export class JsonModule implements IndexModule {
 
       const literalContribution = calculateLiteralContribution(matches, false);
 
-      const score =
-        LITERAL_SCORING_CONSTANTS.BASE_SCORE * literalContribution.multiplier;
+      const score = rw.literal.baseScore * literalContribution.multiplier;
 
       processedChunkIds.add(chunkId);
 
