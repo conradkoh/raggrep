@@ -29,6 +29,12 @@ import {
   isIdentifierQuery,
   extractSearchLiteral,
 } from "../../domain/services";
+import {
+  attachMatchScales,
+  clamp01,
+  compareSearchResultsByRankBy,
+} from "../../domain/services/matchScales";
+import { mergeRankingWeights } from "../../domain/entities";
 import { executeExactSearch } from "../../domain/usecases";
 import { NodeFileSystem } from "../../infrastructure/filesystem";
 
@@ -48,7 +54,8 @@ export async function search(
  * Hybrid search with both semantic and exact match tracks.
  *
  * Returns:
- * - results: Semantic/BM25 results (existing behavior), with fusion boosting if applicable
+ * - results: Enriched with `semanticMatch` / `structuredMatch` in [0,1]; ordering follows
+ *   `SearchOptions.rankBy` (default `structured`).
  * - exactMatches: Exact match results for identifier queries (optional)
  */
 export async function hybridSearch(
@@ -175,14 +182,23 @@ export async function hybridSearch(
     }
   }
 
-  // Sort all results by score (re-sort after fusion boost)
-  filteredResults.sort((a, b) => b.score - a.score);
+  const rw = mergeRankingWeights(options.rankingWeights);
+  let ranked = filteredResults.map((r) => attachMatchScales(r, rw));
+
+  for (const r of ranked) {
+    if (r.context?.exactMatchFusion) {
+      r.structuredMatch = clamp01((r.structuredMatch ?? 0) * 1.5);
+    }
+  }
+
+  const rankBy = options.rankBy ?? DEFAULT_SEARCH_OPTIONS.rankBy;
+  ranked.sort((a, b) => compareSearchResultsByRankBy(a, b, rankBy));
 
   // Return top K
   const topK = options.topK ?? 10;
 
   return {
-    results: filteredResults.slice(0, topK),
+    results: ranked.slice(0, topK),
     exactMatches,
     fusionApplied,
   };
@@ -338,7 +354,15 @@ export function formatSearchResults(results: SearchResult[]): string {
     const nameInfo = chunk.name ? ` (${chunk.name})` : "";
 
     output += `${i + 1}. ${location}${nameInfo}\n`;
-    output += `   Score: ${(result.score * 100).toFixed(1)}% | Type: ${
+    const sm =
+      result.semanticMatch != null
+        ? ` | Semantic: ${(result.semanticMatch * 100).toFixed(1)}%`
+        : "";
+    const st =
+      result.structuredMatch != null
+        ? ` | Structured: ${(result.structuredMatch * 100).toFixed(1)}%`
+        : "";
+    output += `   Score: ${(result.score * 100).toFixed(1)}%${st}${sm} | Type: ${
       chunk.type
     }`;
 

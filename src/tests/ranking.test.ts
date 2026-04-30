@@ -274,6 +274,7 @@ describe("Ranking Quality Tests", () => {
         {
           topK: 10,
           minScore: 0.01,
+          rankBy: "combined",
         }
       );
 
@@ -287,6 +288,7 @@ describe("Ranking Quality Tests", () => {
         {
           topK: 20,
           minScore: 0.01,
+          rankBy: "combined",
         }
       );
 
@@ -300,6 +302,7 @@ describe("Ranking Quality Tests", () => {
         {
           topK: 10,
           minScore: 0.01,
+          rankBy: "combined",
         }
       );
 
@@ -326,6 +329,7 @@ describe("Ranking Quality Tests", () => {
         {
           topK: 10,
           minScore: 0.01,
+          rankBy: "combined",
         }
       );
 
@@ -364,6 +368,7 @@ describe("Ranking Quality Tests", () => {
       const results = await raggrep.search(SCENARIO_DIR, "database", {
         topK: 10,
         minScore: 0.01,
+        rankBy: "combined",
       });
 
       // Should find both code and documentation

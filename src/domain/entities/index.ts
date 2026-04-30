@@ -32,6 +32,7 @@ export type {
   CoreContribution,
   LanguageContribution,
   IntrospectionContribution,
+  RankBy,
   // Exact match types
   ExactMatchOccurrence,
   ExactMatchFile,

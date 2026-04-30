@@ -68,6 +68,7 @@ export type {
   SearchOptions,
   SearchResult,
   HybridSearchResults,
+  RankBy,
   Chunk,
   FileIndex,
   RankingWeightsPartial,

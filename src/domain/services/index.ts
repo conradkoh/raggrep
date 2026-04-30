@@ -22,6 +22,13 @@ export {
   type DiscriminativeTermResult,
 } from "./discriminativeTerms";
 
+export {
+  attachMatchScales,
+  compareSearchResultsByRankBy,
+  clamp01,
+  semanticPctFromCosine,
+} from "./matchScales";
+
 // Keyword extraction
 export {
   extractKeywords,

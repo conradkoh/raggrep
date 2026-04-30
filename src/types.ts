@@ -21,6 +21,7 @@ export type {
   CoreContribution,
   LanguageContribution,
   IntrospectionContribution,
+  RankBy,
   Config,
   ModuleConfig,
   // Exact match types

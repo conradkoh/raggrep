@@ -8,6 +8,7 @@ import {
   createSilentLogger,
 } from "../../infrastructure/logger";
 import type { EmbeddingModelName } from "../../domain/ports";
+import type { RankBy } from "../../types";
 // @ts-ignore - JSON import inlined by Bun at build time
 import pkg from "../../../package.json";
 
@@ -74,6 +75,8 @@ interface ParsedFlags {
   projectDir?: string;
   /** Remaining positional arguments */
   remaining: string[];
+  /** How to order hybrid results (default: structured) */
+  rankBy?: RankBy;
 }
 
 /**
@@ -168,6 +171,16 @@ function parseFlags(args: string[]): ParsedFlags {
       } else {
         console.error(
           "--dir / -C requires a path to the project directory to index or search."
+        );
+        process.exit(1);
+      }
+    } else if (arg === "--rank-by") {
+      const v = args[++i];
+      if (v === "structured" || v === "semantic" || v === "combined") {
+        flags.rankBy = v;
+      } else {
+        console.error(
+          `--rank-by must be structured, semantic, or combined (got: ${v})`
         );
         process.exit(1);
       }
@@ -323,6 +336,7 @@ Options:
   -s, --min-score <n>  Minimum similarity score 0-1 (default: 0.15)
   -t, --type <ext>     Filter by file extension (e.g., ts, tsx, js)
   -f, --filter <path>  Filter by path or glob pattern (can be used multiple times)
+  --rank-by <mode>    Order results: structured (default), semantic, or combined (fused score only)
   -T, --timing         Show timing breakdown for performance profiling
   -h, --help           Show this help message
 
@@ -436,6 +450,7 @@ Examples:
           minScore: flags.minScore,
           filePatterns,
           pathFilter: flags.pathFilter,
+          rankBy: flags.rankBy,
           // Skip automatic freshness check since we already called ensureIndexFresh above
           ensureFresh: false,
         });

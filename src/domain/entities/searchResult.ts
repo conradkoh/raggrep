@@ -8,6 +8,11 @@ import type { Chunk } from "./chunk";
 import type { RankingWeightsPartial } from "./rankingWeights";
 
 /**
+ * How to order hybrid results after modules are merged.
+ */
+export type RankBy = "structured" | "semantic" | "combined";
+
+/**
  * Contribution from the core index.
  */
 export interface CoreContribution {
@@ -64,8 +69,20 @@ export interface SearchResult {
   /** The matching chunk */
   chunk: Chunk;
 
-  /** Final relevance score (0-1, higher is better) */
+  /** Fused hybrid relevance (module-specific scale). */
   score: number;
+
+  /**
+   * Embedding similarity as a [0,1] match strength (cosine mapped to a percentage scale).
+   * Omitted only before enrichment in hybrid search.
+   */
+  semanticMatch?: number;
+
+  /**
+   * Structured relevance: BM25, symbols, path/literal/phrase/heading signals (non-embedding).
+   * [0,1] — primary default sort key when {@link SearchOptions.rankBy} is `'structured'`.
+   */
+  structuredMatch?: number;
 
   /** ID of the module that produced this result */
   moduleId: string;
@@ -125,6 +142,12 @@ export interface SearchOptions {
 
   /** Suppress noisy stdout during search (e.g. benchmark loops). */
   quiet?: boolean;
+
+  /**
+   * Final sort order for merged hybrid results.
+   * @default 'structured' (BM25 / symbols / path / docs structure before embedding).
+   */
+  rankBy?: RankBy;
 }
 
 /**
@@ -138,6 +161,7 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   ensureFresh: true,
   rankingWeights: {},
   quiet: false,
+  rankBy: "structured",
 };
 
 // ============================================================================
