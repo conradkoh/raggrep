@@ -41,7 +41,6 @@ import {
   extractLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   // Vocabulary extraction for query
   extractQueryVocabulary,
   calculateVocabularyMatch,
@@ -403,6 +402,7 @@ export class TypeScriptModule implements IndexModule {
 
     const rw = mergeRankingWeights(options.rankingWeights);
     const tw = rw.typescript;
+    const lt = rw.literal;
 
     // Parse query for literals (explicit backticks/quotes and implicit casing)
     const { literals: queryLiterals, remainingQuery } =
@@ -605,9 +605,15 @@ export class TypeScriptModule implements IndexModule {
       const literalMatches = literalMatchMap.get(chunk.id) || [];
       const literalContribution = calculateLiteralContribution(
         literalMatches,
-        true // hasSemanticOrBm25
+        true, // hasSemanticOrBm25
+        lt
       );
-      const boostedScore = applyLiteralBoost(baseScore, literalMatches, true);
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        literalMatches,
+        true,
+        lt
+      );
 
       // Final score = boosted base score + additive boosts
       const finalScore = boostedScore + additiveBoost;
@@ -734,21 +740,22 @@ export class TypeScriptModule implements IndexModule {
         // For literal-only results, use literal scoring
         const literalContribution = calculateLiteralContribution(
           chunkLiteralMatches,
-          false // hasSemanticOrBm25 = false (literal-only)
+          false, // hasSemanticOrBm25 = false (literal-only)
+          lt
         );
 
-        // Use LITERAL_SCORING_CONSTANTS.BASE_SCORE as base for literal-only
         const baseScore =
           semanticScore > 0
             ? tw.semantic * semanticScore +
               tw.bm25 * bm25Score +
               tw.vocab * vocabScore
-            : LITERAL_SCORING_CONSTANTS.BASE_SCORE;
+            : lt.baseScore;
 
         const boostedScore = applyLiteralBoost(
           baseScore,
           chunkLiteralMatches,
-          semanticScore > 0
+          semanticScore > 0,
+          lt
         );
         const finalScore = boostedScore + additiveBoost;
         const disc = scoreDiscriminativeTerms(

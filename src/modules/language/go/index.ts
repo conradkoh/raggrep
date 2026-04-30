@@ -40,7 +40,6 @@ import {
   extractLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   expandQuery,
   // Path context injection (unified utility)
   prepareChunkForEmbedding,
@@ -534,6 +533,7 @@ export class GoModule implements IndexModule {
 
     const rw = mergeRankingWeights(options.rankingWeights);
     const lw = rw.language;
+    const lt = rw.literal;
 
     const { literals: queryLiterals, remainingQuery } =
       parseQueryLiterals(query);
@@ -680,9 +680,15 @@ export class GoModule implements IndexModule {
       const literalMatches = literalMatchMap.get(chunk.id) || [];
       const literalContribution = calculateLiteralContribution(
         literalMatches,
-        true
+        true,
+        lt
       );
-      const boostedScore = applyLiteralBoost(baseScore, literalMatches, true);
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        literalMatches,
+        true,
+        lt
+      );
 
       const finalScore = boostedScore + additiveBoost;
       const disc = scoreDiscriminativeTerms(

@@ -122,6 +122,9 @@ export interface SearchOptions {
    * {@link DEFAULT_RANKING_WEIGHTS}). Intended for benchmarks and tuning.
    */
   rankingWeights?: RankingWeightsPartial;
+
+  /** Suppress noisy stdout during search (e.g. benchmark loops). */
+  quiet?: boolean;
 }
 
 /**
@@ -134,6 +137,7 @@ export const DEFAULT_SEARCH_OPTIONS: Required<SearchOptions> = {
   pathFilter: [],
   ensureFresh: true,
   rankingWeights: {},
+  quiet: false,
 };
 
 // ============================================================================

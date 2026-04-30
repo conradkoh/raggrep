@@ -65,7 +65,9 @@ export async function hybridSearch(
     await ensureIndexFresh(rootDir, { quiet: true });
   }
 
-  console.log(`Searching for: "${query}"`);
+  if (!options.quiet) {
+    console.log(`Searching for: "${query}"`);
+  }
 
   // Load config
   const config = await loadConfig(rootDir);

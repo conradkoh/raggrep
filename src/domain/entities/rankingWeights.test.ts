@@ -26,4 +26,18 @@ describe("mergeRankingWeights", () => {
     expect(m.typescript.semantic).toBe(0.5);
     expect(m.typescript.bm25).toBe(DEFAULT_RANKING_WEIGHTS.typescript.bm25);
   });
+
+  test("merges partial literal multipliers", () => {
+    const m = mergeRankingWeights({
+      literal: {
+        multipliers: {
+          definition: { high: 3.0 },
+        },
+      },
+    });
+    expect(m.literal.multipliers.definition.high).toBe(3.0);
+    expect(m.literal.multipliers.definition.medium).toBe(
+      DEFAULT_RANKING_WEIGHTS.literal.multipliers.definition.medium
+    );
+  });
 });

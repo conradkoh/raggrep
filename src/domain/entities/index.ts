@@ -47,13 +47,17 @@ export type {
   LanguageRankingWeights,
   MarkdownRankingWeights,
   JsonRankingWeights,
+  LiteralBoostWeights,
+  LiteralConfidenceMultipliers,
   RankingWeightsConfig,
   RankingWeightsPartial,
 } from "./rankingWeights";
 export {
   DEFAULT_RANKING_WEIGHTS,
   DEFAULT_DISCRIMINATIVE_WEIGHTS,
+  DEFAULT_LITERAL_BOOST_WEIGHTS,
   mergeRankingWeights,
+  mergeLiteralWeights,
 } from "./rankingWeights";
 
 // Config - Application configuration

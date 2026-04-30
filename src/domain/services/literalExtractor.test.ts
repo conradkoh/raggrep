@@ -317,7 +317,7 @@ describe("calculateVocabularyMatch", () => {
     expect(result.matchedWords).toContain("user");
     expect(result.isSignificant).toBe(true);
     expect(result.multiplier).toBeGreaterThanOrEqual(
-      LITERAL_SCORING_CONSTANTS.VOCABULARY.BASE_MULTIPLIER
+      LITERAL_SCORING_CONSTANTS.vocabulary.baseMultiplier
     );
   });
 
@@ -332,7 +332,7 @@ describe("calculateVocabularyMatch", () => {
     expect(result.isSignificant).toBe(true);
     // Should have bonus above base multiplier
     expect(result.multiplier).toBeGreaterThan(
-      LITERAL_SCORING_CONSTANTS.VOCABULARY.BASE_MULTIPLIER
+      LITERAL_SCORING_CONSTANTS.vocabulary.baseMultiplier
     );
   });
 
@@ -366,8 +366,8 @@ describe("calculateVocabularyMatch", () => {
 
     // Multiplier should be capped
     const maxPossible =
-      LITERAL_SCORING_CONSTANTS.VOCABULARY.BASE_MULTIPLIER +
-      LITERAL_SCORING_CONSTANTS.VOCABULARY.MAX_VOCABULARY_BONUS;
+      LITERAL_SCORING_CONSTANTS.vocabulary.baseMultiplier +
+      LITERAL_SCORING_CONSTANTS.vocabulary.maxVocabularyBonus;
     expect(result.multiplier).toBeLessThanOrEqual(maxPossible);
   });
 

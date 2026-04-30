@@ -30,6 +30,7 @@ export type {
   HybridSearchResults,
   RankingWeightsPartial,
   RankingWeightsConfig,
+  LiteralBoostWeights,
 } from "./domain/entities";
 
 export {

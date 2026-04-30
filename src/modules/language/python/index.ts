@@ -40,7 +40,6 @@ import {
   extractLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   expandQuery,
   // Path context injection (unified utility)
   prepareChunkForEmbedding,
@@ -458,6 +457,7 @@ export class PythonModule implements IndexModule {
 
     const rw = mergeRankingWeights(options.rankingWeights);
     const lw = rw.language;
+    const lt = rw.literal;
 
     const { literals: queryLiterals, remainingQuery } =
       parseQueryLiterals(query);
@@ -604,9 +604,15 @@ export class PythonModule implements IndexModule {
       const literalMatches = literalMatchMap.get(chunk.id) || [];
       const literalContribution = calculateLiteralContribution(
         literalMatches,
-        true
+        true,
+        lt
       );
-      const boostedScore = applyLiteralBoost(baseScore, literalMatches, true);
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        literalMatches,
+        true,
+        lt
+      );
 
       const finalScore = boostedScore + additiveBoost;
       const disc = scoreDiscriminativeTerms(
@@ -686,14 +692,19 @@ export class PythonModule implements IndexModule {
       const additiveBoost =
         pathBoost + fileTypeBoost + chunkTypeBoost + exportBoost;
 
-      const literalContribution = calculateLiteralContribution(matches, false);
+      const literalContribution = calculateLiteralContribution(matches, false, lt);
 
       const baseScore =
         semanticScore > 0
           ? lw.semantic * semanticScore + lw.bm25 * bm25Score
-          : LITERAL_SCORING_CONSTANTS.BASE_SCORE;
+          : lt.baseScore;
 
-      const boostedScore = applyLiteralBoost(baseScore, matches, semanticScore > 0);
+      const boostedScore = applyLiteralBoost(
+        baseScore,
+        matches,
+        semanticScore > 0,
+        lt
+      );
       const finalScore = boostedScore + additiveBoost;
       const disc = scoreDiscriminativeTerms(
         bm25Index,

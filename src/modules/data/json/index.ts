@@ -32,7 +32,6 @@ import {
   parseQueryLiterals,
   calculateLiteralContribution,
   applyLiteralBoost,
-  LITERAL_SCORING_CONSTANTS,
   // JSON path extraction
   extractJsonPaths,
   extractJsonKeywords,
@@ -362,13 +361,14 @@ export class JsonModule implements IndexModule {
       const boostedScore = applyLiteralBoost(
         baseScore,
         literalMatches,
-        bm25Score > 0
+        bm25Score > 0,
+        rw.literal
       );
 
       // Add literal contribution if no BM25 score
       const literalBase =
         literalMatches.length > 0 && bm25Score === 0
-          ? LITERAL_SCORING_CONSTANTS.BASE_SCORE * jw.literalBaseWeight
+          ? rw.literal.baseScore * jw.literalBaseWeight
           : 0;
 
       const finalScore = boostedScore + literalBase;
@@ -411,8 +411,7 @@ export class JsonModule implements IndexModule {
 
       const literalContribution = calculateLiteralContribution(matches, false);
 
-      const score =
-        LITERAL_SCORING_CONSTANTS.BASE_SCORE * literalContribution.multiplier;
+      const score = rw.literal.baseScore * literalContribution.multiplier;
 
       processedChunkIds.add(chunkId);
 
