@@ -13,6 +13,7 @@ RAGgrep indexes your code and lets you search it using natural language. Everyth
 - **Incremental** — Only re-indexes files that have changed. Instant search when nothing changed.
 - **Watch mode** — Keep the index fresh in real-time as you code.
 - **Hybrid search** — Combines semantic similarity, keyword matching, and exact text matching for best results.
+- **Structured vs semantic** — Each hit shows **Structured** and **Semantic** match strength. Result order defaults to **structured-first**; use `raggrep query --rank-by semantic` (or `combined` for fused score only) to change ordering.
 - **Exact match track** — Finds identifiers in ANY file type (YAML, .env, config, not just code) with grep-like precision.
 - **Fusion boosting** — Semantic results containing exact matches get boosted (1.5x) for better ranking.
 - **Literal boosting** — Exact identifier matches get priority. Use backticks for precise matching: `` `AuthService` ``.
@@ -54,16 +55,16 @@ Searching for: "user authentication"
 Found 3 results:
 
 1. src/auth/authService.ts:24-55 (login)
-   Score: 34.4% | Type: function | via TypeScript | exported
+   Score: 34.4% | Structured: 42.0% | Semantic: 31.0% | Type: function | via TypeScript | exported
       export async function login(credentials: LoginCredentials): Promise<AuthResult> {
         const { email, password } = credentials;
 
 2. src/auth/session.ts:10-25 (createSession)
-   Score: 28.2% | Type: function | via TypeScript | exported
+   Score: 28.2% | Structured: 35.0% | Semantic: 22.0% | Type: function | via TypeScript | exported
       export function createSession(user: User): Session {
 
 3. src/users/types.ts:3-12 (User)
-   Score: 26.0% | Type: interface | via TypeScript | exported
+   Score: 26.0% | Structured: 30.0% | Semantic: 23.0% | Type: interface | via TypeScript | exported
       export interface User {
         id: string;
 ```
@@ -92,34 +93,10 @@ Searching for: "AUTH_SERVICE_URL"
 └─────────────────────────────────────────────────────────────────────┘
 
 1. src/auth/authService.ts:2-10 (AuthService)
-   Score: 45.2% | Type: class | via TypeScript | exported | exact match
+   Score: 45.2% | Structured: 48.0% | Semantic: 43.0% | Type: class | via TypeScript | exported | exact match
       export class AuthService {
         private baseUrl = AUTH_SERVICE_URL;
 ```
-Index updated: 42 indexed
-
-RAGgrep Search
-==============
-
-Searching for: "user authentication"
-
-Found 3 results:
-
-1. src/auth/authService.ts:24-55 (login)
-   Score: 34.4% | Type: function | via TypeScript | exported
-      export async function login(credentials: LoginCredentials): Promise<AuthResult> {
-        const { email, password } = credentials;
-
-2. src/auth/session.ts:10-25 (createSession)
-   Score: 28.2% | Type: function | via TypeScript | exported
-      export function createSession(user: User): Session {
-
-3. src/users/types.ts:3-12 (User)
-   Score: 26.0% | Type: interface | via TypeScript | exported
-      export interface User {
-        id: string;
-```
-
 ### Watch Mode
 
 Keep your index fresh in real-time while you code:
@@ -158,19 +135,24 @@ raggrep query "AUTH_SERVICE_URL"             # Exact identifier (auto-triggers e
 raggrep query "\`AuthService\`"              # Backticks force exact match
 raggrep query "error handling" --top 5        # Limit results
 raggrep query "database" --min-score 0.2      # Set minimum score threshold
+raggrep query "login flow" --rank-by semantic  # Order by semantic similarity first
+raggrep query "auth" --rank-by combined       # Order by fused score only
+raggrep query "debug" --timing                # Print timing breakdown
 raggrep query "interface" --type ts           # Filter by file extension
 raggrep query "auth" --filter src/auth        # Filter by path
 raggrep query "api" -f src/api -f src/routes  # Multiple path filters
 ```
 
-| Flag              | Short | Description                                                |
-| ----------------- | ----- | ---------------------------------------------------------- |
-| `--dir <path>`    | `-C`  | Project directory to search (default: current directory)   |
-| `--top <n>`       | `-k`  | Number of results to return (default: 10)                  |
-| `--min-score <n>` | `-s`  | Minimum similarity score 0-1 (default: 0.15)               |
-| `--type <ext>`    | `-t`  | Filter by file extension (e.g., ts, tsx, js)               |
-| `--filter <path>` | `-f`  | Filter by path or glob pattern (can be used multiple times)|
-| `--help`          | `-h`  | Show help message                                          |
+| Flag               | Short | Description                                                 |
+| ------------------ | ----- | ----------------------------------------------------------- |
+| `--dir <path>`     | `-C`  | Project directory to search (default: current directory)    |
+| `--top <n>`        | `-k`  | Number of results to return (default: 10)                   |
+| `--min-score <n>`  | `-s`  | Minimum similarity score 0–1 (default: 0.15)                |
+| `--rank-by <mode>` |       | Sort order: `structured` (default), `semantic`, or `combined` |
+| `--timing`         | `-T`  | Print timing breakdown for profiling                       |
+| `--type <ext>`     | `-t`  | Filter by file extension (e.g., ts, tsx, js)                |
+| `--filter <path>`  | `-f`  | Filter by path or glob pattern (can be used multiple times) |
+| `--help`           | `-h`  | Show help message                                           |
 
 ### Filtering by File Type
 
@@ -286,8 +268,11 @@ Indexing uses Transformers.js–style **local ONNX** models. Unless you change `
 |--------|------------------|--------|
 | `bun run bench:embeddings` | Embedding throughput (runtime × model matrix; **nomic** omitted from the harness for now) | [`scripts/benchmark-embedding-runtimes.ts`](./scripts/benchmark-embedding-runtimes.ts) |
 | `bun run bench:retrieval` | Index + hybrid search time and accuracy vs golden queries | [`scripts/benchmark-retrieval-quality.ts`](./scripts/benchmark-retrieval-quality.ts) |
+| `bun run eval:golden` | Accuracy-only golden eval against a checkout | [`scripts/eval/run-golden-queries.ts`](./scripts/eval/run-golden-queries.ts) |
+| `bun run bench:golden-hillclimb` | Parameter tuning sweep vs golden set | [`scripts/benchmark-raggrep-hillclimb.ts`](./scripts/benchmark-raggrep-hillclimb.ts) |
+| `bun run bench:golden-convex` | Wave-style benchmark vs Convex starter (`--fresh`, `--passes`, etc.) | [`scripts/benchmark-raggrep-golden-queries.ts`](./scripts/benchmark-raggrep-golden-queries.ts) |
 
-Golden query set: [`scripts/eval/golden-queries-next-convex.json`](./scripts/eval/golden-queries-next-convex.json). Retrieval runs write `scripts/benchmarks/<benchmark-name>.result.md` and resumable `*.cache.json` (ignored by git by default).
+Golden query sets: [`scripts/eval/golden-queries-next-convex.json`](./scripts/eval/golden-queries-next-convex.json) (10 queries), [`scripts/eval/golden-queries-next-convex-50.json`](./scripts/eval/golden-queries-next-convex-50.json) (50 queries). Benchmark scripts write **`scripts/benchmarks/<name>.result.md`** (versioned in git for reference) and resumable **`scripts/benchmarks/*.cache.json`** (ignored).
 
 ## What Gets Indexed
 
@@ -376,7 +361,7 @@ raggrep opencode install --tool
 #### Tool Usage
 Once installed as a tool, RAGgrep provides direct search functionality:
 - Natural language queries: "user authentication flow"
-- All CLI options: `--top`, `--min-score`, `--type`, `--filter`
+- All CLI options: `--top`, `--min-score`, `--rank-by`, `--type`, `--filter`, `--timing`
 - Context-aware results with scores and file locations
 
 #### Skill Usage

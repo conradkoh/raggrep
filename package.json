@@ -32,6 +32,7 @@
     "bench:embeddings": "bun run scripts/benchmark-embedding-runtimes.ts",
     "bench:retrieval": "bun run scripts/benchmark-retrieval-quality.ts",
     "eval:golden": "bun run scripts/eval/run-golden-queries.ts",
+    "bench:golden-convex": "bun run scripts/benchmark-raggrep-golden-queries.ts",
     "bench:golden-hillclimb": "bun run scripts/benchmark-raggrep-hillclimb.ts",
     "dev": "bun run src/app/cli/main.ts"
   },
